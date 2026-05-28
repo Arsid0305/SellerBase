@@ -1,0 +1,9 @@
+# Supabase local config. Используется CLI при деплое функций.
+project_id = "hcebwgjgppwaguqittpi"
+
+[functions.fetch-wb-stocks]
+# pg_cron обращается внутри Supabase — JWT не нужен.
+verify_jwt = false
+
+[functions.sync-sheets]
+verify_jwt = false
