@@ -2,23 +2,33 @@
 
 ## [2026-05-28 — актуально]
 
-**Текущий этап:** Phase 1 — Bootstrap + первая миграция.
+**Текущий этап:** Phase 2 — сбор данных из WB API.
 
-**Сделано:**
-- [x] Структура репо из TEMPLATE (CLAUDE.md, SYSTEM.md, SECURITY.md)
-- [x] CI workflows (automerge, deploy)
-- [x] Миграция `0001_initial_schema.sql` (sku_catalog, wb_reports_fact_raw, wb_reports_fact, wb_stocks, wb_stocks_history, app_settings, ingestion_log)
-- [x] Seed `app_settings` (tax_rate, safety_stock_days, sales_velocity_window, china_lead_time_days, target_margin, cogs_allocation_method)
-- [x] План разработки в `docs/PLAN.md`
+### Supabase проект ✅
+- **Name:** SellerBase
+- **Project ref:** `hcebwgjgppwaguqittpi`
+- **URL:** https://hcebwgjgppwaguqittpi.supabase.co
+- **Region:** eu-central-1 (Frankfurt)
+- **Публичный ключ:** `sb_publishable_dmr1CASfRZR5jJDUOgLZuA_rKJ1uHHb` (для фронта)
 
-**Следующий приоритет (Phase 2):**
-- [ ] Создать Supabase проект и применить миграцию
-- [ ] Завести `WB_API_TOKEN` в GitHub Secrets
-- [ ] Написать первый Edge Function `fetch-wb-stocks` (UPSERT в `wb_stocks` + `wb_stocks_history`, лог в `ingestion_log`)
-- [ ] Настроить pg_cron на ежедневный вызов
-- [ ] Загрузить 2-3 тестовых SKU в `sku_catalog`
+### Phase 1 — сделано ✅
+- [x] Bootstrap репо из TEMPLATE
+- [x] Миграция `0001_initial_schema.sql` применена
+- [x] Seed `app_settings` (7 ключей)
+- [x] Миграция `0002_enable_rls.sql` — RLS включён на всех 7 таблицах
+- [x] CI fix: automerge реагирует на `ready_for_review`
 
-**Контекст:**
-- Все таблицы создаются с RLS off на старте — включаем когда добавим auth (Phase 5).
-- Уникальные ключи для UPSERT: см. комментарии в `0001_initial_schema.sql`.
-- WB API endpoint: `/api/v1/supplier/stocks` (base: `https://statistics-api.wildberries.ru`).
+### Следующий приоритет (Phase 2)
+- [ ] Завести `WB_API_TOKEN` в Supabase Edge Function secrets (не в GitHub Secrets, там только `SBP_ACCESS_TOKEN` и `SUPABASE_PROJECT_REF` для деплоя)
+- [ ] Написать `supabase/functions/fetch-wb-stocks` (Deno/TS):
+  - GET `https://statistics-api.wildberries.ru/api/v1/supplier/stocks?dateFrom=...`
+  - UPSERT в `wb_stocks` по `(barcode, warehouse_name)`
+  - INSERT в `wb_stocks_history` по `(snapshot_date, barcode, warehouse_name)`
+  - Строка в `ingestion_log` на каждый запуск
+- [ ] Настроить `pg_cron` на ежедневный вызов
+- [ ] Добавить 2-3 тестовых SKU в `sku_catalog` (из твоего Excel-файла)
+
+### Контекст
+- RLS включён, политик нет — доступ только через service_role (в Edge Functions и MCP). Политики добавим когда будет auth.
+- WB API base: `https://statistics-api.wildberries.ru`, `https://common-api.wildberries.ru/api/v1/tariffs/...`.
+- Для Edge Functions используем `SUPABASE_SERVICE_ROLE_KEY` из `Deno.env.get(...)` — в Edge Functions он доступен автоматически.
