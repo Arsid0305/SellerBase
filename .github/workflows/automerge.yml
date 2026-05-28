@@ -1,0 +1,24 @@
+name: Auto-merge claude/cursor branches
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'claude/') || startsWith(github.head_ref, 'cursor/')
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              merge_method: 'squash'
+            })
