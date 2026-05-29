@@ -2,49 +2,39 @@
 
 ## [2026-05-29 — актуально]
 
-**Текущий этап:** ожидание WB_API_TOKEN для запуска фетчеров.
+**Текущий этап:** Phase 2-3 запущены, P&L работает на тестовых.
 
 ### Supabase проект
-- Name: SellerBase
 - Ref: `hcebwgjgppwaguqittpi`
 - URL: https://hcebwgjgppwaguqittpi.supabase.co
-- Region: eu-central-1 (Frankfurt)
-- Publishable key: `sb_publishable_dmr1CASfRZR5jJDUOgLZuA_rKJ1uHHb`
+- Edge Functions: `fetch-wb-stocks` v1, `fetch-wb-report` v2 — ACTIVE.
+- Cron: `fetch-wb-stocks-daily` (09:00 МСК), `fetch-wb-report-weekly` (Пн 09:30 МСК), `fetch-wb-report-daily-backup` (10:00 МСК).
 
 ### Сделано
-- [x] Phase 1: bootstrap, schema, RLS, app_settings, helpers.
-- [x] Phase 2 (код): `fetch-wb-stocks` Edge Function в репо. Деплой — ждёт секретов.
-- [x] Phase 3: 10 view (`v_revenue_by_sku`, `v_commissions_by_sku`, `v_logistics_by_sku`, `v_sales_velocity`, `v_pnl_by_sku`, `v_warehouses_balance`, `v_turnover`, `v_supply_recommendation`, `v_ads_roi`, `v_data_quality`) — все с `security_invoker=on`.
-- [x] Phase 4: 6 таблиц Китай/COGS (`china_orders`, `china_order_items`, `cargo_shipments`, `cargo_shipment_orders`, `cogs_calculations`, `cogs_history`) + helper `cost_price_at()`.
-- [x] Phase 5 (код): `sync-sheets` Edge Function-stub.
-- [x] 7 тестовых SKU в `sku_catalog` (из Excel).
-- [x] `v_data_quality` подсвечивает 7 SKU без cost_price — sanity check работает.
+- [x] Phase 1: bootstrap, schema, RLS, app_settings.
+- [x] Phase 2 (stocks): `fetch-wb-stocks` живой, 60 строк остатков загружено, idempotent UPSERT проверен.
+- [x] Phase 2 (report): `fetch-wb-report` задеплоен и подвязан к cron. Первый ручной вызов 429 из-за WB rate limit — ждём автоматический запуск утром.
+- [x] Phase 3: 10 view с `security_invoker=on`.
+- [x] Phase 4: Китай/COGS схема + функция `calculate_cogs_for_shipment()`.
+- [x] Карго-партия загружена (1 заказ, 47 позиций, 1 отгрузка). 40 SKU получили cost_price_rub.
+- [x] sku_catalog: 41 SKU (40 из карго + 1 тестовый без карго).
+- [x] Sanity-check аллокации карго: сумма по SKU 160091.57 = shipment.total_cargo_rub 160091.60 (округление).
+
+### Следующий приоритет
+- [ ] Дождаться первого успешного запуска `fetch-wb-report` (cron утром) → реальный P&L в `v_pnl_by_sku`.
+- [ ] Сверка P&L с `UNIT WB факт 2025` по 1-2 SKU (<1% расхождение).
+- [ ] Phase 5: Lovable web-дашборд.
 
 ### Ожидает владельца
-- [ ] `WB_API_TOKEN` — выпустить в ЛК Продавца, дать мне.
-- [ ] (опционально) `GOOGLE_SA_JSON` + `GOOGLE_SHEET_ID` — для выгрузки в знакомую Google-таблицу.
-- [ ] (опционально) Грузить реальный файл расчёта карго в `china_orders` (вернёмся когда дойдём до миграции истории).
-
-### После токена (Phase 2, финал)
-- [ ] Положить `WB_API_TOKEN` в Supabase Edge Function Secrets.
-- [ ] Добавить `SBP_ACCESS_TOKEN` и `SUPABASE_PROJECT_REF` в GitHub Secrets (для автодеплоя).
-- [ ] Деплой `fetch-wb-stocks` и `sync-sheets`.
-- [ ] Ручной пробный запуск `fetch-wb-stocks` → проверить `wb_stocks_history` и `ingestion_log`.
-- [ ] Активировать `pg_cron` в Supabase и поставить расписание из fetch-wb-stocks/README.md.
-
-### Дальше (Phase 2 cont. + Phase 5 финал)
-- [ ] Фетчер `fetch-wb-report` (отчёт о реализации, /api/v1/supplier/reportDetailByPeriod) — еженедельно.
-- [ ] Фетчер `fetch-wb-ads` (/adv/v1/promotion/*) — ежедневно + таблица `marketing_expenses`.
-- [ ] Миграция `0006_cash_flow.sql` (`cash_flow`, `marketing_expenses`).
-- [ ] Lovable web-дашборд.
-- [ ] Сверка P&L с историческим Excel.
+- [ ] `SBP_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` в GitHub Secrets — для автодеплоя Edge Functions через `deploy.yml`.
+- [ ] (опционально) `GOOGLE_SA_JSON` + `GOOGLE_SHEET_ID` — выгрузка P&L в знакомую Google-таблицу.
+- [ ] (в перспективе) Отдельный WB write-токен для управления ценами (Phase 7).
 
 ### Контекст
-- RLS включён на всех 13 таблицах без политик — доступ только service_role.
-- Helper-функции (`app_setting_num`, `app_setting_text`, `cost_price_at`) используют `set search_path=''` и `public.<table>`.
-- Advisors: 0 ERROR, 0 WARN, 13 INFO (RLS без политик — ожидаемо до auth).
-- WB API base: `https://statistics-api.wildberries.ru`.
+- WB токен в Supabase Edge Function Secrets (не в GitHub).
+- /api/v5/supplier/reportDetailByPeriod жёстко лимитируется при частых вызовах (>5 мин кулдаун).
+- Из 47 позиций карго — 40 уникальных my_article (некоторые WB-карточки содержат несколько размеров). Себестоимость усреднёна по SKU.
 
 ## [2026-05-28 — устарело]
-- Phase 1: bootstrap + initial schema — сделано.
-- Phase 1 sync (PR #3): фикс inline unique, RLS, search_path — сделано.
+- Phase 1: bootstrap + initial schema.
+- Phase 2-5 автономная подготовка.
