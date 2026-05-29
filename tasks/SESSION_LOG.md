@@ -6,6 +6,65 @@
 
 ---
 
+## 2026-05-29 (вечер) — YC миграция + параметрические P&L
+
+**Цель:** обойти WB-блок `/reportDetailByPeriod` от foreign IP, наладить регулярный сбор отчёта о реализации, добавить P&L по периоду.
+
+### Проблема, которую решали
+Supabase Edge Functions хостятся в eu-central-1 (Frankfurt). WB Statistics API режет `/reportDetailByPeriod` с не-RU IP кодом 429. Stocks работали, отчёт о реализации — нет.
+
+### Решение
+Перенесли два фетчера в **Yandex Cloud Functions** (Node.js 18, RU IP).
+
+### Сделано
+- YC service-account `sellerbase-deployer` (folder `b1gumjic8uebc4m8aq9g`, roles: `functions.admin`, `iam.serviceAccounts.user`).
+- Деплой `fetch-wb-stocks` → `https://functions.yandexcloud.net/d4es6nv2vh64o0v0om7d`.
+- Деплой `fetch-wb-report` → `https://functions.yandexcloud.net/d4e4s8o3oqd27qv6gs94`.
+  - Поддержка `?from=YYYY-MM-DD&to=YYYY-MM-DD` (явное окно) + `?days=N` (fallback).
+  - Пауза 65 сек между страницами пагинации (WB ~1 req/min).
+  - Дедуп по `srid` внутри страницы → upsert.
+  - WebSocket-полифилл (`globalThis.WebSocket = require('ws')`) для @supabase/supabase-js на Node 18.
+- Обе функции `allow-unauthenticated-invoke`, env-vars выставлены.
+- `pg_cron` переключён:
+  - `fetch-wb-stocks-daily` `0 6 * * *` → YC stocks
+  - `fetch-wb-report-weekly` `30 6 * * 1` → YC report (`?days=14`)
+  - старый daily-backup удалён.
+- Загружены реальные данные:
+  - `wb_stocks_history` — 90 строк за 2026-05-29.
+  - `wb_reports_fact` — 3165 транзакций за 2026-03-30 → 2026-05-24 (5814 rows_in от WB, дедуп до 3165 уникальных srid).
+- Свод за 2026-03-30 → 2026-05-24: revenue 201 724,42 ₽, net profit 133 091,52 ₽, маржа 65,98 %.
+
+### Миграция 0010_get_pnl_by_period.sql
+- `get_pnl_by_period(p_from, p_to)` — P&L по SKU за окно.
+- `get_pnl_totals(p_from, p_to)` — одна строка со сводом.
+- Обе `security invoker`, `search_path=''`, ссылки fully-qualified (`public.*`).
+- Используются для исторических сверок (UNIT.xlsx).
+
+### Безопасность
+- WB-токен и Supabase service_role засветились в чате (попадание в логи). Решено **не ротировать** — управляемый риск (соло-владелец, один ноут). YC service-account key (одноразовый, для деплоя) удалён после первого деплоя, восстановлен для повторного, висит как есть.
+- Best practice на будущее: после завершения работы с YC удалить ключ.
+
+### Состояние данных
+- `wb_stocks`: 90 строк (сегодняшний снапшот).
+- `wb_stocks_history`: 90 строк за 2026-05-29.
+- `wb_reports_fact`: 3165, окно 2026-03-30 → 2026-05-24.
+- Исторические данные (2024-2025) — следующая задача, тянутся через `?from&to` чанками по кварталам.
+
+### Следующие шаги
+1. Дотянуть исторический отчёт о реализации за 2024-01-01 → 2026-03-29 квартальными чанками (пауза 75 сек между запросами, чтобы не упереться в WB rate-limit).
+2. Сверить `get_pnl_totals(...)` за конкретные периоды с твоей UNIT.xlsx (сначала декабрь 2025).
+3. Если расхождение <1% — Phase 5 (Google Sheets sync + Lovable дашборд).
+4. Миграция `0011_marketing_expenses_cash_flow.sql` (ручной ввод финансовых операций).
+5. Phase 4 v2: переписать `calculate_cogs_for_shipment` под комплекты (текущая делит сумму на компоненты, для кит-SKU неверно).
+
+### Ограничения сессии
+- Sandbox-сеть Claude Code не пускает в console.yandex.cloud и dev.wildberries.ru (403). Деплой делается на ПК пользователя через Git Bash + YC CLI.
+
+### Незакрытые вопросы
+- Точная глубина WB-истории неизвестна — выясним при квартальном прогоне 2024.
+
+---
+
 ## 2026-05-28 → 2026-05-29 — старт проекта (Phase 1 → Phase 2-5)
 
 **Цель:** с нуля собрать платформу SellerBase — замену Excel-комплекса для управления WB.
