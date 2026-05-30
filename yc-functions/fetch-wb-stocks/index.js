@@ -59,38 +59,38 @@ async function fetchPage(token, offset) {
   throw new Error(`fetchPage: gave up after 3 attempts at offset=${offset}`);
 }
 
-// Defensive field extraction — WB may rename fields; logs sample on first run.
-// Known aliases based on WB API patterns:
-//   quantity   ← quantity | stockCount | stock
-//   barcode    ← barcode | sku
-//   nmId       ← nmId | nmID
-//   warehouse  ← warehouseName | officeName
+// Maps Analytics API row to wb_stocks schema.
+// New API has no barcode field — uses chrtId (size/variant ID) instead, same granularity.
+// We store chrtId as barcode to keep the unique key (barcode, warehouse_name) intact.
 function mapRow(s, fetchedAt) {
-  const barcode = String(s.barcode || s.sku || s.chrtId || '').trim();
-  const warehouseName = String(s.warehouseName || s.officeName || s.warehouse || '').trim();
+  const barcode = String(s.chrtId || s.barcode || s.sku || '').trim();
+  const warehouseName = String(s.warehouseName || s.officeName || '').trim();
   return {
     barcode,
     nm_id: s.nmId ?? s.nmID ?? null,
     warehouse_name: warehouseName,
-    quantity: s.quantity ?? s.stockCount ?? s.stock ?? 0,
-    in_way_to_client: s.inWayToClient ?? s.toClientCount ?? 0,
-    in_way_from_client: s.inWayFromClient ?? s.fromClientCount ?? 0,
+    quantity: s.quantity ?? 0,
+    in_way_to_client: s.inWayToClient ?? 0,
+    in_way_from_client: s.inWayFromClient ?? 0,
     last_change_date: s.lastChangeDate || null,
     fetched_at: fetchedAt,
   };
 }
 
 // Extract rows array from different possible response envelopes.
+// Confirmed 2026-05-30: WB returns { data: { items: [...] } }
+// Fields per row: nmId, chrtId, warehouseId, warehouseName, regionName, quantity, inWayToClient, inWayFromClient
 function extractRows(json) {
-  if (Array.isArray(json)) return json;
+  if (Array.isArray(json.data?.items)) return json.data.items;
   if (Array.isArray(json.data?.rows)) return json.data.rows;
   if (Array.isArray(json.rows)) return json.rows;
   if (Array.isArray(json.data)) return json.data;
+  if (Array.isArray(json)) return json;
   return [];
 }
 
 function extractTotal(json) {
-  return json.data?.total ?? json.total ?? json.data?.count ?? null;
+  return json.data?.total ?? json.data?.count ?? json.total ?? null;
 }
 
 module.exports.handler = async () => {
