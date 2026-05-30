@@ -2,9 +2,12 @@ if (!globalThis.WebSocket) globalThis.WebSocket = require('ws');
 // fetch-wb-report — Yandex Cloud Function (Node.js 18).
 // /api/v5/supplier/reportDetailByPeriod → UPSERT wb_reports_fact_raw + wb_reports_fact.
 //
+// Дедуп по rrd_id (уникальный ID строки), НЕ по srid! WB возвращает много строк на один srid
+// (продажа + логистика + хранение + штрафы по заказу) — все с разными rrd_id.
+//
 // Поддержка query-параметров:
-//   ?from=YYYY-MM-DD&to=YYYY-MM-DD — явное окно (перекрывает инкрементальную логику)
-//   ?days=N — fallback, если wb_reports_fact пуст
+//   ?from=YYYY-MM-DD&to=YYYY-MM-DD — явное окно
+//   ?days=N — fallback
 //
 // Читает X-Ratelimit-* заголовки. На 429 ждёт X-Ratelimit-Retry, повторяет 1 раз.
 // Между страницами пагинации — пауза 90 сек (Statistics API ~1 req/min).
@@ -118,12 +121,14 @@ module.exports.handler = async (event) => {
       if (rows.length === 0) break;
       totalIn += rows.length;
 
+      // Дедуп по rrd_id — это уникальный ключ строки отчёта!
       const rawMap = new Map();
       const factMap = new Map();
       for (const r of rows) {
-        if (!r.srid) continue;
-        rawMap.set(r.srid, { realizationreport_id: r.realizationreport_id, payload: r });
-        factMap.set(r.srid, {
+        if (!r.rrd_id) continue;
+        rawMap.set(r.rrd_id, { payload: r });
+        factMap.set(r.rrd_id, {
+          rrd_id: r.rrd_id,
           srid: r.srid,
           realizationreport_id: r.realizationreport_id,
           nm_id: r.nm_id,
@@ -145,8 +150,8 @@ module.exports.handler = async (event) => {
         });
       }
 
-      await upsertInBatches(supabase, 'wb_reports_fact_raw', Array.from(rawMap.values()), 'srid');
-      await upsertInBatches(supabase, 'wb_reports_fact', Array.from(factMap.values()), 'srid');
+      await upsertInBatches(supabase, 'wb_reports_fact_raw', Array.from(rawMap.values()), 'rrd_id');
+      await upsertInBatches(supabase, 'wb_reports_fact', Array.from(factMap.values()), 'rrd_id');
       totalOut += factMap.size;
 
       if (rows.length < PAGE_LIMIT) break;
