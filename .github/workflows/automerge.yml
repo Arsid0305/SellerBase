@@ -9,8 +9,7 @@ jobs:
   automerge:
     runs-on: ubuntu-latest
     if: >
-      !github.event.pull_request.draft &&
-      (startsWith(github.head_ref, 'claude/') || startsWith(github.head_ref, 'cursor/'))
+      startsWith(github.head_ref, 'claude/') || startsWith(github.head_ref, 'cursor/')
     permissions:
       pull-requests: write
       contents: write
