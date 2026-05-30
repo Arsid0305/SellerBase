@@ -6,6 +6,82 @@
 
 ---
 
+## 2026-05-30 (полный день) — rrd_id fix, перезалив, Google Sheets setup, доделать 2025
+
+**Главный фикс**: WB возвращает несколько строк на один `srid` (продажа + логистика + хранение + штрафы), каждая с уникальным `rrd_id`. Старый дедуп по `srid` терял ~40% данных. **Миграция 0012** перевела уникальный ключ на `rrd_id`, YC-функция `fetch-wb-report` обновлена.
+
+### PR-ы этого дня (все смержены)
+- **#11** `fix: use rrd_id as unique row key` — миграция 0012 + апдейт YC.
+- **#12** `feat(sync-sheets): GOOGLE_SA_JSON_B64 support` — base64-кодированный SA (yc CLI не любит запятые в env).
+
+### Перезалив отчёта о реализации в БД (с правильным дедупом)
+| Период | Строк | К перечислению |
+|---|---|---|
+| 2025-12 | 9 482 | 427 689 ₽ |
+| 2026-01 | 7 517 | 550 589 ₽ |
+| 2026-02 | 7 652 | 618 681 ₽ |
+| 2026-03 | 8 021 | 581 953 ₽ |
+| 2026-04 | 3 652 | 329 618 ₽ |
+| 2026-05 | 1 851 | 177 752 ₽ |
+
+Плюс отдельно загружен январь-февраль 2025 (18 409 строк).
+
+### Сверка с UNIT.xlsx (январь 2026)
+| Неделя | UNIT «Продажи из отчёта ВБ» | SellerBase | Δ |
+|---|---|---|---|
+| W1 01-04 | 34 116 ₽ | 35 419 ₽ | +3.8 % |
+| W2 05-11 | 111 685 ₽ | 113 823 ₽ | +1.9 % |
+| W3 12-18 | 146 398 ₽ | 149 614 ₽ | +2.2 % |
+
+WB-кабинет Excel для отчёта 601767029: 149 099 ₽ → DB: 155 295 ₽ (с учётом второго отчёта 601767030 за тот же период — 6 195 ₽, сумма 155 294 ₽, **точно сходится**).
+
+UNIT-таблица заполнена консервативно (без поздних корректировок WB), но в пределах 4 %.
+
+### Token и WB API
+- Создан **Персональный токен** (был Базовый, лимит 1 req/2h → теперь 1 req/min). Старый Базовый можно удалить.
+- WB Statistics API возвращает заголовки `X-Ratelimit-*` — фетчер их читает и логирует в `ingestion_log.meta.rate_limit`. На 429 ждёт `X-Ratelimit-Retry`.
+- Известная проблема: WB планирует **отключить `GET /api/v1/supplier/stocks` 23 июня** — нужна миграция на `POST /api/analytics/v1/stocks-report/wb-warehouses` (Analytics категория, Personal/Service токен).
+
+### Phase 4 — финансы (миграция 0011)
+- `marketing_expenses` (внешний маркетинг, не WB).
+- `cash_flow` (приход/расход вне выручки).
+- Функции `get_full_pnl_by_period(from, to)` + `get_pnl_totals(from, to)`.
+- View `v_cash_flow_by_month`.
+
+### Phase 5 — Google Sheets sync
+- Google Service Account создан: `sellerbase@sellerbase.iam.gserviceaccount.com`
+- Sheet ID: `1SaIQBfhId373TzJulNXOMGmjzdMtSgYrHp5PvoSliJw`
+- 4 вкладки в таблице созданы и расшарены сервис-аккаунту (Editor).
+- Код функции `sync-sheets` в репо (`yc-functions/sync-sheets/`), поддерживает `GOOGLE_SA_JSON_B64`.
+- **Не задеплоено** — у owner вылетел контекст до запуска deploy-блока.
+
+### YC infrastructure
+- `fetch-wb-stocks` — daily 06:00 МСК (cron `0 3 * * *` UTC), 256 МБ.
+- `fetch-wb-report` — Tuesday 06:00 МСК (cron `0 3 * * 2` UTC), **512 МБ** (увеличено сегодня, квартальные чанки крашили 256 МБ).
+- `sync-sheets` — НЕ создан, deploy-блок ждёт owner.
+
+### Незакрытые задачи (приоритет вниз)
+1. **Owner: deploy `sync-sheets`** в YC (блок команд был дан в чате, не выполнен; токены и base64 SA нужно собрать заново или взять из истории чата). После — `pg_cron` `0 * * * *`.
+2. **Owner: догрузить март-ноябрь 2025** помесячно (квартальные крашили 256 МБ; после редеплоя до 512 МБ — должно пройти). Команды:
+   ```bash
+   for M in 03 04 05 06 07 08 09 10 11; do
+     curl -s -X POST "https://functions.yandexcloud.net/d4e4s8o3oqd27qv6gs94?from=2025-$M-01&to=2025-$M-31" -d '{}'; echo
+     sleep 90
+   done
+   ```
+3. Сверить год 2025 целиком с UNIT_WB_2025.xlsx.
+4. Миграция фетчера на `/api/analytics/v1/stocks-report/wb-warehouses` до 23 июня (старый `/supplier/stocks` отключат).
+5. Phase 4 v2: переписать `calculate_cogs_for_shipment` под комплекты.
+6. Lovable дашборд (Phase 5 продолжение).
+
+### Урок про OAuth
+- В этом чате я не смог обновить SESSION_LOG через GitHub MCP (нужна повторная авторизация). Owner получила ссылку, но Chrome перехватил её на Google Drive MCP. В итоге этот лог она вставила вручную через github.com → Edit file.
+
+### Состояние секретов
+WB Personal token, Supabase service_role, YC SA private key, Google SA private key — все засветились в чате. Owner решила не ротировать (управляемый риск, соло-владелец, один ноут).
+
+---
+
 ## 2026-05-29 (вечер) — YC миграция + параметрические P&L
 
 **Цель:** обойти WB-блок `/reportDetailByPeriod` от foreign IP, наладить регулярный сбор отчёта о реализации, добавить P&L по периоду.
@@ -22,17 +98,13 @@ Supabase Edge Functions хостятся в eu-central-1 (Frankfurt). WB Statist
 - Деплой `fetch-wb-report` → `https://functions.yandexcloud.net/d4e4s8o3oqd27qv6gs94`.
   - Поддержка `?from=YYYY-MM-DD&to=YYYY-MM-DD` (явное окно) + `?days=N` (fallback).
   - Пауза 65 сек между страницами пагинации (WB ~1 req/min).
-  - Дедуп по `srid` внутри страницы → upsert.
+  - Дедуп по `srid` внутри страницы → upsert (**заменено на `rrd_id` 30 мая**).
   - WebSocket-полифилл (`globalThis.WebSocket = require('ws')`) для @supabase/supabase-js на Node 18.
 - Обе функции `allow-unauthenticated-invoke`, env-vars выставлены.
 - `pg_cron` переключён:
-  - `fetch-wb-stocks-daily` `0 6 * * *` → YC stocks
-  - `fetch-wb-report-weekly` `30 6 * * 1` → YC report (`?days=14`)
+  - `fetch-wb-stocks-daily` `0 3 * * *` → YC stocks (06:00 МСК)
+  - `fetch-wb-report-weekly` `0 3 * * 2` → YC report (вторник 06:00 МСК)
   - старый daily-backup удалён.
-- Загружены реальные данные:
-  - `wb_stocks_history` — 90 строк за 2026-05-29.
-  - `wb_reports_fact` — 3165 транзакций за 2026-03-30 → 2026-05-24 (5814 rows_in от WB, дедуп до 3165 уникальных srid).
-- Свод за 2026-03-30 → 2026-05-24: revenue 201 724,42 ₽, net profit 133 091,52 ₽, маржа 65,98 %.
 
 ### Миграция 0010_get_pnl_by_period.sql
 - `get_pnl_by_period(p_from, p_to)` — P&L по SKU за окно.
