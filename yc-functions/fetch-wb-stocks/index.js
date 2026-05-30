@@ -126,7 +126,13 @@ module.exports.handler = async () => {
       const rows = extractRows(json);
       const total = extractTotal(json);
 
-      if (rows.length === 0) break;
+      if (rows.length === 0) {
+        // Log raw response to diagnose unexpected structure
+        const rawSample = JSON.stringify(json).slice(0, 1000);
+        console.log(`Page ${pageNum}: 0 rows. Raw response: ${rawSample}`);
+        firstRowSample = `EMPTY_ROWS raw=${rawSample}`;
+        break;
+      }
 
       // Log raw sample from first page to help diagnose field name changes
       if (pageNum === 1 && rows.length > 0) {
