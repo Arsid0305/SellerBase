@@ -5,7 +5,7 @@ if (!globalThis.WebSocket) globalThis.WebSocket = require('ws');
 // ENV:
 //   SUPABASE_URL                  — https://hcebwgjgppwaguqittpi.supabase.co
 //   SUPABASE_SERVICE_ROLE_KEY     — сервис-ключ
-//   GOOGLE_SA_JSON                — полный JSON service account (в одной строке)
+//   GOOGLE_SA_JSON_B64            — base64-кодированный JSON service account (yc --environment не допускает запятые в значениях)
 //   GOOGLE_SHEET_ID               — id Google-таблицы (из URL: docs.google.com/spreadsheets/d/<это>)
 
 const { createClient } = require('@supabase/supabase-js');
@@ -21,8 +21,13 @@ function adminClient() {
 }
 
 async function sheetsClient() {
-  const saRaw = process.env.GOOGLE_SA_JSON;
-  if (!saRaw) throw new Error('GOOGLE_SA_JSON env not set');
+  const b64 = process.env.GOOGLE_SA_JSON_B64;
+  const raw = process.env.GOOGLE_SA_JSON;
+  let saRaw;
+  if (b64) saRaw = Buffer.from(b64, 'base64').toString('utf8');
+  else if (raw) saRaw = raw;
+  else throw new Error('GOOGLE_SA_JSON_B64 (or GOOGLE_SA_JSON) env not set');
+
   const sa = JSON.parse(saRaw);
   const auth = new google.auth.JWT({
     email: sa.client_email,
@@ -34,11 +39,9 @@ async function sheetsClient() {
 }
 
 async function writeTab(sheets, spreadsheetId, tabName, headerRow, dataRows) {
-  // 1. Очистить вкладку (кроме формул в колонках справа от данных)
   const range = `${tabName}!A:Z`;
   await sheets.spreadsheets.values.clear({ spreadsheetId, range });
 
-  // 2. Залить заголовок + данные
   const values = [headerRow, ...dataRows];
   await sheets.spreadsheets.values.update({
     spreadsheetId,
@@ -63,7 +66,6 @@ module.exports.handler = async () => {
 
     let totalRows = 0;
 
-    // === P&L по SKU за 30 дней ===
     const today = new Date().toISOString().slice(0, 10);
     const from30 = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10);
     const { data: pnl } = await supabase.rpc('get_full_pnl_by_period', { p_from: from30, p_to: today });
@@ -75,7 +77,6 @@ module.exports.handler = async () => {
       totalRows += pnl.length;
     }
 
-    // === Остатки по складам ===
     const { data: stocks } = await supabase
       .from('wb_stocks')
       .select('barcode, nm_id, warehouse_name, quantity, in_way_to_client, in_way_from_client')
@@ -89,10 +90,8 @@ module.exports.handler = async () => {
       totalRows += stocks.length;
     }
 
-    // === Рекомендуемая поставка ===
     const { data: supply } = await supabase.from('v_supply_recommendation').select('*');
     if (supply) {
-      // Колонки подберём под фактическую схему view — пока raw json
       const keys = supply[0] ? Object.keys(supply[0]) : [];
       await writeTab(sheets, sheetId, 'Поставка',
         keys,
@@ -101,7 +100,6 @@ module.exports.handler = async () => {
       totalRows += supply.length;
     }
 
-    // === Cash Flow по месяцам ===
     const { data: cf } = await supabase.from('v_cash_flow_by_month').select('*');
     if (cf) {
       await writeTab(sheets, sheetId, 'Cash Flow',
