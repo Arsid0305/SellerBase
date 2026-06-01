@@ -1,5 +1,5 @@
 if (!globalThis.WebSocket) globalThis.WebSocket = require('ws');
-// sync-sheets v0.2 — без googleapis, JWT через встроенный crypto.
+// sync-sheets v0.3 — добавлен баркод во все листы.
 
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
@@ -93,34 +93,41 @@ module.exports.handler = async () => {
     const today = new Date().toISOString().slice(0, 10);
     const from30 = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10);
 
+    // P&L по SKU — теперь включает баркод
     const { data: pnl, error: pnlErr } = await supabase.rpc('get_full_pnl_by_period', { p_from: from30, p_to: today });
     if (pnlErr) throw new Error(`get_full_pnl_by_period: ${pnlErr.message}`);
     if (pnl) {
       await writeTab(token, sheetId, 'P&L по SKU',
-        ['SKU', 'Мой артикул', 'Арт WB', 'Выручка', 'Комиссия', 'Логистика', 'Шт', 'С/С', 'Маркетинг', 'Налог', 'Чистый', 'Маржа %'],
-        pnl.map((r) => [r.sku_id, r.my_article, r.wb_article, r.revenue_rub, r.commission_rub, r.logistics_rub, r.units_sold, r.cogs_rub, r.marketing_rub, r.tax_rub, r.net_profit_rub, r.margin_pct]),
+        ['SKU', 'Мой артикул', 'Арт WB', 'Баркод', 'Выручка', 'Комиссия', 'Логистика', 'Шт', 'С/С', 'Маркетинг', 'Налог', 'Чистый', 'Маржа %'],
+        pnl.map((r) => [r.sku_id, r.my_article, r.wb_article, r.barcode, r.revenue_rub, r.commission_rub, r.logistics_rub, r.units_sold, r.cogs_rub, r.marketing_rub, r.tax_rub, r.net_profit_rub, r.margin_pct]),
       );
       totalRows += pnl.length;
     }
 
+    // Остатки — баркод уже был, добавляем мой артикул
     const { data: stocks } = await supabase
-      .from('wb_stocks').select('barcode,nm_id,warehouse_name,quantity,in_way_to_client,in_way_from_client')
+      .from('wb_stocks')
+      .select('barcode, nm_id, warehouse_name, quantity, in_way_to_client, in_way_from_client, sku_catalog!inner(my_article)')
       .order('warehouse_name').order('nm_id');
     if (stocks) {
       await writeTab(token, sheetId, 'Остатки',
-        ['Штрихкод', 'Арт WB', 'Склад', 'На складе', 'В пути к клиенту', 'В пути от клиента'],
-        stocks.map((r) => [r.barcode, r.nm_id, r.warehouse_name, r.quantity, r.in_way_to_client, r.in_way_from_client]),
+        ['Баркод', 'Мой артикул', 'Арт WB', 'Склад', 'На складе', 'В пути к клиенту', 'В пути от клиента'],
+        stocks.map((r) => [r.barcode, r.sku_catalog?.my_article ?? '', r.nm_id, r.warehouse_name, r.quantity, r.in_way_to_client, r.in_way_from_client]),
       );
       totalRows += stocks.length;
     }
 
+    // Поставка — теперь включает баркод
     const { data: supply } = await supabase.from('v_supply_recommendation').select('*');
     if (supply && supply.length > 0) {
-      const keys = Object.keys(supply[0]);
-      await writeTab(token, sheetId, 'Поставка', keys, supply.map((r) => keys.map((k) => r[k])));
+      await writeTab(token, sheetId, 'Поставка',
+        ['SKU', 'Мой артикул', 'Арт WB', 'Баркод', 'Продаж/день', 'Остаток', 'Срок поставки', 'Страховой запас', 'К заказу'],
+        supply.map((r) => [r.sku_id, r.my_article, r.wb_article, r.barcode, r.units_per_day, r.total_stock, r.lead_time_days, r.safety_stock_days, r.units_to_order]),
+      );
       totalRows += supply.length;
     }
 
+    // Cash Flow — финансы, баркод не нужен
     const { data: cf } = await supabase.from('v_cash_flow_by_month').select('*');
     if (cf) {
       await writeTab(token, sheetId, 'Cash Flow',
