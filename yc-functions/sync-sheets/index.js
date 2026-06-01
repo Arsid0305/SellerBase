@@ -1,5 +1,5 @@
 if (!globalThis.WebSocket) globalThis.WebSocket = require('ws');
-// sync-sheets v0.3 — добавлен баркод во все листы.
+// sync-sheets v0.4 — баркод EAN-13 из sku_catalog во всех листах.
 
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
@@ -93,7 +93,15 @@ module.exports.handler = async () => {
     const today = new Date().toISOString().slice(0, 10);
     const from30 = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10);
 
-    // P&L по SKU — теперь включает баркод
+    // Справочник: wb_article → { my_article, barcode (EAN-13) }
+    const { data: catalog } = await supabase
+      .from('sku_catalog')
+      .select('wb_article, my_article, barcode')
+      .not('wb_article', 'is', null);
+    const catalogByWb = {};
+    (catalog || []).forEach((r) => { catalogByWb[r.wb_article] = r; });
+
+    // P&L по SKU
     const { data: pnl, error: pnlErr } = await supabase.rpc('get_full_pnl_by_period', { p_from: from30, p_to: today });
     if (pnlErr) throw new Error(`get_full_pnl_by_period: ${pnlErr.message}`);
     if (pnl) {
@@ -104,20 +112,23 @@ module.exports.handler = async () => {
       totalRows += pnl.length;
     }
 
-    // Остатки — баркод уже был, добавляем мой артикул
+    // Остатки — баркод EAN-13 из sku_catalog (через nm_id)
     const { data: stocks } = await supabase
       .from('wb_stocks')
-      .select('barcode, nm_id, warehouse_name, quantity, in_way_to_client, in_way_from_client, sku_catalog!inner(my_article)')
+      .select('nm_id, warehouse_name, quantity, in_way_to_client, in_way_from_client')
       .order('warehouse_name').order('nm_id');
     if (stocks) {
       await writeTab(token, sheetId, 'Остатки',
         ['Баркод', 'Мой артикул', 'Арт WB', 'Склад', 'На складе', 'В пути к клиенту', 'В пути от клиента'],
-        stocks.map((r) => [r.barcode, r.sku_catalog?.my_article ?? '', r.nm_id, r.warehouse_name, r.quantity, r.in_way_to_client, r.in_way_from_client]),
+        stocks.map((r) => {
+          const cat = catalogByWb[r.nm_id] || {};
+          return [cat.barcode ?? '', cat.my_article ?? '', r.nm_id, r.warehouse_name, r.quantity, r.in_way_to_client, r.in_way_from_client];
+        }),
       );
       totalRows += stocks.length;
     }
 
-    // Поставка — теперь включает баркод
+    // Поставка
     const { data: supply } = await supabase.from('v_supply_recommendation').select('*');
     if (supply && supply.length > 0) {
       await writeTab(token, sheetId, 'Поставка',
@@ -127,7 +138,7 @@ module.exports.handler = async () => {
       totalRows += supply.length;
     }
 
-    // Cash Flow — финансы, баркод не нужен
+    // Cash Flow — баркод не нужен
     const { data: cf } = await supabase.from('v_cash_flow_by_month').select('*');
     if (cf) {
       await writeTab(token, sheetId, 'Cash Flow',
