@@ -1,12 +1,21 @@
+'use client';
+
+import { useMemo } from 'react';
 import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { formatRub, formatDelta } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
+import { useFiltersStore } from '@/shared/stores/filters';
 import type { ChannelShare } from './types';
 
 const SIZE = 200;
 const R_OUTER = 80;
 const R_INNER = 56;
+
+const CHANNEL_KEY: Record<ChannelShare['channel'], 'WB' | 'OZON'> = {
+  WB: 'WB',
+  OZON: 'OZON',
+};
 
 const PALETTE: Record<ChannelShare['channel'], string> = {
   WB: 'fill-fuchsia-500',
@@ -36,10 +45,17 @@ function arcPath(startAngle: number, endAngle: number) {
 }
 
 export function ChannelsDonut({ channels }: { channels: ChannelShare[] }) {
-  const total = channels.reduce((acc, c) => acc + c.amount, 0);
+  const marketplaces = useFiltersStore((s) => s.marketplaces);
+  const visible = useMemo(
+    () => channels.filter((c) => marketplaces.includes(CHANNEL_KEY[c.channel])),
+    [channels, marketplaces],
+  );
+  const total = visible.reduce((acc, c) => acc + c.amount, 0);
+  const totalShare = visible.reduce((acc, c) => acc + c.share, 0) || 1;
+
   let cursor = 0;
-  const segments = channels.map((c) => {
-    const angle = (c.share / 100) * 360;
+  const segments = visible.map((c) => {
+    const angle = (c.share / totalShare) * 360;
     const path = arcPath(cursor, cursor + angle);
     cursor += angle;
     return { ...c, path };
@@ -53,9 +69,11 @@ export function ChannelsDonut({ channels }: { channels: ChannelShare[] }) {
       <CardContent className="flex flex-col items-center gap-6 sm:flex-row">
         <div className="relative shrink-0">
           <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
-            {segments.map((s) => (
-              <path key={s.channel} d={s.path} className={PALETTE[s.channel]} />
-            ))}
+            {segments.length === 0 ? (
+              <circle cx={SIZE / 2} cy={SIZE / 2} r={R_OUTER} className="fill-muted/40" />
+            ) : (
+              segments.map((s) => <path key={s.channel} d={s.path} className={PALETTE[s.channel]} />)
+            )}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
             <span className="text-xs text-muted-foreground">Всего</span>
@@ -63,7 +81,7 @@ export function ChannelsDonut({ channels }: { channels: ChannelShare[] }) {
           </div>
         </div>
         <ul className="flex w-full flex-col gap-3">
-          {channels.map((c) => {
+          {visible.map((c) => {
             const TrendIcon = c.delta > 0 ? ArrowUpRight : c.delta < 0 ? ArrowDownRight : Minus;
             const trendTone =
               c.delta > 0
@@ -88,6 +106,11 @@ export function ChannelsDonut({ channels }: { channels: ChannelShare[] }) {
               </li>
             );
           })}
+          {visible.length === 0 && (
+            <li className="text-center text-sm text-muted-foreground">
+              Нет выбранных каналов
+            </li>
+          )}
         </ul>
       </CardContent>
     </Card>
