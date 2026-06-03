@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
 import { Badge } from '@/shared/ui/badge';
@@ -10,7 +11,7 @@ import type { TurnoverProduct } from './types';
 function daysOfStockTone(value: number): string {
   if (value === 0) return 'text-rose-600 dark:text-rose-400 font-semibold';
   if (value < 7) return 'text-amber-600 dark:text-amber-400 font-medium';
-  if (value > 90) return 'text-amber-600 dark:text-amber-400'; // избыточный
+  if (value > 90) return 'text-amber-600 dark:text-amber-400';
   return 'text-emerald-600 dark:text-emerald-400 font-medium';
 }
 
@@ -19,10 +20,13 @@ export const turnoverColumns: ColumnDef<TurnoverProduct, unknown>[] = [
     accessorKey: 'name',
     header: 'Товар',
     cell: ({ row }) => (
-      <div className="flex min-w-[240px] flex-col gap-0.5">
+      <Link
+        href={`/products/${encodeURIComponent(row.original.barcode)}`}
+        className="flex min-w-[240px] flex-col gap-0.5 hover:underline"
+      >
         <span className="font-medium leading-tight">{row.original.name}</span>
         <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
-      </div>
+      </Link>
     ),
   },
   {
