@@ -19,8 +19,10 @@ const parsed = envSchema.safeParse({
 });
 
 if (!parsed.success) {
-  // eslint-disable-next-line no-console
-  console.warn('[env] Invalid or missing env vars — falling back to defaults for build', parsed.error.flatten().fieldErrors);
+  console.warn(
+    '[env] Invalid or missing env vars — falling back to defaults for build',
+    parsed.error.flatten().fieldErrors,
+  );
 }
 
 export const env = parsed.success
