@@ -5,6 +5,7 @@ on:
     paths:
       - 'apps/web/**'
       - 'packages/**'
+      - 'package.json'
       - 'pnpm-workspace.yaml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/web-ci.yml'
@@ -13,6 +14,7 @@ on:
     paths:
       - 'apps/web/**'
       - 'packages/**'
+      - 'package.json'
       - 'pnpm-workspace.yaml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/web-ci.yml'
@@ -30,13 +32,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+
+      # pnpm version comes from root package.json `packageManager` field — single source of truth
+      - uses: pnpm/action-setup@v4
 
       - name: Detect lockfile
         id: lock
