@@ -1,0 +1,10 @@
+export { ProductMetaCard } from './product-meta-card';
+export { ProductSalesCard } from './product-sales-card';
+export { ProductFinanceCard } from './product-finance-card';
+export { ProductExpensesCard } from './product-expenses-card';
+export { ProductWarehousesCard } from './product-warehouses-card';
+export { ProductPhotosCard } from './product-photos-card';
+export { ProductTabs } from './product-tabs';
+export { RevenueByDayChart, StockByDayChart } from './product-charts';
+export { buildProductDetailById } from './mock-data';
+export type { ProductDetail } from './types';
