@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.7
 # Multi-stage build for Next.js standalone output
 # PORTABILITY rule #6: portable container for YC Serverless Containers / any Docker host
+#
+# Requires pnpm-lock.yaml at repo root. Run `pnpm install` locally once to generate it.
 
 FROM node:20-alpine AS base
 RUN corepack enable pnpm
@@ -8,7 +10,7 @@ RUN corepack enable pnpm
 # ---- deps ----
 FROM base AS deps
 WORKDIR /app
-COPY pnpm-workspace.yaml package.json* pnpm-lock.yaml* ./
+COPY pnpm-workspace.yaml package.json* pnpm-lock.yaml ./
 COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @sellerbase/web...
 
