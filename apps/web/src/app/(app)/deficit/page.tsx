@@ -1,8 +1,7 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { DataTable } from '@/shared/ui/domain/data-table';
 import {
   DeficitSummaryCards,
-  deficitColumns,
+  DeficitTable,
   mockDeficitRows,
   mockDeficitSummary,
 } from '@/features/deficit';
@@ -17,12 +16,7 @@ export default function DeficitPage() {
         description="Что заканчивается и сколько денег теряется на упущенных продажах"
       />
       <DeficitSummaryCards summary={mockDeficitSummary} />
-      <DataTable
-        data={mockDeficitRows}
-        columns={deficitColumns}
-        initialSort={[{ id: 'lostRevenue', desc: true }]}
-        rowKey={(row) => row.id}
-      />
+      <DeficitTable rows={mockDeficitRows} />
       <p className="text-xs text-muted-foreground">
         · Данные mock-фикстуры. Реальные из `v_supply_recommendation` подключатся в следующем PR.
       </p>

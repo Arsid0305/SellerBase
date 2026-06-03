@@ -1,3 +1,5 @@
+'use client';
+
 import type { ColumnDef } from '@tanstack/react-table';
 import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
 import { Badge } from '@/shared/ui/badge';
@@ -24,7 +26,7 @@ export const deficitColumns: ColumnDef<DeficitRow, unknown>[] = [
     accessorKey: 'name',
     header: 'Название',
     cell: ({ row }) => (
-      <div className="flex flex-col gap-0.5 min-w-[240px]">
+      <div className="flex min-w-[240px] flex-col gap-0.5">
         <span className="font-medium leading-tight">{row.original.name}</span>
         <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
       </div>
@@ -67,7 +69,7 @@ export const deficitColumns: ColumnDef<DeficitRow, unknown>[] = [
     accessorKey: 'lostRevenue',
     header: 'Упущено ₽',
     cell: ({ row }) => (
-      <span className={cn('tabular-nums', row.original.lostRevenue > 0 && 'text-rose-600 dark:text-rose-400 font-medium')}>
+      <span className={cn('tabular-nums', row.original.lostRevenue > 0 && 'font-medium text-rose-600 dark:text-rose-400')}>
         {formatRub(row.original.lostRevenue)}
       </span>
     ),
@@ -75,7 +77,9 @@ export const deficitColumns: ColumnDef<DeficitRow, unknown>[] = [
   {
     accessorKey: 'forecastDemand',
     header: 'Прогноз ₽',
-    cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{formatRub(row.original.forecastDemand)}</span>,
+    cell: ({ row }) => (
+      <span className="tabular-nums text-muted-foreground">{formatRub(row.original.forecastDemand)}</span>
+    ),
   },
   {
     accessorKey: 'daysLeft',
@@ -90,16 +94,14 @@ export const deficitColumns: ColumnDef<DeficitRow, unknown>[] = [
     accessorKey: 'toSupply',
     header: 'К поставке',
     cell: ({ row }) => (
-      <span className="tabular-nums font-medium">{formatInt(row.original.toSupply)} шт.</span>
+      <span className="font-medium tabular-nums">{formatInt(row.original.toSupply)} шт.</span>
     ),
   },
   {
     accessorKey: 'dailySales',
     header: 'Продажи/день',
     cell: ({ row }) => (
-      <span className="tabular-nums text-muted-foreground">
-        {row.original.dailySales.toFixed(2)} шт.
-      </span>
+      <span className="tabular-nums text-muted-foreground">{row.original.dailySales.toFixed(2)} шт.</span>
     ),
   },
   {
@@ -109,7 +111,7 @@ export const deficitColumns: ColumnDef<DeficitRow, unknown>[] = [
       <span
         className={cn(
           'tabular-nums',
-          row.original.stock === 0 ? 'text-rose-600 dark:text-rose-400 font-medium' : 'text-foreground',
+          row.original.stock === 0 ? 'font-medium text-rose-600 dark:text-rose-400' : 'text-foreground',
         )}
       >
         {formatInt(row.original.stock)} шт.
