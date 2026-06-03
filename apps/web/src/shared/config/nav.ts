@@ -10,7 +10,6 @@ import {
   Network,
   Search,
   Receipt,
-  Users,
   MessageSquare,
   Percent,
   type LucideIcon,
@@ -42,8 +41,7 @@ export const navItems: NavItem[] = [
   { title: 'Отзывы и оценки', href: '/reviews', icon: MessageSquare, group: 'operations' },
   { title: 'Реклама товаров', href: '/ads', icon: Megaphone, group: 'operations', badge: 'позже' },
   { title: 'Источники заказов', href: '/sources', icon: Network, group: 'operations', badge: 'скоро' },
-  { title: 'Поиск ниши Ozon', href: '/niche', icon: Search, group: 'external', badge: 'позже' },
+  { title: 'Поиск ниши WB', href: '/niche', icon: Search, group: 'external', badge: 'позже' },
   { title: 'Тарифы и коэффициенты', href: '/tariffs', icon: Percent, group: 'data' },
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
-  { title: 'Клиенты', href: '/customers', icon: Users, group: 'data', badge: 'скоро' },
 ];
