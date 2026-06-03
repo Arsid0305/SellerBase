@@ -8,9 +8,6 @@ const nextConfig: NextConfig = {
     loader: 'custom',
     loaderFile: './src/shared/lib/image-loader.ts',
   },
-  experimental: {
-    typedRoutes: true,
-  },
   reactStrictMode: true,
 };
 
