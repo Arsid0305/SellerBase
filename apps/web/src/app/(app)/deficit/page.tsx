@@ -1,4 +1,10 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
+import {
+  DeficitSummaryCards,
+  DeficitTable,
+  mockDeficitRows,
+  mockDeficitSummary,
+} from '@/features/deficit';
 
 export const metadata = { title: 'Дефицит товаров' };
 
@@ -9,9 +15,11 @@ export default function DeficitPage() {
         title="Дефицит товаров"
         description="Что заканчивается и сколько денег теряется на упущенных продажах"
       />
-      <div className="rounded-lg border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
-        M3 · Таблица дефицита с «Хватит на N дней» и упущенной выручкой · скоро
-      </div>
+      <DeficitSummaryCards summary={mockDeficitSummary} />
+      <DeficitTable rows={mockDeficitRows} />
+      <p className="text-xs text-muted-foreground">
+        · Данные mock-фикстуры. Реальные из `v_supply_recommendation` подключатся в следующем PR.
+      </p>
     </div>
   );
 }
