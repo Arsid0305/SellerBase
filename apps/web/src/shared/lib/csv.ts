@@ -9,16 +9,12 @@ export type CsvColumn<T> = {
   format?: (row: T) => string | number;
 };
 
-export function downloadCsv<T extends Record<string, unknown>>(
-  rows: T[],
-  columns: CsvColumn<T>[],
-  filename: string,
-): void {
+export function downloadCsv<T>(rows: T[], columns: CsvColumn<T>[], filename: string): void {
   const header = columns.map((c) => escapeCsvCell(c.label)).join(';');
   const lines = rows.map((row) =>
     columns
       .map((c) => {
-        const raw = c.format ? c.format(row) : row[c.key as keyof T];
+        const raw = c.format ? c.format(row) : (row as Record<string, unknown>)[c.key as string];
         return escapeCsvCell(formatValue(raw));
       })
       .join(';'),
