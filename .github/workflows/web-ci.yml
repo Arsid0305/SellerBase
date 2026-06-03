@@ -1,0 +1,102 @@
+name: web-ci
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/web-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/web-ci.yml'
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint + Typecheck + Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # pnpm version comes from root package.json `packageManager` field — single source of truth
+      - uses: pnpm/action-setup@v4
+
+      - name: Detect lockfile
+        id: lock
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "present=true" >> $GITHUB_OUTPUT
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+            echo "::notice::pnpm-lock.yaml not present yet — run 'pnpm install' locally and commit it to enable strict CI."
+          fi
+
+      - name: Install (strict)
+        if: steps.lock.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install (bootstrap, no lockfile)
+        if: steps.lock.outputs.present == 'false'
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @sellerbase/web lint
+
+      - name: Typecheck
+        run: pnpm --filter @sellerbase/web typecheck
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+        run: pnpm --filter @sellerbase/web build
+
+  docker:
+    name: Docker build (portability check)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect lockfile
+        id: lock
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "present=true" >> $GITHUB_OUTPUT
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+            echo "::notice::Skipping docker build until pnpm-lock.yaml is committed."
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.lock.outputs.present == 'true'
+
+      - name: Build image
+        if: steps.lock.outputs.present == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          tags: sellerbase-web:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

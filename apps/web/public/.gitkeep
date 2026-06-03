@@ -1,0 +1,2 @@
+# Keep this folder under version control. Next.js needs `public/` to exist
+# for the standalone build step (`COPY --from=builder /app/apps/web/public`).

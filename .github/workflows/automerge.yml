@@ -1,15 +1,25 @@
 name: Auto-merge claude/cursor branches
 
+# Strategy: enable GitHub's NATIVE auto-merge on every PR from claude/* or cursor/*.
+# Native auto-merge waits for all required status checks to pass before squashing.
+# If a required check fails, the PR stays open until the next push fixes it.
+#
+# Requirements (one-time repo setup):
+# 1. Settings → General → "Allow auto-merge" enabled
+# 2. Settings → Branches → main → Branch protection: require "web-ci / Lint + Typecheck + Build"
+#    (and any other required checks) before merging.
+
 on:
   pull_request:
     branches: [main]
     types: [opened, reopened, synchronize, ready_for_review]
 
 jobs:
-  automerge:
+  enable-automerge:
     runs-on: ubuntu-latest
     if: >
-      startsWith(github.head_ref, 'claude/') || startsWith(github.head_ref, 'cursor/')
+      github.event.pull_request.draft == false &&
+      (startsWith(github.head_ref, 'claude/') || startsWith(github.head_ref, 'cursor/'))
     permissions:
       pull-requests: write
       contents: write
@@ -17,9 +27,19 @@ jobs:
       - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
         with:
           script: |
-            await github.rest.pulls.merge({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-              merge_method: 'squash'
-            })
+            const pr = context.payload.pull_request;
+            try {
+              await github.graphql(
+                `mutation($id: ID!) {
+                   enablePullRequestAutoMerge(input: {
+                     pullRequestId: $id,
+                     mergeMethod: SQUASH
+                   }) { pullRequest { number } }
+                 }`,
+                { id: pr.node_id },
+              );
+              core.info(`Auto-merge enabled for PR #${pr.number}`);
+            } catch (e) {
+              core.warning(`Could not enable auto-merge for PR #${pr.number}: ${e.message}`);
+              core.warning(`Check: (1) "Allow auto-merge" enabled in repo settings; (2) branch protection requires CI checks.`);
+            }
