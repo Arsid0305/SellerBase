@@ -1,17 +1,31 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
+import {
+  KpiGrid,
+  RevenueExpensesChart,
+  ChannelsDonut,
+  mockDashboardSummary,
+} from '@/features/dashboard';
 
 export const metadata = { title: 'Сводка' };
 
 export default function DashboardPage() {
+  const data = mockDashboardSummary;
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Сводка"
-        description="Главные метрики бизнеса за выбранный период"
+        description={`Текущий: ${data.period.label} · Сравнение: ${data.comparison.label}`}
       />
-      <div className="rounded-lg border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
-        M1 · KPI-карточки + динамика доходов/расходов + доля каналов · скоро
+      <KpiGrid kpis={data.kpis} comparison={data.comparison} />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <RevenueExpensesChart data={data.series} />
+        </div>
+        <ChannelsDonut channels={data.channels} />
       </div>
+      <p className="text-xs text-muted-foreground">
+        · Данные mock-фикстуры. Реальные из `get_full_pnl_by_period()` подключатся в следующем PR.
+      </p>
     </div>
   );
 }
