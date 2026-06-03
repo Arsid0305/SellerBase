@@ -8,8 +8,11 @@ on:
 jobs:
   automerge:
     runs-on: ubuntu-latest
+    # Skip draft PRs — they cannot be merged via API (returns 405) and pollute CI history.
+    # When PR is marked Ready for Review, the `ready_for_review` event re-triggers this job.
     if: >
-      startsWith(github.head_ref, 'claude/') || startsWith(github.head_ref, 'cursor/')
+      github.event.pull_request.draft == false &&
+      (startsWith(github.head_ref, 'claude/') || startsWith(github.head_ref, 'cursor/'))
     permissions:
       pull-requests: write
       contents: write
