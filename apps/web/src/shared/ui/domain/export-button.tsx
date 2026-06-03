@@ -4,7 +4,7 @@ import { Download } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { downloadCsv, type CsvColumn } from '@/shared/lib/csv';
 
-export function ExportCsvButton<T extends Record<string, unknown>>({
+export function ExportCsvButton<T>({
   rows,
   columns,
   filename,
