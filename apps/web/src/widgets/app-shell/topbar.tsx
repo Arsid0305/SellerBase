@@ -1,10 +1,19 @@
 'use client';
 
+import { Suspense } from 'react';
 import { Moon, Sun, Search } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/shared/ui/button';
 import { PeriodComparePicker } from '@/shared/ui/domain/period-compare-picker';
 import { MarketplaceFilter } from '@/shared/ui/domain/marketplace-filter';
+
+function PeriodPickerFallback() {
+  return (
+    <Button variant="outline" size="sm" disabled>
+      <span className="text-muted-foreground">Период…</span>
+    </Button>
+  );
+}
 
 export function Topbar() {
   const { theme, setTheme } = useTheme();
@@ -15,7 +24,9 @@ export function Topbar() {
       </Button>
       <div className="flex-1" />
       <MarketplaceFilter />
-      <PeriodComparePicker />
+      <Suspense fallback={<PeriodPickerFallback />}>
+        <PeriodComparePicker />
+      </Suspense>
       <Button
         variant="ghost"
         size="icon"

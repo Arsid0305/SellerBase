@@ -1,13 +1,21 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
 import { KpiGrid, RevenueExpensesChart, ChannelsDonut } from '@/features/dashboard';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
-import { fetchPnlAggregate, fetchDailyRevenue, shiftRangeBack, lastNDaysRange } from '@/entities/pnl';
+import {
+  fetchPnlAggregate,
+  fetchDailyRevenue,
+  shiftRangeBack,
+  lastNDaysRange,
+  type PeriodRange,
+} from '@/entities/pnl';
 
 export const metadata = { title: 'Сводка' };
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-function formatRange(range: { from: string; to: string }): string {
+type SearchParams = Promise<{ from?: string; to?: string }>;
+
+function formatRange(range: PeriodRange): string {
   const months = [
     'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн',
     'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек',
@@ -24,8 +32,17 @@ function calcDelta(current: number, previous: number): number {
   return ((current - previous) / Math.abs(previous)) * 100;
 }
 
-export default async function DashboardPage() {
-  const range = lastNDaysRange(30);
+function parseRange(sp: { from?: string; to?: string }): PeriodRange {
+  const isoRe = /^\d{4}-\d{2}-\d{2}$/;
+  if (sp.from && sp.to && isoRe.test(sp.from) && isoRe.test(sp.to) && sp.from <= sp.to) {
+    return { from: sp.from, to: sp.to };
+  }
+  return lastNDaysRange(30);
+}
+
+export default async function DashboardPage({ searchParams }: { searchParams: SearchParams }) {
+  const sp = await searchParams;
+  const range = parseRange(sp);
   const comparison = shiftRangeBack(range);
 
   const [current, previous, series] = await Promise.all([
@@ -63,7 +80,6 @@ export default async function DashboardPage() {
     hint: `Маржа ${current.marginPct.toFixed(1)}%`,
   };
 
-  // Каналы: в БД пока только WB, Ozon подключится позже.
   const channels: ChannelShare[] = [
     {
       channel: 'WB',
@@ -96,7 +112,8 @@ export default async function DashboardPage() {
         <ChannelsDonut channels={channels} />
       </div>
       <p className="text-xs text-muted-foreground">
-        · Данные из вашего Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact` по дням.
+        · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
+        Период выбирается в топбаре — цифры пересчитываются на сервере.
       </p>
     </div>
   );
