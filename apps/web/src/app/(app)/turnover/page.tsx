@@ -1,4 +1,11 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
+import {
+  TurnoverExplorer,
+  TurnoverDynamicsChart,
+  turnoverSegments,
+  turnoverDynamics,
+  mockTurnoverProducts,
+} from '@/features/turnover';
 
 export const metadata = { title: 'Оборачиваемость' };
 
@@ -7,11 +14,13 @@ export default function TurnoverPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Оборачиваемость"
-        description="Сегменты стабильности продаж и деньги в товаре"
+        description="Сегменты стабильности продаж и «деньги в товаре»"
       />
-      <div className="rounded-lg border border-dashed border-border bg-card p-12 text-center text-muted-foreground">
-        M5 · 4 сегмента (Стабильная / Средняя / Нестабильная) + динамика · скоро
-      </div>
+      <TurnoverDynamicsChart data={turnoverDynamics} />
+      <TurnoverExplorer segments={turnoverSegments} products={mockTurnoverProducts} />
+      <p className="text-xs text-muted-foreground">
+        · Данные mock-фикстуры. Реальная VIEW `v_turnover` подключится в следующем PR.
+      </p>
     </div>
   );
 }
