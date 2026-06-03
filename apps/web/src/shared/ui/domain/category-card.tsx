@@ -4,45 +4,41 @@ import { cn } from '@/shared/lib/utils';
 
 export type CategoryTone = 'amber' | 'rose' | 'emerald' | 'sky' | 'violet' | 'neutral';
 
-const TONE_TOP: Record<CategoryTone, string> = {
-  amber: 'border-t-amber-500',
-  rose: 'border-t-rose-500',
-  emerald: 'border-t-emerald-500',
-  sky: 'border-t-sky-500',
-  violet: 'border-t-violet-500',
-  neutral: 'border-t-slate-400',
+const TONE_ICON: Record<CategoryTone, string> = {
+  amber: 'text-amber-600 dark:text-amber-400',
+  rose: 'text-rose-600 dark:text-rose-400',
+  emerald: 'text-emerald-600 dark:text-emerald-400',
+  sky: 'text-sky-600 dark:text-sky-400',
+  violet: 'text-violet-600 dark:text-violet-400',
+  neutral: 'text-muted-foreground',
 };
 
-const TONE_TEXT: Record<CategoryTone, string> = {
-  amber: 'text-amber-700 dark:text-amber-300',
-  rose: 'text-rose-700 dark:text-rose-300',
-  emerald: 'text-emerald-700 dark:text-emerald-300',
-  sky: 'text-sky-700 dark:text-sky-300',
-  violet: 'text-violet-700 dark:text-violet-300',
-  neutral: 'text-foreground',
-};
-
+/**
+ * Чистый enterprise-стиль: без цветных top-border'ов и заглавных заголовков.
+ * Только тонкий цветовой акцент на иконке для визуальной разметки секций.
+ * Linear / Stripe Dashboard / Mercury стиль.
+ */
 export function CategoryCard({
   title,
-  tone,
+  tone = 'neutral',
   icon: Icon,
   children,
   className,
   action,
 }: {
   title: string;
-  tone: CategoryTone;
+  tone?: CategoryTone;
   icon?: LucideIcon;
   children: React.ReactNode;
   className?: string;
   action?: React.ReactNode;
 }) {
   return (
-    <Card className={cn('overflow-hidden border-t-4', TONE_TOP[tone], className)}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className={cn('text-sm font-semibold uppercase tracking-wider', TONE_TEXT[tone])}>
-          <span className="inline-flex items-center gap-1.5">
-            {Icon && <Icon className="size-4" />}
+    <Card className={cn('overflow-hidden', className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          <span className="inline-flex items-center gap-2">
+            {Icon && <Icon className={cn('size-4', TONE_ICON[tone])} />}
             {title}
           </span>
         </CardTitle>
@@ -62,7 +58,7 @@ export type StatRow = {
 
 export function StatList({ rows }: { rows: StatRow[] }) {
   return (
-    <dl className="flex flex-col divide-y divide-border">
+    <dl className="flex flex-col divide-y divide-border/60">
       {rows.map((r) => (
         <div key={r.label} className="flex items-baseline justify-between gap-4 py-2 text-sm">
           <dt className="text-muted-foreground">{r.label}</dt>
