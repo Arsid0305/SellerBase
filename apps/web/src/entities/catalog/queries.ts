@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import type { CatalogProduct } from '@/features/catalog/types';
+import { classifyLifecycle, type ProductLifecycleState } from '@/entities/product-state';
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
@@ -22,6 +23,7 @@ type CatalogDb = {
   brand: string | null;
   cost_price_rub: number | null;
   is_active: boolean | null;
+  created_at: string | null;
 };
 
 type FactRow = {
@@ -53,7 +55,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
 
   const { data: catalogData, error: e1 } = await supabase
     .from('sku_catalog')
-    .select('id, my_article, wb_article, barcode, title, category, brand, cost_price_rub, is_active')
+    .select('id, my_article, wb_article, barcode, title, category, brand, cost_price_rub, is_active, created_at')
     .eq('is_active', true)
     .order('id', { ascending: true })
     .range(0, 5000);
@@ -158,7 +160,6 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
     });
   }
 
-  // база дней для sparkline (30 точек)
   const today = new Date();
   const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const allDates: string[] = [];
@@ -167,8 +168,31 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
     d.setUTCDate(d.getUTCDate() - i);
     allDates.push(iso(d));
   }
+  const first14 = allDates.slice(0, 14);
+  const last14 = allDates.slice(16, 30);
 
-  const products: CatalogProduct[] = catalog.map((c) => {
+  // First pass: build products without lifecycle, sort by revenue, mark top 20% as isTopRevenue
+  type Prelim = {
+    catalogRow: CatalogDb;
+    revenue: number;
+    revenue14d: number;
+    revenue14dPrev: number;
+    units: number;
+    margin: number;
+    cost: number;
+    price: number;
+    lastSaleDate: string | null;
+    stock: number;
+    inTransit: number;
+    warehousesCount: number;
+    daysOfStock: number;
+    sparkline: number[];
+    daysInCatalog: number;
+    daysSinceLastSale: number;
+    unitsPerDay: number;
+  };
+
+  const prelim: Prelim[] = catalog.map((c) => {
     const sales = c.wb_article != null ? salesByNmId.get(c.wb_article) : undefined;
     const stock = c.wb_article != null ? stocksByNmId.get(c.wb_article) : undefined;
     const supply = supplyBySkuId.get(c.id);
@@ -188,26 +212,75 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       : 999;
 
     const sparkline = allDates.map((d) => Math.round(sales?.sparkline.get(d) ?? 0));
+    const revenue14d = last14.reduce((acc, d) => acc + Math.round(sales?.sparkline.get(d) ?? 0), 0);
+    const revenue14dPrev = first14.reduce((acc, d) => acc + Math.round(sales?.sparkline.get(d) ?? 0), 0);
+
+    const daysInCatalog = c.created_at
+      ? Math.max(
+          0,
+          Math.floor((todayUtc.getTime() - new Date(c.created_at).getTime()) / 86_400_000),
+        )
+      : 999;
 
     return {
-      id: String(c.id),
-      name: c.title ?? c.my_article ?? 'Без названия',
-      barcode: c.barcode ?? '',
-      channel: 'WB',
-      brand: c.brand ?? '—',
-      category: c.category ?? '—',
-      tags: [],
+      catalogRow: c,
+      revenue,
+      revenue14d,
+      revenue14dPrev,
+      units: sales?.units ?? 0,
+      margin,
+      cost: toNumber(c.cost_price_rub),
+      price: sales && sales.units > 0 ? revenue / sales.units : 0,
+      lastSaleDate: lastSale,
       stock: stock?.totalStock ?? 0,
       inTransit: stock?.inTransit ?? 0,
       warehousesCount: stock?.warehousesCount ?? 0,
-      sales30dRub: Math.round(revenue),
-      sales30dUnits: Math.round(sales?.units ?? 0),
-      margin: Math.round(margin * 10) / 10,
-      cost: Math.round(toNumber(c.cost_price_rub)),
-      price: sales && sales.units > 0 ? Math.round(revenue / sales.units) : 0,
-      lastSaleDaysAgo,
-      daysOfStock: Math.round(supply?.daysToOos ?? 0),
-      salesSparkline: sparkline,
+      daysOfStock: supply?.daysToOos ?? 0,
+      sparkline,
+      daysInCatalog,
+      daysSinceLastSale: lastSaleDaysAgo,
+      unitsPerDay: supply?.unitsPerDay ?? 0,
+    };
+  });
+
+  // Определяем top-20% по выручке
+  const sortedByRevenue = [...prelim].sort((a, b) => b.revenue - a.revenue);
+  const topN = Math.max(1, Math.ceil(sortedByRevenue.length * 0.2));
+  const topIds = new Set(sortedByRevenue.slice(0, topN).map((p) => p.catalogRow.id));
+
+  const products: CatalogProduct[] = prelim.map((p) => {
+    const lifecycle: ProductLifecycleState = classifyLifecycle({
+      isActive: p.catalogRow.is_active !== false,
+      daysInCatalog: p.daysInCatalog,
+      daysSinceLastSale: p.daysSinceLastSale,
+      revenue14d: p.revenue14d,
+      revenue14dPrev: p.revenue14dPrev,
+      marginPct: p.margin,
+      stock: p.stock,
+      unitsPerDay: p.unitsPerDay,
+      isTopRevenue: topIds.has(p.catalogRow.id),
+    });
+
+    return {
+      id: String(p.catalogRow.id),
+      name: p.catalogRow.title ?? p.catalogRow.my_article ?? 'Без названия',
+      barcode: p.catalogRow.barcode ?? '',
+      channel: 'WB',
+      brand: p.catalogRow.brand ?? '—',
+      category: p.catalogRow.category ?? '—',
+      tags: [],
+      stock: p.stock,
+      inTransit: p.inTransit,
+      warehousesCount: p.warehousesCount,
+      sales30dRub: Math.round(p.revenue),
+      sales30dUnits: Math.round(p.units),
+      margin: Math.round(p.margin * 10) / 10,
+      cost: Math.round(p.cost),
+      price: Math.round(p.price),
+      lastSaleDaysAgo: p.daysSinceLastSale,
+      daysOfStock: Math.round(p.daysOfStock),
+      salesSparkline: p.sparkline,
+      lifecycle,
     };
   });
 

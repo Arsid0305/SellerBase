@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
 import { Sparkline } from '@/shared/ui/domain/sparkline';
+import { LifecycleBadge } from '@/shared/ui/domain/lifecycle-badge';
 import { Badge } from '@/shared/ui/badge';
 import { formatRub, formatInt } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
@@ -22,6 +23,11 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
         <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
       </Link>
     ),
+  },
+  {
+    accessorKey: 'lifecycle',
+    header: 'Состояние',
+    cell: ({ row }) => <LifecycleBadge state={row.original.lifecycle} showDescription />,
   },
   {
     accessorKey: 'channel',

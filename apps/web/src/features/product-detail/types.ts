@@ -1,4 +1,5 @@
 import type { ProductTagKind } from '@/shared/ui/domain/product-tag-badge';
+import type { ProductLifecycleState } from '@/entities/product-state';
 
 export type ProductDetailMeta = {
   brand: string;
@@ -19,7 +20,7 @@ export type ProductDetailSales = {
   delivered: number;
   bought: number;
   returns: number;
-  buyoutRate: number; // %
+  buyoutRate: number;
   daysSinceLastOrder: number;
   daysOfStock: number;
   turnoverDays: number;
@@ -29,9 +30,9 @@ export type ProductDetailFinance = {
   revenue: number;
   expenses: number;
   profit: number;
-  profitability: number; // %
+  profitability: number;
   marketingExpenses: number;
-  revenueTrend: number; // % вс прошлый период
+  revenueTrend: number;
   lostRevenue: number;
 };
 
@@ -56,6 +57,7 @@ export type ProductDetail = {
   name: string;
   channel: 'WB' | 'OZON';
   tags: ProductTagKind[];
+  lifecycle?: ProductLifecycleState;
   meta: ProductDetailMeta;
   sales: ProductDetailSales;
   finance: ProductDetailFinance;
