@@ -1,4 +1,6 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
+import { Button } from '@/shared/ui/button';
+import { Download } from 'lucide-react';
 import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner } from '@/features/dashboard';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
 import {
@@ -97,6 +99,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
       <PageHeader
         title="Сводка"
         description={`Текущий: ${formatRange(range)} · Сравнение: ${formatRange(comparison)}`}
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <a href="/api/finance/xlsx" download>
+              <Download />
+              Скачать XLSX
+            </a>
+          </Button>
+        }
       />
       <AnomaliesBanner anomalies={anomalies} />
       <KpiGrid
