@@ -12,6 +12,7 @@ import {
   Receipt,
   MessageSquare,
   Percent,
+  Coins,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -33,6 +34,7 @@ export const navGroups: { id: NavItem['group']; title: string }[] = [
 export const navItems: NavItem[] = [
   { title: 'Сводка', href: '/dashboard', icon: LayoutDashboard, group: 'analytics' },
   { title: 'Мои товары', href: '/products', icon: Boxes, group: 'analytics' },
+  { title: 'Себестоимость', href: '/products/costs', icon: Coins, group: 'analytics' },
   { title: 'Товарная аналитика', href: '/analytics', icon: PackageSearch, group: 'analytics' },
   { title: 'Прибыль и убытки', href: '/pnl', icon: Wallet, group: 'analytics' },
   { title: 'Оборачиваемость', href: '/turnover', icon: Repeat, group: 'analytics' },
