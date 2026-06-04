@@ -110,12 +110,12 @@ export function PeriodComparePicker() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          {pending ? <Loader2 className="size-4 animate-spin" /> : <CalendarRange className="size-4" />}
-          <span>{formatLabel(activeFrom, activeTo, activePreset)}</span>
+        <Button variant="outline" size="sm" className="max-w-[40vw] gap-2 sm:max-w-none">
+          {pending ? <Loader2 className="size-4 shrink-0 animate-spin" /> : <CalendarRange className="size-4 shrink-0" />}
+          <span className="truncate">{formatLabel(activeFrom, activeTo, activePreset)}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72 p-2">
+      <DropdownMenuContent align="end" className="w-72 max-w-[90vw] p-2">
         <div className="px-2 pb-1 pt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
           Период анализа
         </div>

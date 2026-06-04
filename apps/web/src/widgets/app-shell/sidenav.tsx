@@ -2,14 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { Menu, X } from 'lucide-react';
 import { navGroups, navItems } from '@/shared/config/nav';
 import { cn } from '@/shared/lib/utils';
 import { Badge } from '@/shared/ui/badge';
+import { Button } from '@/shared/ui/button';
 
-export function Sidenav() {
-  const pathname = usePathname();
+function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-border bg-card md:flex md:flex-col">
+    <>
       <div className="flex h-14 items-center px-4 font-semibold tracking-tight">SellerBase</div>
       <nav className="flex-1 overflow-y-auto px-2 pb-4">
         {navGroups.map((group) => {
@@ -28,6 +30,7 @@ export function Sidenav() {
                     <li key={item.href}>
                       <Link
                         href={item.href}
+                        onClick={onNavigate}
                         className={cn(
                           'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors',
                           active
@@ -51,6 +54,70 @@ export function Sidenav() {
           );
         })}
       </nav>
+    </>
+  );
+}
+
+export function Sidenav() {
+  const pathname = usePathname();
+  return (
+    <aside className="hidden w-64 shrink-0 border-r border-border bg-card md:flex md:flex-col">
+      <NavList pathname={pathname} />
     </aside>
+  );
+}
+
+export function MobileNavTrigger() {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const orig = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = orig;
+    };
+  }, [open]);
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden"
+        aria-label="Меню"
+        onClick={() => setOpen(true)}
+      >
+        <Menu className="size-5" />
+      </Button>
+      {open && (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            aria-label="Закрыть меню"
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 flex w-[80vw] max-w-xs flex-col border-r border-border bg-card shadow-xl">
+            <div className="absolute right-2 top-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Закрыть"
+                onClick={() => setOpen(false)}
+              >
+                <X className="size-5" />
+              </Button>
+            </div>
+            <NavList pathname={pathname} onNavigate={() => setOpen(false)} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

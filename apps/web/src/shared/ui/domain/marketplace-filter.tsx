@@ -28,12 +28,12 @@ export function MarketplaceFilter() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Store className="size-4" />
-          <span>{label}</span>
+        <Button variant="outline" size="sm" className="max-w-[35vw] gap-2 sm:max-w-none">
+          <Store className="size-4 shrink-0" />
+          <span className="truncate">{label}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 p-2">
+      <DropdownMenuContent align="end" className="w-56 max-w-[90vw] p-2">
         <div className="px-2 pb-1 pt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
           Каналы продаж
         </div>

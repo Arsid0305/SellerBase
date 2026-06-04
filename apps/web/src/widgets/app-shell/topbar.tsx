@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes';
 import { Button } from '@/shared/ui/button';
 import { PeriodComparePicker } from '@/shared/ui/domain/period-compare-picker';
 import { MarketplaceFilter } from '@/shared/ui/domain/marketplace-filter';
+import { MobileNavTrigger } from './sidenav';
 
 function PeriodPickerFallback() {
   return (
@@ -18,15 +19,18 @@ function PeriodPickerFallback() {
 export function Topbar() {
   const { theme, setTheme } = useTheme();
   return (
-    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur">
-      <Button variant="ghost" size="icon" className="text-muted-foreground">
+    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-1 border-b border-border bg-background/80 px-2 backdrop-blur sm:gap-2 sm:px-4">
+      <MobileNavTrigger />
+      <Button variant="ghost" size="icon" className="hidden text-muted-foreground sm:inline-flex">
         <Search className="size-4" />
       </Button>
       <div className="flex-1" />
-      <MarketplaceFilter />
-      <Suspense fallback={<PeriodPickerFallback />}>
-        <PeriodComparePicker />
-      </Suspense>
+      <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+        <MarketplaceFilter />
+        <Suspense fallback={<PeriodPickerFallback />}>
+          <PeriodComparePicker />
+        </Suspense>
+      </div>
       <Button
         variant="ghost"
         size="icon"

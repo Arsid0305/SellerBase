@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { computeAnomalyZScore } from './zscore';
 
 export type Anomaly = {
   barcode: string;
@@ -81,7 +82,7 @@ export async function fetchAnomalies(): Promise<Anomaly[]> {
     const variance = values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length;
     const std = Math.sqrt(variance);
     if (std < 0.5 || mean < 1) continue;
-    const z = (todayUnits - mean) / std;
+    const z = computeAnomalyZScore(values, todayUnits);
     if (Math.abs(z) < 2) continue;
     const info = meta.get(nmId);
     if (!info) continue;
