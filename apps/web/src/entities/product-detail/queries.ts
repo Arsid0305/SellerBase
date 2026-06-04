@@ -54,33 +54,35 @@ type PnlDb = {
   units_sold: number | null;
 };
 
-export async function fetchProductDetailByBarcode(barcode: string): Promise<ProductDetail | null> {
+async function findCatalog(barcode: string): Promise<CatalogDb | null> {
   const supabase = createAdminClient();
-
-  // Сначала пытаемся найти по barcode
-  let { data: catalog, error } = await supabase
+  const byBarcode = await supabase
     .from('sku_catalog')
     .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at')
     .eq('barcode', barcode)
     .limit(1)
     .maybeSingle();
 
-  if (error || !catalog) {
-    // Пробуем по id (если пришло число)
-    const asId = Number(barcode);
-    if (Number.isFinite(asId)) {
-      const r = await supabase
-        .from('sku_catalog')
-        .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at')
-        .eq('id', asId)
-        .limit(1)
-        .maybeSingle();
-      catalog = r.data ?? null;
-    }
-  }
-  if (!catalog) return null;
+  if (byBarcode.data) return byBarcode.data as CatalogDb;
 
-  const c = catalog as CatalogDb;
+  const asId = Number(barcode);
+  if (Number.isFinite(asId)) {
+    const byId = await supabase
+      .from('sku_catalog')
+      .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at')
+      .eq('id', asId)
+      .limit(1)
+      .maybeSingle();
+    if (byId.data) return byId.data as CatalogDb;
+  }
+  return null;
+}
+
+export async function fetchProductDetailByBarcode(barcode: string): Promise<ProductDetail | null> {
+  const supabase = createAdminClient();
+  const c = await findCatalog(barcode);
+  if (!c) return null;
+
   const today = new Date();
   const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const since = new Date(todayUtc);
@@ -121,7 +123,6 @@ export async function fetchProductDetailByBarcode(barcode: string): Promise<Prod
   const pnlCur = pnlRows.find((r) => r.sku_id === c.id);
   const pnlPrev = pnlPrevRows.find((r) => r.sku_id === c.id);
 
-  // Суммарные подсчёты из facts
   let orders = 0;
   let units = 0;
   let returnsCount = 0;
@@ -158,7 +159,6 @@ export async function fetchProductDetailByBarcode(barcode: string): Promise<Prod
     }
   }
 
-  // Склады: суммарно по имени склада
   const warehouseAgg = new Map<string, { units: number; inTransit: number }>();
   let totalStock = 0;
   let totalInTransit = 0;
@@ -184,7 +184,6 @@ export async function fetchProductDetailByBarcode(barcode: string): Promise<Prod
   const dailySales = units / 30;
   const daysOfStock = dailySales > 0 ? Math.floor(totalStock / dailySales) : 999;
 
-  // Дневные серии (30 точек)
   const days: string[] = [];
   for (let i = 0; i < 30; i++) {
     const d = new Date(since);
@@ -195,7 +194,6 @@ export async function fetchProductDetailByBarcode(barcode: string): Promise<Prod
     const v = revenueByDay.get(d) ?? { revenue: 0, orders: 0 };
     return { date: d, revenue: Math.round(v.revenue), orders: v.orders };
   });
-  // Остатки по дням — только текущие в виде плоской линии (история подключится позже)
   const stockSeries = days.map((d) => ({ date: d, stock: totalStock, inTransit: totalInTransit }));
 
   const revenue = toNumber(pnlCur?.revenue_rub) || revenueTotal;
