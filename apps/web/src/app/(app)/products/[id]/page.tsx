@@ -10,11 +10,13 @@ import {
   ProductExpensesCard,
   ProductWarehousesCard,
   ProductPhotosCard,
+  ProductEventsCard,
   ProductTabs,
   RevenueByDayChart,
   StockByDayChart,
 } from '@/features/product-detail';
 import { fetchProductDetailByBarcode } from '@/entities/product-detail';
+import { fetchProductEvents } from '@/entities/events';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -29,7 +31,11 @@ export async function generateMetadata({ params }: { params: Params }) {
 
 export default async function ProductDetailPage({ params }: { params: Params }) {
   const { id } = await params;
-  const product = await fetchProductDetailByBarcode(decodeURIComponent(id));
+  const decoded = decodeURIComponent(id);
+  const [product, events] = await Promise.all([
+    fetchProductDetailByBarcode(decoded),
+    fetchProductEvents(decoded),
+  ]);
   if (!product) notFound();
 
   return (
@@ -81,6 +87,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductExpensesCard product={product} />
         <ProductWarehousesCard product={product} />
       </div>
+
+      <ProductEventsCard events={events} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <RevenueByDayChart data={product.revenueByDay} />
