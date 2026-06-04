@@ -1,8 +1,10 @@
 import { Badge } from '@/shared/ui/badge';
 import { cn } from '@/shared/lib/utils';
-import { LIFECYCLE_META, type ProductLifecycleState } from '@/entities/product-state/types';
+import { LIFECYCLE_META, type LifecycleMeta, type ProductLifecycleState } from '@/entities/product-state/types';
 
-const TONE_CLASS: Record<NonNullable<ReturnType<typeof toneOf>>, string> = {
+type Tone = LifecycleMeta['tone'];
+
+const TONE_CLASS: Record<Tone, string> = {
   emerald: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
   amber: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
   rose: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-400',
@@ -10,10 +12,6 @@ const TONE_CLASS: Record<NonNullable<ReturnType<typeof toneOf>>, string> = {
   violet: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-400',
   neutral: 'border-border bg-muted/50 text-muted-foreground',
 };
-
-function toneOf(s: ProductLifecycleState) {
-  return LIFECYCLE_META[s].tone;
-}
 
 export function LifecycleBadge({
   state,
