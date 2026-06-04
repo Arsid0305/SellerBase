@@ -1,5 +1,6 @@
 import { Package } from 'lucide-react';
 import { CategoryCard, StatList } from '@/shared/ui/domain/category-card';
+import { LifecycleBadge } from '@/shared/ui/domain/lifecycle-badge';
 import type { ProductDetail } from './types';
 
 export function ProductMetaCard({ product }: { product: ProductDetail }) {
@@ -7,6 +8,7 @@ export function ProductMetaCard({ product }: { product: ProductDetail }) {
     <CategoryCard title="Товар" tone="amber" icon={Package}>
       <StatList
         rows={[
+          { label: 'Состояние', value: <LifecycleBadge state={product.lifecycle} /> },
           { label: 'Бренд', value: product.meta.brand },
           { label: 'Тип товара', value: product.meta.type, tone: 'muted' },
           { label: 'Поставщик', value: product.meta.supplierCode, tone: 'muted' },

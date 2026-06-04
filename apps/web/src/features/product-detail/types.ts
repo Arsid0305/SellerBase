@@ -1,4 +1,5 @@
 import type { ProductTagKind } from '@/shared/ui/domain/product-tag-badge';
+import type { ProductLifecycleState } from '@/entities/product-state/types';
 
 export type ProductDetailMeta = {
   brand: string;
@@ -55,6 +56,7 @@ export type ProductDetail = {
   id: string;
   name: string;
   channel: 'WB' | 'OZON';
+  lifecycle: ProductLifecycleState;
   tags: ProductTagKind[];
   meta: ProductDetailMeta;
   sales: ProductDetailSales;

@@ -41,6 +41,7 @@ export function buildProductDetailById(id: string): ProductDetail {
     id,
     name: 'Крем-спрей для волос PERFECT HAIR многофункциональный 15 в 1 несмываемый, 250 мл',
     channel: 'WB',
+    lifecycle: 'STABLE',
     tags: ['PPP', 'A', 'Y'],
     meta: {
       brand: 'OllinProfessional',

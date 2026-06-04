@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import type { ProductDetail } from '@/features/product-detail/types';
+import { classifyLifecycle } from '@/entities/product-state/classifier';
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
@@ -21,7 +22,10 @@ type CatalogDb = {
   brand: string | null;
   cost_price_rub: number | null;
   created_at: string | null;
+  is_active: boolean | null;
 };
+
+const CATALOG_COLUMNS = 'id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at, is_active';
 
 type FactDb = {
   rr_dt: string;
@@ -58,7 +62,7 @@ async function findCatalog(barcode: string): Promise<CatalogDb | null> {
   const supabase = createAdminClient();
   const byBarcode = await supabase
     .from('sku_catalog')
-    .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at')
+    .select(CATALOG_COLUMNS)
     .eq('barcode', barcode)
     .limit(1)
     .maybeSingle();
@@ -69,7 +73,7 @@ async function findCatalog(barcode: string): Promise<CatalogDb | null> {
   if (Number.isFinite(asId)) {
     const byId = await supabase
       .from('sku_catalog')
-      .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at')
+      .select(CATALOG_COLUMNS)
       .eq('id', asId)
       .limit(1)
       .maybeSingle();
@@ -207,10 +211,41 @@ export async function fetchProductDetailByBarcode(barcode: string): Promise<Prod
   const trend = revenuePrev > 0 ? ((revenue - revenuePrev) / revenuePrev) * 100 : 0;
   const lostRevenue = totalStock <= 0 && dailySales > 0 ? Math.round(dailySales * avgPrice * 14) : 0;
 
+  const cutoffMs = todayUtc.getTime() - 14 * 86_400_000;
+  let revenue14d = 0;
+  let revenue14dPrev = 0;
+  for (const f of facts) {
+    const q = toNumber(f.quantity);
+    if (q <= 0) continue;
+    const ts = new Date(`${f.rr_dt}T00:00:00Z`).getTime();
+    const amount = toNumber(f.retail_amount);
+    if (ts >= cutoffMs) revenue14d += amount;
+    else revenue14dPrev += amount;
+  }
+  const revenuesAll = pnlRows.map((r) => toNumber(r.revenue_rub)).filter((v) => v > 0).sort((a, b) => b - a);
+  const topIdx = Math.max(0, Math.floor(revenuesAll.length * 0.2) - 1);
+  const topThreshold = revenuesAll[topIdx] ?? Infinity;
+  const isTopRevenue = revenue >= topThreshold && revenue > 0;
+  const daysInCatalog = c.created_at
+    ? Math.max(0, Math.floor((todayUtc.getTime() - new Date(c.created_at).getTime()) / 86_400_000))
+    : 999;
+  const lifecycle = classifyLifecycle({
+    isActive: c.is_active !== false,
+    daysInCatalog,
+    daysSinceLastSale: daysSinceLastOrder,
+    revenue14d,
+    revenue14dPrev,
+    marginPct: toNumber(pnlCur?.margin_pct),
+    stock: totalStock,
+    unitsPerDay: dailySales,
+    isTopRevenue,
+  });
+
   const detail: ProductDetail = {
     id: String(c.id),
     name: c.title ?? c.my_article ?? 'Без названия',
     channel: 'WB',
+    lifecycle,
     tags: [],
     meta: {
       brand: c.brand ?? '—',
