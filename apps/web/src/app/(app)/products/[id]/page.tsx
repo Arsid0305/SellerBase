@@ -11,12 +11,14 @@ import {
   ProductWarehousesCard,
   ProductPhotosCard,
   ProductEventsCard,
+  ProductHistoryCard,
   ProductTabs,
   RevenueByDayChart,
   StockByDayChart,
 } from '@/features/product-detail';
 import { fetchProductDetailByBarcode } from '@/entities/product-detail';
 import { fetchProductEvents } from '@/entities/events';
+import { fetchSnapshotsBySkuId } from '@/entities/snapshots';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -37,6 +39,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
     fetchProductEvents(decoded),
   ]);
   if (!product) notFound();
+  const skuId = Number(product.id);
+  const diffs = Number.isFinite(skuId) ? await fetchSnapshotsBySkuId(skuId) : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -89,6 +93,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
       </div>
 
       <ProductEventsCard events={events} />
+
+      <ProductHistoryCard diffs={diffs} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <RevenueByDayChart data={product.revenueByDay} />
