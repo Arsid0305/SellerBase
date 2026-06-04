@@ -21,6 +21,9 @@ export type CatalogProduct = {
   lastSaleDaysAgo: number;
   daysOfStock: number;
   salesSparkline: number[]; // 30 days, выручка
+  visibility: number; // 0-100 — % дней с продажами в 30д
+  trust: number; // 0-100 — стабильность продаж (1 - cv)
+  value: number; // 0-100 — маржа × 2, clamped
 };
 
 export type CatalogSummary = {

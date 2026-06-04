@@ -151,4 +151,27 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
       return <span className="text-rose-600 dark:text-rose-400 font-medium">{d} д. назад</span>;
     },
   },
+  {
+    id: 'tvv',
+    header: 'Видимость / Доверие / Ценность',
+    cell: ({ row }) => {
+      const { visibility, trust, value } = row.original;
+      const Bar = ({ pct, label, color }: { pct: number; label: string; color: string }) => (
+        <div className="flex items-center gap-1">
+          <span className="w-10 text-[10px] text-muted-foreground">{label}</span>
+          <div className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
+            <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+          </div>
+          <span className="w-7 text-right text-[10px] tabular-nums">{pct}</span>
+        </div>
+      );
+      return (
+        <div className="flex flex-col gap-0.5">
+          <Bar pct={visibility} label="Вид." color="bg-sky-500" />
+          <Bar pct={trust} label="Дов." color="bg-emerald-500" />
+          <Bar pct={value} label="Цен." color="bg-violet-500" />
+        </div>
+      );
+    },
+  },
 ];
