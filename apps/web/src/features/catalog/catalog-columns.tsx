@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
+import { LifecycleBadge } from '@/shared/ui/domain/lifecycle-badge';
 import { Sparkline } from '@/shared/ui/domain/sparkline';
 import { Badge } from '@/shared/ui/badge';
 import { formatRub, formatInt } from '@/shared/lib/format';
@@ -48,6 +49,12 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
     accessorKey: 'category',
     header: 'Категория',
     cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.category}</span>,
+  },
+  {
+    id: 'lifecycle',
+    header: 'Состояние',
+    cell: ({ row }) => <LifecycleBadge state={row.original.lifecycle ?? 'STABLE'} showDescription />,
+    enableSorting: false,
   },
   {
     id: 'tags',
