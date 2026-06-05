@@ -12,7 +12,7 @@ import {
 } from '@/shared/ui/dropdown-menu';
 import { cn } from '@/shared/lib/utils';
 
-export type PeriodPreset = 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'quarter' | 'custom';
+export type PeriodPreset = 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'quarter' | 'half' | 'year' | 'custom';
 
 const PRESETS: { key: PeriodPreset; label: string }[] = [
   { key: 'today', label: 'Сегодня' },
@@ -21,6 +21,8 @@ const PRESETS: { key: PeriodPreset; label: string }[] = [
   { key: '30d', label: '30 дней' },
   { key: 'month', label: 'Месяц' },
   { key: 'quarter', label: 'Квартал' },
+  { key: 'half', label: 'Полгода' },
+  { key: 'year', label: 'Год' },
 ];
 
 function iso(d: Date): string {
@@ -55,6 +57,16 @@ function presetToRange(preset: PeriodPreset): { from: string; to: string } | nul
     case 'quarter': {
       const q = Math.floor(today.getUTCMonth() / 3);
       const from = new Date(Date.UTC(today.getUTCFullYear(), q * 3, 1));
+      return { from: iso(from), to: iso(today) };
+    }
+    case 'half': {
+      const from = new Date(today);
+      from.setUTCMonth(from.getUTCMonth() - 6);
+      return { from: iso(from), to: iso(today) };
+    }
+    case 'year': {
+      const from = new Date(today);
+      from.setUTCFullYear(from.getUTCFullYear() - 1);
       return { from: iso(from), to: iso(today) };
     }
     case 'custom':
