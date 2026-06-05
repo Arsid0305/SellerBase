@@ -21,7 +21,14 @@ type CatalogDb = {
   brand: string | null;
   cost_price_rub: number | null;
   created_at: string | null;
+  photo_url: string | null;
+  rating: number | null;
+  reviews_count: number | null;
+  last_content_sync_at: string | null;
 };
+
+const CATALOG_COLS =
+  'id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at, photo_url, rating, reviews_count, last_content_sync_at';
 
 type FactDb = {
   rr_dt: string;
@@ -58,7 +65,7 @@ async function findCatalog(barcode: string): Promise<CatalogDb | null> {
   const supabase = createAdminClient();
   const byBarcode = await supabase
     .from('sku_catalog')
-    .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at')
+    .select(CATALOG_COLS)
     .eq('barcode', barcode)
     .limit(1)
     .maybeSingle();
@@ -69,7 +76,7 @@ async function findCatalog(barcode: string): Promise<CatalogDb | null> {
   if (Number.isFinite(asId)) {
     const byId = await supabase
       .from('sku_catalog')
-      .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub, created_at')
+      .select(CATALOG_COLS)
       .eq('id', asId)
       .limit(1)
       .maybeSingle();
@@ -220,7 +227,10 @@ export async function fetchProductDetailByBarcode(barcode: string): Promise<Prod
       barcode: c.barcode ?? '',
       inStock: totalStock > 0,
       inStockSince: c.created_at ? formatYmd(c.created_at) : '—',
+      rating: c.rating != null ? Number(c.rating) : undefined,
+      reviewsCount: c.reviews_count != null ? c.reviews_count : undefined,
     },
+    photoUrl: c.photo_url ?? undefined,
     sales: {
       price: Math.round(avgPrice),
       priceWithoutDiscount: 0,

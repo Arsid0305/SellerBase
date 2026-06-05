@@ -1,6 +1,30 @@
 # Tasks — SellerBase
 
-## [2026-05-29 — актуально]
+## [2026-06-04 — актуально]
+
+### Excel-синхронизация (CF & PL 2026)
+
+Шаблон владельца: `CF and PL 2026.xlsx` (вкладки PL общ / PL WB / PL OZON / PL WB (нед) / PL OZON (нед) / CF / CF (нед) / Дашборд).
+Ручные входы только на вкладках `PL WB (нед)` и `PL OZON (нед)` — остальное формулы.
+
+- [ ] **Этап A** — Кнопка «Скачать XLSX» в приложении. Сервер берёт шаблон, заполняет ячейки-входы (продажи шт, выручка, OPEX по неделям) из Supabase через openpyxl/exceljs. Формулы и Дашборд остаются. Полностью офлайн после скачивания.
+- [ ] **Этап B** — После теста A: подключить Power Query внутри файла к REST-эндпоинту `/api/finance/weekly`. Кнопка «Обновить» в Excel тянет данные. Настройка в спокойном режиме.
+- [ ] Этап C (опционально, позже) — Excel Add-in / OfficeJS с панелью Sync.
+
+### Лайфсайклы товаров (текущий PR #47)
+- [ ] Дождаться мерджа #47 → подключить LifecycleBadge в карточку товара
+- [ ] Day 2: Events (events table + v_events + UI)
+- [ ] Day 3: Anomaly detection
+- [ ] Day 4: Trust/Visibility/Value computed columns
+- [ ] Day 5: Versioning of product cards
+- [ ] Day 6-7: Goals/Tasks layers
+
+### Себестоимость
+- [ ] Подстраница «Мои товары → Себестоимость»: таблица SKU + inline edit + импорт CSV + история (`sku_cost_history` с valid_from/valid_to)
+
+---
+
+## [2026-05-29 — устарело]
 
 **Текущий этап:** ждём первый fetch-wb-report (cron утром) → реальный P&L.
 
