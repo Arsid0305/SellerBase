@@ -85,7 +85,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductMetaCard product={product} />
         <ProductSalesCard product={product} />
         <ProductFinanceCard product={product} />
-        <ProductPhotosCard />
+        <ProductPhotosCard imageUrl={product.photoUrl} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
