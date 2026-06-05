@@ -12,7 +12,7 @@ import type {
 } from './types';
 
 const TABLE_MISSING = '42P01';
-const TARGET_DAYS = 30; // целевой запас
+const TARGET_DAYS = 30;
 const SALES_WINDOW_DAYS = 60;
 
 type PlanDb = {
@@ -56,7 +56,6 @@ export async function fetchSupplyPlans(): Promise<SupplyPlan[]> {
   const plans = (data ?? []) as PlanDb[];
   if (plans.length === 0) return [];
 
-  // Подсчёт позиций
   const ids = plans.map((p) => p.id);
   const { data: itemsRaw } = await supabase
     .from('supply_plan_items')
@@ -78,7 +77,6 @@ export async function fetchSupplyPlan(id: number): Promise<SupplyPlan | null> {
     .single();
   if (error) {
     if (error.code === TABLE_MISSING) return null;
-    console.error('[fetchSupplyPlan]', error);
     return null;
   }
   return mapPlan(data as PlanDb);
@@ -91,11 +89,8 @@ export async function fetchPlanItems(planId: number): Promise<SupplyPlanItem[]> 
     .select('id, plan_id, sku_id, warehouse_name, qty')
     .eq('plan_id', planId)
     .range(0, 50000);
-  if (error) {
-    if (error.code === TABLE_MISSING) return [];
-    return [];
-  }
-  return (data ?? []).map((r: { id: number; plan_id: number; sku_id: number; warehouse_name: string; qty: number }) => ({
+  if (error) return [];
+  return ((data ?? []) as { id: number; plan_id: number; sku_id: number; warehouse_name: string; qty: number }[]).map((r) => ({
     id: r.id,
     planId: r.plan_id,
     skuId: r.sku_id,
@@ -111,11 +106,8 @@ export async function fetchPlanChinaItems(planId: number): Promise<SupplyPlanChi
     .select('id, plan_id, sku_id, supplier_id, qty, price_cny')
     .eq('plan_id', planId)
     .range(0, 50000);
-  if (error) {
-    if (error.code === TABLE_MISSING) return [];
-    return [];
-  }
-  return (data ?? []).map((r: { id: number; plan_id: number; sku_id: number; supplier_id: number | null; qty: number; price_cny: number | null }) => ({
+  if (error) return [];
+  return ((data ?? []) as { id: number; plan_id: number; sku_id: number; supplier_id: number | null; qty: number; price_cny: number | null }[]).map((r) => ({
     id: r.id,
     planId: r.plan_id,
     skuId: r.sku_id,
@@ -172,8 +164,6 @@ export async function deletePlan(id: number): Promise<boolean> {
   return true;
 }
 
-// === Items / China items ===
-
 export async function replacePlanItems(
   planId: number,
   items: { skuId: number; warehouseName: string; qty: number }[],
@@ -229,8 +219,6 @@ export async function replacePlanChinaItems(
   return true;
 }
 
-// === Сбор статистики по SKU × склад для построения таблицы ===
-
 type FactRow = { nm_id: number | null; warehouse_name: string | null; quantity: number | null };
 type StockRow = { nm_id: number | null; warehouse_name: string | null; quantity: number | null };
 type SkuRow = {
@@ -282,14 +270,12 @@ export async function fetchSupplyStats(): Promise<{
   const facts = (factRes.error ? [] : (factRes.data ?? [])) as FactRow[];
   const stocks = (stockRes.error ? [] : (stockRes.data ?? [])) as StockRow[];
 
-  // Динамический список складов = реальные из wb_stocks + WB_WAREHOUSES fallback
   const whSet = new Set<string>();
   for (const s of stocks) if (s.warehouse_name) whSet.add(s.warehouse_name);
   for (const f of facts) if (f.warehouse_name) whSet.add(f.warehouse_name);
   if (whSet.size === 0) for (const w of WB_WAREHOUSES) whSet.add(w);
   const warehouses = Array.from(whSet).sort();
 
-  // index by nm_id
   const factsByNm = new Map<number, Map<string, number>>();
   for (const f of facts) {
     if (f.nm_id == null || !f.warehouse_name) continue;
@@ -335,15 +321,11 @@ export async function fetchSupplyStats(): Promise<{
       totalSales += sv;
     }
 
-    // Рекомендация: per-склад
-    // velocity_w = sales_w / 60
-    // need_w = velocity_w * 30 - stock_w - share_w * (home + ff)
-    // share_w = sales_w / totalSales
     const recommendByWarehouse: Record<string, number> = {};
     const externalTotal = ext.home + ext.ff;
     for (const w of warehouses) {
-      const sv = salesByWarehouse[w];
-      const st = stocksByWarehouse[w];
+      const sv = salesByWarehouse[w] ?? 0;
+      const st = stocksByWarehouse[w] ?? 0;
       const velocity = sv / SALES_WINDOW_DAYS;
       const share = totalSales > 0 ? sv / totalSales : 0;
       const need = velocity * TARGET_DAYS - st - share * externalTotal;
@@ -367,9 +349,6 @@ export async function fetchSupplyStats(): Promise<{
   return { rows, warehouses };
 }
 
-/**
- * Рекомендация на лету для одного SKU — для UI пересчёта при правке home/ff.
- */
 export function buildRecommendation(
   salesByWarehouse: Record<string, number>,
   stocksByWarehouse: Record<string, number>,
