@@ -56,18 +56,15 @@ export type SupplyPlanInput = {
 
 export type SupplyPlanPatch = Partial<SupplyPlanInput>;
 
-// Полный отчёт для редактирования: список SKU × склад × продажи/остатки/рекомендация
 export type SkuWarehouseStats = {
   skuId: number;
   myArticle: string | null;
   wbArticle: number | null;
   barcode: string | null;
   title: string | null;
-  // по складам:
-  salesByWarehouse: Record<string, number>; // продано за 60д
-  stocksByWarehouse: Record<string, number>; // текущий остаток WB
+  salesByWarehouse: Record<string, number>;
+  stocksByWarehouse: Record<string, number>;
   homeStock: number;
   ffStock: number;
-  // рекомендация по складам (везти):
   recommendByWarehouse: Record<string, number>;
 };

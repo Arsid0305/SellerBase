@@ -32,7 +32,7 @@ CREATE POLICY "service_role_all" ON external_stock FOR ALL TO service_role USING
 CREATE TABLE IF NOT EXISTS supply_plans (
   id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'draft',  -- 'draft' | 'sent_to_ff' | 'sent_to_china' | 'received' | 'cancelled'
+  status TEXT NOT NULL DEFAULT 'draft',
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -41,7 +41,7 @@ ALTER TABLE supply_plans ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "service_role_all" ON supply_plans;
 CREATE POLICY "service_role_all" ON supply_plans FOR ALL TO service_role USING (true) WITH CHECK (true);
 
--- Позиции плана по складам WB (что куда везти)
+-- Позиции плана по складам WB
 CREATE TABLE IF NOT EXISTS supply_plan_items (
   id BIGSERIAL PRIMARY KEY,
   plan_id BIGINT NOT NULL REFERENCES supply_plans(id) ON DELETE CASCADE,

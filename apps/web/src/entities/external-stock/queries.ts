@@ -32,7 +32,7 @@ export async function fetchExternalStock(): Promise<ExternalStock[]> {
     console.error('[fetchExternalStock]', error);
     return [];
   }
-  return (data ?? []).map((r: Db) => map(r));
+  return ((data ?? []) as Db[]).map((r) => map(r));
 }
 
 export async function fetchExternalStockBySku(skuId: number): Promise<{ home: number; ff: number }> {

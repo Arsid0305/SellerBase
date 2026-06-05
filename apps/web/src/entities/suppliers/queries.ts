@@ -39,7 +39,7 @@ export async function fetchSuppliers(): Promise<ChinaSupplier[]> {
     console.error('[fetchSuppliers]', error);
     return [];
   }
-  return (data ?? []).map((r: Db) => map(r));
+  return ((data ?? []) as Db[]).map((r) => map(r));
 }
 
 export async function fetchSuppliersBySku(skuId: number): Promise<ChinaSupplier[]> {
@@ -55,7 +55,7 @@ export async function fetchSuppliersBySku(skuId: number): Promise<ChinaSupplier[
     console.error('[fetchSuppliersBySku]', error);
     return [];
   }
-  return (data ?? []).map((r: Db) => map(r));
+  return ((data ?? []) as Db[]).map((r) => map(r));
 }
 
 async function clearDefault(skuId: number, exceptId?: number) {
