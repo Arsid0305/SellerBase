@@ -59,7 +59,7 @@ export function CostsExplorer({ rows }: Props) {
         startTransition(() => router.refresh());
         return;
       }
-    } catch (e) {
+    } catch {
       alert('Ошибка сети');
     }
     updateRow(row.sku_id, { saving: false });
