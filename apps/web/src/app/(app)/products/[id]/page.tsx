@@ -10,11 +10,16 @@ import {
   ProductExpensesCard,
   ProductWarehousesCard,
   ProductPhotosCard,
+  ProductEventsCard,
+  ProductHistoryCard,
   ProductTabs,
   RevenueByDayChart,
   StockByDayChart,
 } from '@/features/product-detail';
 import { fetchProductDetailByBarcode } from '@/entities/product-detail';
+import { fetchProductEvents } from '@/entities/events';
+import { fetchSnapshotsBySkuId } from '@/entities/snapshots';
+import { ProductScenariosCard } from '@/features/customer';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -29,8 +34,14 @@ export async function generateMetadata({ params }: { params: Params }) {
 
 export default async function ProductDetailPage({ params }: { params: Params }) {
   const { id } = await params;
-  const product = await fetchProductDetailByBarcode(decodeURIComponent(id));
+  const decoded = decodeURIComponent(id);
+  const [product, events] = await Promise.all([
+    fetchProductDetailByBarcode(decoded),
+    fetchProductEvents(decoded),
+  ]);
   if (!product) notFound();
+  const skuId = Number(product.id);
+  const diffs = Number.isFinite(skuId) ? await fetchSnapshotsBySkuId(skuId) : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -74,13 +85,19 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductMetaCard product={product} />
         <ProductSalesCard product={product} />
         <ProductFinanceCard product={product} />
-        <ProductPhotosCard />
+        <ProductPhotosCard imageUrl={product.photoUrl} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ProductExpensesCard product={product} />
         <ProductWarehousesCard product={product} />
       </div>
+
+      {Number.isFinite(skuId) ? <ProductScenariosCard skuId={skuId} /> : null}
+
+      <ProductEventsCard events={events} />
+
+      <ProductHistoryCard diffs={diffs} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <RevenueByDayChart data={product.revenueByDay} />

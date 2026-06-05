@@ -63,4 +63,5 @@ export type ProductDetail = {
   warehouses: WarehouseStock[];
   revenueByDay: { date: string; revenue: number; orders: number }[];
   stockByDay: { date: string; stock: number; inTransit: number }[];
+  photoUrl?: string;
 };
