@@ -1,4 +1,5 @@
 import type { ProductTagKind } from '@/shared/ui/domain/product-tag-badge';
+import type { ProductLifecycleState } from '@/entities/product-state/types';
 
 export type CatalogStatus = 'in-stock' | 'out-of-stock' | 'no-sales' | 'excess';
 
@@ -24,6 +25,7 @@ export type CatalogProduct = {
   visibility: number; // 0-100 — % дней с продажами в 30д
   trust: number; // 0-100 — стабильность продаж (1 - cv)
   value: number; // 0-100 — маржа × 2, clamped
+  lifecycle?: ProductLifecycleState;
 };
 
 export type CatalogSummary = {

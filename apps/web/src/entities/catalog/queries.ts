@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import type { CatalogProduct } from '@/features/catalog/types';
+import type { ProductLifecycleState } from '@/entities/product-state/types';
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
@@ -48,6 +49,27 @@ type SupplyRow = {
   units_per_day: number | null;
 };
 
+type LifecycleRow = {
+  sku_id: number;
+  lifecycle: string | null;
+};
+
+const LIFECYCLE_VALUES: readonly ProductLifecycleState[] = [
+  'NEW',
+  'GROWING',
+  'STABLE',
+  'DECLINING',
+  'CRITICAL',
+  'LEADER',
+  'ARCHIVED',
+];
+
+function toLifecycle(v: string | null): ProductLifecycleState {
+  return (LIFECYCLE_VALUES as readonly string[]).includes(v ?? '')
+    ? (v as ProductLifecycleState)
+    : 'STABLE';
+}
+
 export async function fetchCatalog(): Promise<CatalogProduct[]> {
   const supabase = createAdminClient();
 
@@ -70,7 +92,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
 
   const sinceIso = iso(new Date(Date.now() - 30 * 86_400_000));
 
-  const [factsResult, stocksResult, supplyResult] = await Promise.all([
+  const [factsResult, stocksResult, supplyResult, lifecycleResult] = await Promise.all([
     nmIds.length > 0
       ? supabase
           .from('wb_reports_fact')
@@ -91,7 +113,21 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       .select('sku_id, days_to_oos_total, units_per_day')
       .in('sku_id', skuIds)
       .range(0, 5000),
+    supabase
+      .from('v_sku_lifecycle')
+      .select('sku_id, lifecycle')
+      .in('sku_id', skuIds)
+      .range(0, 5000),
   ]);
+
+  const lifecycleMap = new Map<number, ProductLifecycleState>();
+  if (lifecycleResult.error) {
+    console.error('[fetchCatalog] v_sku_lifecycle error', lifecycleResult.error);
+  } else {
+    for (const r of (lifecycleResult.data ?? []) as LifecycleRow[]) {
+      lifecycleMap.set(r.sku_id, toLifecycle(r.lifecycle));
+    }
+  }
 
   type Sales = {
     revenue: number;
@@ -219,6 +255,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       visibility,
       trust,
       value,
+      lifecycle: lifecycleMap.get(c.id) ?? 'STABLE',
     };
   });
 
