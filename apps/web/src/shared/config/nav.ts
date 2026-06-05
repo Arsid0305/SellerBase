@@ -14,6 +14,7 @@ import {
   Percent,
   ListTodo,
   Users,
+  Sigma,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -40,6 +41,7 @@ export const navItems: NavItem[] = [
   { title: 'Прибыль и убытки', href: '/pnl', icon: Wallet, group: 'analytics' },
   { title: 'Оборачиваемость', href: '/turnover', icon: Repeat, group: 'analytics' },
   { title: 'Отчёт по продажам', href: '/sales-report', icon: FileBarChart, group: 'analytics' },
+  { title: 'Pareto 80/20', href: '/analytics/pareto', icon: Sigma, group: 'analytics' },
   { title: 'Дефицит товаров', href: '/deficit', icon: AlertTriangle, group: 'operations' },
   { title: 'Отзывы и оценки', href: '/reviews', icon: MessageSquare, group: 'operations' },
   { title: 'Реклама товаров', href: '/ads', icon: Megaphone, group: 'operations', badge: 'позже' },
