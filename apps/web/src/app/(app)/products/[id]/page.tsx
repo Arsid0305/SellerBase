@@ -19,6 +19,7 @@ import {
 import { fetchProductDetailByBarcode } from '@/entities/product-detail';
 import { fetchProductEvents } from '@/entities/events';
 import { fetchSnapshotsBySkuId } from '@/entities/snapshots';
+import { ProductScenariosCard } from '@/features/customer';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -91,6 +92,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductExpensesCard product={product} />
         <ProductWarehousesCard product={product} />
       </div>
+
+      {Number.isFinite(skuId) ? <ProductScenariosCard skuId={skuId} /> : null}
 
       <ProductEventsCard events={events} />
 
