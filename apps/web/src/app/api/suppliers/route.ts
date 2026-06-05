@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     skuId,
     supplierName,
     link1688,
-    priceCny: Number.isFinite(priceCny as number) ? (priceCny as number) : null,
+    priceCny: priceCny != null && Number.isFinite(priceCny) ? priceCny : null,
     isDefault: !!body.isDefault,
     notes: typeof body.notes === 'string' ? body.notes : null,
   });

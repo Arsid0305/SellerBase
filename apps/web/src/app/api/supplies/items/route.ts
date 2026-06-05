@@ -1,27 +1,21 @@
 import { NextResponse } from 'next/server';
-import { replacePlanChinaItems } from '@/entities/supplies';
+import { replacePlanItems } from '@/entities/supplies';
 
 export const dynamic = 'force-dynamic';
 
-type ChinaInput = { skuId: number; supplierId: number | null; qty: number; priceCny: number | null };
+type ItemInput = { skuId: number; warehouseName: string; qty: number };
 
-function asItems(v: unknown): ChinaInput[] | null {
+function asItems(v: unknown): ItemInput[] | null {
   if (!Array.isArray(v)) return null;
-  const out: ChinaInput[] = [];
+  const out: ItemInput[] = [];
   for (const r of v) {
     if (!r || typeof r !== 'object') return null;
     const o = r as Record<string, unknown>;
     const skuId = Number(o.skuId);
-    const supplierIdRaw = o.supplierId == null ? null : Number(o.supplierId);
+    const warehouseName = typeof o.warehouseName === 'string' ? o.warehouseName : '';
     const qty = Math.max(0, Math.floor(Number(o.qty) || 0));
-    const priceCnyRaw = o.priceCny == null ? null : Number(o.priceCny);
-    if (!Number.isFinite(skuId)) return null;
-    out.push({
-      skuId,
-      supplierId: supplierIdRaw != null && Number.isFinite(supplierIdRaw) ? supplierIdRaw : null,
-      qty,
-      priceCny: priceCnyRaw != null && Number.isFinite(priceCnyRaw) ? priceCnyRaw : null,
-    });
+    if (!Number.isFinite(skuId) || !warehouseName) return null;
+    out.push({ skuId, warehouseName, qty });
   }
   return out;
 }
@@ -37,7 +31,8 @@ export async function POST(req: Request) {
   if (!Number.isFinite(planId)) return NextResponse.json({ error: 'planId_required' }, { status: 400 });
   const items = asItems(body.items);
   if (!items) return NextResponse.json({ error: 'invalid_items' }, { status: 400 });
-  const ok = await replacePlanChinaItems(planId, items);
+
+  const ok = await replacePlanItems(planId, items);
   if (!ok) return NextResponse.json({ error: 'save_failed' }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

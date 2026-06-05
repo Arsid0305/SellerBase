@@ -31,7 +31,6 @@ export async function GET(_req: Request, ctx: { params: Params }) {
     return NextResponse.json({ error: 'empty_plan' }, { status: 400 });
   }
 
-  // Подтягиваем SKU для штрихкода и названия
   const skuIds = [...new Set(items.map((i) => i.skuId))];
   const supabase = createAdminClient();
   const { data: skuRows } = await supabase
@@ -43,7 +42,6 @@ export async function GET(_req: Request, ctx: { params: Params }) {
     byId.set(r.id, { barcode: r.barcode, title: r.title });
   }
 
-  // Группируем по штрихкоду — складываем количество (в ФФ-шаблон везут общий объём)
   const byBarcode = new Map<string, { qty: number; title: string }>();
   for (const it of items) {
     const sku = byId.get(it.skuId);
