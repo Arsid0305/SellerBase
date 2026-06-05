@@ -1,0 +1,279 @@
+import { createAdminClient } from '@/shared/lib/supabase/admin';
+import type {
+  AnalyticsRow,
+  AnalyticsSummary,
+  ProfitabilityCell,
+  ProfitTier,
+  SalesTier,
+  StabilitySegment,
+  StabilityTier,
+} from '@/features/analytics/types';
+import type { ProductTagKind } from '@/shared/ui/domain/product-tag-badge';
+
+function toNumber(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function iso(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Profit tier по марже в %.
+ * PPP > 30%, PP 15–30%, P 0–15%, -P < 0
+ */
+function classifyProfit(marginPct: number): ProfitTier {
+  if (marginPct >= 30) return 'PPP';
+  if (marginPct >= 15) return 'PP';
+  if (marginPct >= 0) return 'P';
+  return '-P';
+}
+
+/**
+ * XYZ по коэффициенту вариации продаж за 30 дней.
+ * Массив daily — продажи по дням, включая нули в дни без продаж.
+ * X: cv < 0.10 (стабильная), Y: cv 0.10–0.25, Z: cv > 0.25 или мало данных.
+ */
+function classifyStability(daily: number[]): StabilityTier {
+  if (daily.length < 7) return 'Z';
+  const mean = daily.reduce((a, b) => a + b, 0) / daily.length;
+  if (mean <= 0) return 'Z';
+  const variance = daily.reduce((acc, v) => acc + (v - mean) ** 2, 0) / daily.length;
+  const cv = Math.sqrt(variance) / mean;
+  if (cv < 0.1) return 'X';
+  if (cv < 0.25) return 'Y';
+  return 'Z';
+}
+
+/**
+ * ABC по накопленной доле выручки: A — верхние 80%, B — следующие 15%, C — последние 5%.
+ */
+function classifySales(skus: { id: number; revenue: number }[]): Map<number, SalesTier> {
+  const sorted = [...skus].sort((a, b) => b.revenue - a.revenue);
+  const total = sorted.reduce((acc, s) => acc + s.revenue, 0);
+  const map = new Map<number, SalesTier>();
+  if (total <= 0) {
+    for (const s of sorted) map.set(s.id, 'C');
+    return map;
+  }
+  let cumulative = 0;
+  for (const s of sorted) {
+    cumulative += s.revenue;
+    const pct = (cumulative / total) * 100;
+    if (pct <= 80) map.set(s.id, 'A');
+    else if (pct <= 95) map.set(s.id, 'B');
+    else map.set(s.id, 'C');
+  }
+  return map;
+}
+
+type CatalogDb = {
+  id: number;
+  my_article: string | null;
+  wb_article: number | null;
+  barcode: string | null;
+  title: string | null;
+  brand: string | null;
+  cost_price_rub: number | null;
+};
+
+type PnlDb = {
+  sku_id: number;
+  revenue_rub: number | null;
+  units_sold: number | null;
+  margin_pct: number | null;
+  net_profit_rub: number | null;
+};
+
+type FactDb = {
+  nm_id: number | null;
+  rr_dt: string;
+  quantity: number | null;
+};
+
+type StockDb = {
+  nm_id: number | null;
+  quantity: number | null;
+};
+
+export async function fetchAnalytics(): Promise<{
+  rows: AnalyticsRow[];
+  profitabilityMatrix: ProfitabilityCell[];
+  stabilitySegments: StabilitySegment[];
+  summary: AnalyticsSummary;
+}> {
+  const supabase = createAdminClient();
+
+  const today = new Date();
+  const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+  const sinceUtc = new Date(todayUtc);
+  sinceUtc.setUTCDate(sinceUtc.getUTCDate() - 29);
+  const toIso = iso(todayUtc);
+  const fromIso = iso(sinceUtc);
+
+  const [catalogResult, pnlResult, factsResult] = await Promise.all([
+    supabase
+      .from('sku_catalog')
+      .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub')
+      .eq('is_active', true)
+      .range(0, 5000),
+    supabase.rpc('get_full_pnl_by_period', { p_from: fromIso, p_to: toIso }),
+    supabase
+      .from('wb_reports_fact')
+      .select('nm_id, rr_dt, quantity')
+      .gte('rr_dt', fromIso)
+      .lte('rr_dt', toIso)
+      .range(0, 200_000),
+  ]);
+
+  const catalog = (catalogResult.data ?? []) as CatalogDb[];
+  if (catalog.length === 0) {
+    return { rows: [], profitabilityMatrix: [], stabilitySegments: emptyStability(), summary: emptySummary() };
+  }
+
+  const pnlRows = (pnlResult.data ?? []) as PnlDb[];
+  const facts = (factsResult.data ?? []) as FactDb[];
+
+  const nmIds = [...new Set(catalog.map((c) => c.wb_article).filter((v): v is number => v != null))];
+  const stocksResult = nmIds.length > 0
+    ? await supabase.from('wb_stocks').select('nm_id, quantity').in('nm_id', nmIds).range(0, 50_000)
+    : { data: [] as StockDb[] };
+  const stocks = (stocksResult.data ?? []) as StockDb[];
+
+  const pnlBySkuId = new Map<number, PnlDb>();
+  for (const p of pnlRows) pnlBySkuId.set(p.sku_id, p);
+
+  const stockByNmId = new Map<number, number>();
+  for (const s of stocks) {
+    if (s.nm_id == null) continue;
+    stockByNmId.set(s.nm_id, (stockByNmId.get(s.nm_id) ?? 0) + toNumber(s.quantity));
+  }
+
+  // Массив дней для бэкфилла нулями
+  const days: string[] = [];
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(sinceUtc);
+    d.setUTCDate(d.getUTCDate() + i);
+    days.push(iso(d));
+  }
+
+  // Продажи по SKU и дню
+  const dailyByNm = new Map<number, Map<string, number>>();
+  for (const f of facts) {
+    if (f.nm_id == null) continue;
+    const q = toNumber(f.quantity);
+    if (q <= 0) continue;
+    const dayMap = dailyByNm.get(f.nm_id) ?? new Map<string, number>();
+    dayMap.set(f.rr_dt, (dayMap.get(f.rr_dt) ?? 0) + q);
+    dailyByNm.set(f.nm_id, dayMap);
+  }
+
+  const enriched = catalog.map((c) => {
+    const pnl = pnlBySkuId.get(c.id);
+    const revenue = toNumber(pnl?.revenue_rub);
+    const margin = toNumber(pnl?.margin_pct);
+    const stock = c.wb_article != null ? (stockByNmId.get(c.wb_article) ?? 0) : 0;
+    const unitsSold = toNumber(pnl?.units_sold);
+
+    const dayMap = c.wb_article != null ? dailyByNm.get(c.wb_article) : undefined;
+    const dailySeries = dayMap ? days.map((d) => dayMap.get(d) ?? 0) : days.map(() => 0);
+
+    return { catalog: c, revenue, margin, stock, unitsSold, dailySeries };
+  });
+
+  const salesTierMap = classifySales(enriched.map((e) => ({ id: e.catalog.id, revenue: e.revenue })));
+
+  const rows: AnalyticsRow[] = enriched.map((e) => {
+    const profit = classifyProfit(e.margin);
+    const sales = salesTierMap.get(e.catalog.id) ?? 'C';
+    const stability = classifyStability(e.dailySeries);
+    const tags: ProductTagKind[] = [profit, sales, stability];
+
+    return {
+      id: String(e.catalog.id),
+      name: e.catalog.title ?? e.catalog.my_article ?? 'Без названия',
+      barcode: e.catalog.barcode ?? '',
+      channel: 'WB',
+      tags,
+      profit,
+      sales,
+      stability,
+      revenue: Math.round(e.revenue),
+      margin: Math.round(e.margin * 10) / 10,
+      cost: Math.round(toNumber(e.catalog.cost_price_rub)),
+      stock: e.stock,
+      unitsSold: Math.round(e.unitsSold),
+    };
+  });
+
+  // Матрица прибыльности 4×3
+  const matrixCounter = new Map<string, number>();
+  for (const r of rows) {
+    const key = `${r.profit}_${r.sales}`;
+    matrixCounter.set(key, (matrixCounter.get(key) ?? 0) + 1);
+  }
+  const profitabilityMatrix: ProfitabilityCell[] = [];
+  for (const profit of ['PPP', 'PP', 'P', '-P'] as ProfitTier[]) {
+    for (const sales of ['A', 'B', 'C'] as SalesTier[]) {
+      profitabilityMatrix.push({
+        profit,
+        sales,
+        count: matrixCounter.get(`${profit}_${sales}`) ?? 0,
+      });
+    }
+  }
+
+  // XYZ-сегменты
+  const stabilityCounts: Record<StabilityTier, number> = { X: 0, Y: 0, Z: 0 };
+  for (const r of rows) stabilityCounts[r.stability] += 1;
+  const total = rows.length;
+  const stabilitySegments: StabilitySegment[] = [
+    {
+      tier: 'X',
+      label: 'Стабильная',
+      count: stabilityCounts.X,
+      share: total > 0 ? (stabilityCounts.X / total) * 100 : 0,
+      description: 'Коэф. вариации продаж < 10%',
+    },
+    {
+      tier: 'Y',
+      label: 'Средняя',
+      count: stabilityCounts.Y,
+      share: total > 0 ? (stabilityCounts.Y / total) * 100 : 0,
+      description: 'Коэф. вариации 10–25%',
+    },
+    {
+      tier: 'Z',
+      label: 'Нестабильная',
+      count: stabilityCounts.Z,
+      share: total > 0 ? (stabilityCounts.Z / total) * 100 : 0,
+      description: 'Коэф. вариации > 25% или мало данных',
+    },
+  ];
+
+  const summary: AnalyticsSummary = {
+    totalProducts: total,
+    withCost: rows.filter((r) => r.cost > 0).length,
+    withoutCost: rows.filter((r) => r.cost <= 0).length,
+    withSales: rows.filter((r) => r.revenue > 0).length,
+    stable: stabilityCounts.X,
+    unstable: stabilityCounts.Z,
+  };
+
+  return { rows, profitabilityMatrix, stabilitySegments, summary };
+}
+
+function emptyStability(): StabilitySegment[] {
+  return [
+    { tier: 'X', label: 'Стабильная', count: 0, share: 0, description: 'Коэф. вариации < 10%' },
+    { tier: 'Y', label: 'Средняя', count: 0, share: 0, description: 'Коэф. вариации 10–25%' },
+    { tier: 'Z', label: 'Нестабильная', count: 0, share: 0, description: 'Коэф. вариации > 25%' },
+  ];
+}
+
+function emptySummary(): AnalyticsSummary {
+  return { totalProducts: 0, withCost: 0, withoutCost: 0, withSales: 0, stable: 0, unstable: 0 };
+}

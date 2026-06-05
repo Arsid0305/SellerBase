@@ -1,0 +1,1 @@
+export { fetchAnalytics } from './queries';
