@@ -1,5 +1,5 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { KpiGrid, RevenueExpensesChart, ChannelsDonut } from '@/features/dashboard';
+import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner } from '@/features/dashboard';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
 import {
   fetchPnlAggregate,
@@ -8,6 +8,7 @@ import {
   lastNDaysRange,
   type PeriodRange,
 } from '@/entities/pnl';
+import { fetchAnomalies } from '@/entities/anomalies';
 
 export const metadata = { title: 'Сводка' };
 export const dynamic = 'force-dynamic';
@@ -45,10 +46,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   const range = parseRange(sp);
   const comparison = shiftRangeBack(range);
 
-  const [current, previous, series] = await Promise.all([
+  const [current, previous, series, anomalies] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
+    fetchAnomalies(),
   ]);
 
   const revenueKpi: DashboardKpi = {
@@ -96,6 +98,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         title="Сводка"
         description={`Текущий: ${formatRange(range)} · Сравнение: ${formatRange(comparison)}`}
       />
+      <AnomaliesBanner anomalies={anomalies} />
       <KpiGrid
         kpis={{
           revenue: revenueKpi,

@@ -4,6 +4,8 @@ export { ProductFinanceCard } from './product-finance-card';
 export { ProductExpensesCard } from './product-expenses-card';
 export { ProductWarehousesCard } from './product-warehouses-card';
 export { ProductPhotosCard } from './product-photos-card';
+export { ProductEventsCard } from './product-events-card';
+export { ProductHistoryCard } from './product-history-card';
 export { ProductTabs } from './product-tabs';
 export { RevenueByDayChart, StockByDayChart } from './product-charts';
 export { buildProductDetailById } from './mock-data';
