@@ -1,0 +1,1 @@
+export { fetchSalesReportAll } from './queries';
