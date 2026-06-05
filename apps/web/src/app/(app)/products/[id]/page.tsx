@@ -20,6 +20,8 @@ import { fetchProductDetailByBarcode } from '@/entities/product-detail';
 import { fetchProductEvents } from '@/entities/events';
 import { fetchSnapshotsBySkuId } from '@/entities/snapshots';
 import { ProductScenariosCard } from '@/features/customer';
+import { SuppliersCard } from '@/features/supplies';
+import { fetchSuppliersBySku } from '@/entities/suppliers';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -42,6 +44,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   if (!product) notFound();
   const skuId = Number(product.id);
   const diffs = Number.isFinite(skuId) ? await fetchSnapshotsBySkuId(skuId) : [];
+  const suppliers = Number.isFinite(skuId) ? await fetchSuppliersBySku(skuId) : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -94,6 +97,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
       </div>
 
       {Number.isFinite(skuId) ? <ProductScenariosCard skuId={skuId} /> : null}
+
+      {Number.isFinite(skuId) ? <SuppliersCard skuId={skuId} initial={suppliers} /> : null}
 
       <ProductEventsCard events={events} />
 
