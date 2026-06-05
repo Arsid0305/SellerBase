@@ -13,6 +13,8 @@ import {
   MessageSquare,
   Percent,
   ListTodo,
+  AlertOctagon,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -44,6 +46,8 @@ export const navItems: NavItem[] = [
   { title: 'Реклама товаров', href: '/ads', icon: Megaphone, group: 'operations', badge: 'позже' },
   { title: 'Источники заказов', href: '/sources', icon: Network, group: 'operations', badge: 'скоро' },
   { title: 'Задачи', href: '/tasks', icon: ListTodo, group: 'management' },
+  { title: 'Проблемы', href: '/problems', icon: AlertOctagon, group: 'management' },
+  { title: 'Знания', href: '/knowledge', icon: BookOpen, group: 'management' },
   { title: 'Поиск ниши WB', href: '/niche', icon: Search, group: 'external', badge: 'позже' },
   { title: 'Тарифы и коэффициенты', href: '/tariffs', icon: Percent, group: 'data' },
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
