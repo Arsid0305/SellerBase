@@ -1,4 +1,4 @@
-import { Activity, Star, ShieldCheck } from 'lucide-react';
+import { Activity, TrendingDown, ShieldCheck } from 'lucide-react';
 import { CategoryCard, StatList } from '@/shared/ui/domain/category-card';
 import { formatDate } from '@/shared/lib/format';
 import { mockPersonalIndices } from './mock-data';
@@ -6,6 +6,10 @@ import { mockPersonalIndices } from './mock-data';
 export function PersonalIndicesSection() {
   const p = mockPersonalIndices;
   const updated = formatDate(p.updatedAt);
+
+  const localizationTone = p.localizationIndex >= 1 ? 'positive' : 'negative';
+  const distributionTone = p.salesDistributionIndex <= 1 ? 'positive' : 'negative';
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <CategoryCard title="Индекс локализации" tone="emerald" icon={Activity}>
@@ -13,18 +17,23 @@ export function PersonalIndicesSection() {
           rows={[
             {
               label: 'Текущее значение',
-              value: `+${p.localizationIndex}%`,
-              tone: 'positive',
-              hint: 'выше среднего по нише',
+              value: p.localizationIndex.toFixed(2),
+              tone: localizationTone,
+              hint: 'эффективность распределения остатков между складами',
             },
             { label: 'Обновлено', value: updated, tone: 'muted' },
           ]}
         />
       </CategoryCard>
-      <CategoryCard title="Рейтинг продавца" tone="emerald" icon={Star}>
+      <CategoryCard title="Индекс распределения продаж" tone="amber" icon={TrendingDown}>
         <StatList
           rows={[
-            { label: 'Оценка', value: `${p.ratingScore.toFixed(1)} ★`, tone: 'positive' },
+            {
+              label: 'Текущее значение',
+              value: `${p.salesDistributionIndex.toFixed(2)}%`,
+              tone: distributionTone,
+              hint: '% от розничной цены — доп. стоимость логистики',
+            },
             { label: 'Обновлено', value: updated, tone: 'muted' },
           ]}
         />
