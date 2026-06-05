@@ -22,6 +22,7 @@ import { fetchSnapshotsBySkuId } from '@/entities/snapshots';
 import { ProductScenariosCard } from '@/features/customer';
 import { SuppliersCard } from '@/features/supplies';
 import { fetchSuppliersBySku } from '@/entities/suppliers';
+import { ProductWeeklyCard } from '@/features/weekly-analytics';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -99,6 +100,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
       {Number.isFinite(skuId) ? <ProductScenariosCard skuId={skuId} /> : null}
 
       {Number.isFinite(skuId) ? <SuppliersCard skuId={skuId} initial={suppliers} /> : null}
+
+      {Number.isFinite(skuId) ? <ProductWeeklyCard skuId={skuId} /> : null}
 
       <ProductEventsCard events={events} />
 
