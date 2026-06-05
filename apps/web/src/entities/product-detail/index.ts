@@ -1,0 +1,1 @@
+export { fetchProductDetailByBarcode } from './queries';
