@@ -12,9 +12,11 @@ import {
   Receipt,
   MessageSquare,
   Percent,
+  Target,
   ListTodo,
   Users,
   Sigma,
+  Truck,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -43,9 +45,11 @@ export const navItems: NavItem[] = [
   { title: 'Отчёт по продажам', href: '/sales-report', icon: FileBarChart, group: 'analytics' },
   { title: 'Pareto 80/20', href: '/analytics/pareto', icon: Sigma, group: 'analytics' },
   { title: 'Дефицит товаров', href: '/deficit', icon: AlertTriangle, group: 'operations' },
+  { title: 'Поставки', href: '/supplies', icon: Truck, group: 'operations' },
   { title: 'Отзывы и оценки', href: '/reviews', icon: MessageSquare, group: 'operations' },
   { title: 'Реклама товаров', href: '/ads', icon: Megaphone, group: 'operations', badge: 'позже' },
   { title: 'Источники заказов', href: '/sources', icon: Network, group: 'operations', badge: 'скоро' },
+  { title: 'Цели', href: '/goals', icon: Target, group: 'management' },
   { title: 'Задачи', href: '/tasks', icon: ListTodo, group: 'management' },
   { title: 'Покупатели', href: '/customers', icon: Users, group: 'management' },
   { title: 'Поиск ниши WB', href: '/niche', icon: Search, group: 'external', badge: 'позже' },
