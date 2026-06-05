@@ -6,7 +6,7 @@ import { DataTable } from '@/shared/ui/domain/data-table';
 import { ExportCsvButton } from '@/shared/ui/domain/export-button';
 import { SalesSummaryCards } from './sales-summary';
 import { salesColumns } from './sales-columns';
-import { rowsForGrouping, buildSalesSummary } from './mock-data';
+import { buildSalesSummary } from './mock-data';
 import type { CsvColumn } from '@/shared/lib/csv';
 import { cn } from '@/shared/lib/utils';
 import type { SalesGrouping, SalesReportRow } from './types';
@@ -30,9 +30,16 @@ const CSV_COLUMNS: CsvColumn<SalesReportRow>[] = [
   { key: 'cancelRate', label: '% отмен' },
 ];
 
-export function SalesReportExplorer() {
+export function SalesReportExplorer({
+  rowsByGrouping,
+}: {
+  rowsByGrouping?: Record<SalesGrouping, SalesReportRow[]>;
+}) {
   const [grouping, setGrouping] = useState<SalesGrouping>('day');
-  const rows = useMemo(() => rowsForGrouping(grouping), [grouping]);
+  const rows = useMemo(
+    () => (rowsByGrouping ? (rowsByGrouping[grouping] ?? []) : []),
+    [grouping, rowsByGrouping],
+  );
   const summary = useMemo(() => buildSalesSummary(rows), [rows]);
 
   return (
@@ -63,6 +70,7 @@ export function SalesReportExplorer() {
         columns={salesColumns}
         initialSort={grouping === 'day' ? [] : [{ id: 'revenue', desc: true }]}
         rowKey={(row) => row.key}
+        empty="За выбранный период продаж не найдено"
       />
     </div>
   );
