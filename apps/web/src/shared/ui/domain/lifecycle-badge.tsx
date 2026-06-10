@@ -26,7 +26,12 @@ export function LifecycleBadge({
   return (
     <Badge
       variant="outline"
-      className={cn('font-medium text-[10px] uppercase tracking-wider', TONE_CLASS[meta.tone], className)}
+      className={cn(
+        'font-medium text-[10px] uppercase tracking-wider',
+        TONE_CLASS[meta.tone],
+        showDescription && 'cursor-help',
+        className,
+      )}
       title={showDescription ? meta.description : undefined}
     >
       {meta.label}
