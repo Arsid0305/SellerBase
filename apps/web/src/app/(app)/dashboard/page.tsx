@@ -1,14 +1,20 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner } from '@/features/dashboard';
+import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard } from '@/features/dashboard';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
 import {
   fetchPnlAggregate,
   fetchDailyRevenue,
+  fetchPnlByCategory,
   shiftRangeBack,
   lastNDaysRange,
   type PeriodRange,
 } from '@/entities/pnl';
 import { fetchAnomalies } from '@/entities/anomalies';
+import {
+  fetchAverageWarehouseCoef,
+  fetchAverageWarehouseCoefAtOrBefore,
+} from '@/entities/wb-tariffs';
+import { fetchDashboardBrief } from '@/entities/dashboard-brief';
 
 export const metadata = { title: 'Сводка' };
 export const dynamic = 'force-dynamic';
@@ -46,11 +52,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   const range = parseRange(sp);
   const comparison = shiftRangeBack(range);
 
-  const [current, previous, series, anomalies] = await Promise.all([
+  const weekAgo = new Date();
+  weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
+  const weekAgoIso = weekAgo.toISOString().slice(0, 10);
+
+  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
     fetchAnomalies(),
+    fetchAverageWarehouseCoef(),
+    fetchAverageWarehouseCoefAtOrBefore(weekAgoIso),
+    fetchDashboardBrief(),
+    fetchPnlByCategory(lastNDaysRange(30)),
   ]);
 
   const revenueKpi: DashboardKpi = {
@@ -98,6 +112,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         title="Сводка"
         description={`Текущий: ${formatRange(range)} · Сравнение: ${formatRange(comparison)}`}
       />
+      <MorningBrief brief={brief} anomaliesCount={anomalies.length} />
       <AnomaliesBanner anomalies={anomalies} />
       <KpiGrid
         kpis={{
@@ -108,12 +123,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         }}
         comparison={{ from: comparison.from, to: comparison.to, label: formatRange(comparison) }}
       />
+      <LogisticsPulseCard current={coefNow} previous={coefPrev} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <RevenueExpensesChart data={series} />
         </div>
         <ChannelsDonut channels={channels} />
       </div>
+      <CategoriesCard rows={categoryPnl} />
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
         Период выбирается в топбаре — цифры пересчитываются на сервере.

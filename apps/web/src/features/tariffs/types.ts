@@ -57,7 +57,15 @@ export type PersonalIndices = {
   updatedAt: string;
 };
 
-export type TariffTabKey = 'commission' | 'logistics' | 'storage' | 'penalty' | 'dimension';
+export type TariffTabKey =
+  | 'wb-box'
+  | 'wb-return'
+  | 'wb-dynamics'
+  | 'commission'
+  | 'logistics'
+  | 'storage'
+  | 'penalty'
+  | 'dimension';
 
 export type LogisticsVolumeBucket = {
   fromLitres: number;

@@ -1,1 +1,1 @@
-export { fetchCatalog } from './queries';
+export { fetchCatalog, fetchCategories } from './queries';
