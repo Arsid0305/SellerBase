@@ -7,3 +7,11 @@ verify_jwt = false
 
 [functions.sync-sheets]
 verify_jwt = false
+
+[functions.telegram-webhook]
+# Telegram присылает свой апдейт, Supabase JWT отсутствует.
+verify_jwt = false
+
+[functions.send-notification]
+# Вызывается из pg_cron / других функций — JWT не нужен.
+verify_jwt = false

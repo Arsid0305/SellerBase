@@ -21,6 +21,7 @@ import {
   Sigma,
   Truck,
   CalendarRange,
+  Bell,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -63,4 +64,5 @@ export const navItems: NavItem[] = [
   { title: 'Поиск ниши WB', href: '/niche', icon: Search, group: 'external', badge: 'позже' },
   { title: 'Тарифы и коэффициенты', href: '/tariffs', icon: Percent, group: 'data' },
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
+  { title: 'Уведомления', href: '/settings/notifications', icon: Bell, group: 'data' },
 ];
