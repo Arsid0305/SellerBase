@@ -6,9 +6,16 @@ import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
 import { LifecycleBadge } from '@/shared/ui/domain/lifecycle-badge';
 import { Sparkline } from '@/shared/ui/domain/sparkline';
 import { Badge } from '@/shared/ui/badge';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { formatRub, formatInt } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
 import type { CatalogProduct } from './types';
+
+const LIFECYCLE_TOOLTIP =
+  'NEW — новый (<14д). LEADER — топ-20% по выручке + маржа ≥20%. GROWING — выручка ↑ ≥20% к прошлому периоду. STABLE — колебания ±20%. DECLINING — падение ≥20%. CRITICAL — нет остатка при спросе или без продаж >14д. ARCHIVED — выведен из оборота.';
+
+const TVV_TOOLTIP =
+  'Видимость = % дней с продажами за период. Доверие = стабильность спроса (1 − коэф. вариации). Ценность = маржа% × 2 (нормализовано 0–100).';
 
 export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
   {
@@ -52,9 +59,14 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
   },
   {
     id: 'lifecycle',
-    header: 'Состояние',
+    accessorFn: (row) => row.lifecycle ?? 'STABLE',
+    header: () => (
+      <span className="inline-flex items-center gap-1">
+        Состояние
+        <TooltipIcon text={LIFECYCLE_TOOLTIP} />
+      </span>
+    ),
     cell: ({ row }) => <LifecycleBadge state={row.original.lifecycle ?? 'STABLE'} showDescription />,
-    enableSorting: false,
   },
   {
     id: 'tags',
@@ -156,6 +168,35 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
       if (d < 7) return <span className="text-foreground">{d} д. назад</span>;
       if (d < 30) return <span className="text-amber-600 dark:text-amber-400">{d} д. назад</span>;
       return <span className="text-rose-600 dark:text-rose-400 font-medium">{d} д. назад</span>;
+    },
+  },
+  {
+    id: 'tvv',
+    header: () => (
+      <span className="inline-flex items-center gap-1">
+        Видимость / Доверие / Ценность
+        <TooltipIcon text={TVV_TOOLTIP} />
+      </span>
+    ),
+    enableSorting: false,
+    cell: ({ row }) => {
+      const { visibility, trust, value } = row.original;
+      const Bar = ({ pct, label, color }: { pct: number; label: string; color: string }) => (
+        <div className="flex items-center gap-1">
+          <span className="w-10 text-[10px] text-muted-foreground">{label}</span>
+          <div className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
+            <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+          </div>
+          <span className="w-7 text-right text-[10px] tabular-nums">{pct}</span>
+        </div>
+      );
+      return (
+        <div className="flex flex-col gap-0.5">
+          <Bar pct={visibility} label="Вид." color="bg-sky-500" />
+          <Bar pct={trust} label="Дов." color="bg-emerald-500" />
+          <Bar pct={value} label="Цен." color="bg-violet-500" />
+        </div>
+      );
     },
   },
 ];

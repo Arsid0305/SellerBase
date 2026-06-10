@@ -51,10 +51,25 @@ export type DimensionTariff = {
 };
 
 export type PersonalIndices = {
-  localizationIndex: number; // % +/-
-  ratingScore: number; // 1..5
+  localizationIndex: number; // множитель, выше 1 = выгоднее
+  salesDistributionIndex: number; // %, доп. логистика при низкой локализации
   complianceScore: number; // %
   updatedAt: string;
 };
 
 export type TariffTabKey = 'commission' | 'logistics' | 'storage' | 'penalty' | 'dimension';
+
+export type LogisticsVolumeBucket = {
+  fromLitres: number;
+  toLitres: number;
+  ratePerLitre: number; // ₽
+};
+
+export type BaseLogisticsTariffs = {
+  bigItemBaseRate: number; // ₽ за 1-й литр (>1 л)
+  bigItemAdditionalRate: number; // ₽ за каждый доп. литр
+  volumeBuckets: LogisticsVolumeBucket[]; // для товаров < 1 л
+  reverseLogisticsFreezeDaysMin: number;
+  reverseLogisticsFreezeDaysMax: number;
+  updatedAt: string;
+};
