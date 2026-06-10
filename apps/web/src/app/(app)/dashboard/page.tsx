@@ -1,3 +1,4 @@
+import { Download } from 'lucide-react';
 import { PageHeader } from '@/widgets/app-shell/page-header';
 import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard } from '@/features/dashboard';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
@@ -108,12 +109,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Сводка"
-        description={`Текущий: ${formatRange(range)} · Сравнение: ${formatRange(comparison)}`}
-      />
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader
+          title="Сводка"
+          description={`Текущий: ${formatRange(range)} · Сравнение: ${formatRange(comparison)}`}
+        />
+        <a
+          href="/api/finance/xlsx"
+          download
+          className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+        >
+          <Download className="size-4" />
+          Скачать XLSX
+        </a>
+      </div>
       <MorningBrief brief={brief} anomaliesCount={anomalies.length} />
-      <AnomaliesBanner anomalies={anomalies} />
       <KpiGrid
         kpis={{
           revenue: revenueKpi,
@@ -131,6 +141,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         <ChannelsDonut channels={channels} />
       </div>
       <CategoriesCard rows={categoryPnl} />
+      <AnomaliesBanner anomalies={anomalies} />
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
         Период выбирается в топбаре — цифры пересчитываются на сервере.
