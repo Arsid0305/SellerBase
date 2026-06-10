@@ -7,6 +7,7 @@ import { Button } from '@/shared/ui/button';
 import { PeriodComparePicker } from '@/shared/ui/domain/period-compare-picker';
 import { MarketplaceFilter } from '@/shared/ui/domain/marketplace-filter';
 import { useSidenavStore } from '@/shared/stores/sidenav';
+import { NotificationBell } from './notification-bell';
 
 function PeriodPickerFallback() {
   return (
@@ -41,6 +42,7 @@ export function Topbar() {
       <Suspense fallback={<PeriodPickerFallback />}>
         <PeriodComparePicker />
       </Suspense>
+      <NotificationBell />
       <Button
         variant="ghost"
         size="icon"
