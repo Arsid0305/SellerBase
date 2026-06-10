@@ -1,4 +1,5 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
+import { DemoControls, DemoEmptyHint } from '@/widgets/demo-controls';
 import {
   PersonasList,
   PersonaForm,
@@ -16,10 +17,16 @@ export default async function CustomersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Покупатели"
-        description="Персоны и сценарии покупки — кому и зачем нужен мой товар"
-      />
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader
+          title="Покупатели"
+          description="Персоны и сценарии покупки — кому и зачем нужен мой товар"
+        />
+        <DemoControls scope="customers" />
+      </div>
+      {personas.length === 0 && scenarios.length === 0 ? (
+        <DemoEmptyHint scope="customers" />
+      ) : null}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between">

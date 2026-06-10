@@ -1,4 +1,5 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
+import { DemoControls, DemoEmptyHint } from '@/widgets/demo-controls';
 import { TasksList, TaskForm } from '@/features/tasks';
 import { fetchTasks } from '@/entities/tasks';
 import { createAdminClient } from '@/shared/lib/supabase/admin';
@@ -50,11 +51,15 @@ export default async function TasksPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Задачи"
-        description="Что нужно сделать: связано с целями и товарами"
-      />
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader
+          title="Задачи"
+          description="Что нужно сделать: связано с целями и товарами"
+        />
+        <DemoControls scope="tasks" />
+      </div>
       <TaskForm goals={goals} skus={skus} />
+      {tasks.length === 0 ? <DemoEmptyHint scope="tasks" /> : null}
       <TasksList tasks={tasks} goals={goals} skus={skus} />
       <p className="text-xs text-muted-foreground">
         · Данные из таблицы `tasks`. Канбан-вид: 4 колонки на десктопе, фильтр-чипы на мобиле.
