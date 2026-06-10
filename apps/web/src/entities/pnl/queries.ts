@@ -26,6 +26,10 @@ async function fetchFullPnlRows(range: PeriodRange): Promise<PnlSkuRow[]> {
   return (data ?? []) as PnlSkuRow[];
 }
 
+export async function fetchPnlSkuRows(range: PeriodRange): Promise<PnlSkuRow[]> {
+  return fetchFullPnlRows(range);
+}
+
 export async function fetchPnlAggregate(range: PeriodRange): Promise<PnlAggregate> {
   const rows = await fetchFullPnlRows(range);
   const totals = rows.reduce<PnlAggregate>((acc, r) => {

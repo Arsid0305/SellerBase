@@ -20,7 +20,7 @@ export function classifyLifecycle(input: LifecycleInput): ProductLifecycleState 
   const deltaRatio = prev > 0 ? (cur - prev) / prev : cur > 0 ? 1 : 0;
 
   // Leader: топ по выручке + высокая маржа + не падает
-  if (input.isTopRevenue && input.marginPct >= 25 && deltaRatio >= -0.2) {
+  if (input.isTopRevenue && input.marginPct >= 20 && deltaRatio >= -0.2) {
     return 'LEADER';
   }
 
