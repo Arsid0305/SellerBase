@@ -5,6 +5,7 @@ import type {
   PenaltyTariff,
   DimensionTariff,
   PersonalIndices,
+  BaseLogisticsTariffs,
 } from './types';
 
 export const mockCommissions: CommissionTariff[] = [
@@ -51,8 +52,23 @@ export const mockDimensions: DimensionTariff[] = [
 ];
 
 export const mockPersonalIndices: PersonalIndices = {
-  localizationIndex: 12,
-  ratingScore: 4.7,
+  localizationIndex: 1.06,
+  salesDistributionIndex: 0.78,
   complianceScore: 96,
+  updatedAt: '2026-06-01T00:00:00Z',
+};
+
+export const mockBaseLogistics: BaseLogisticsTariffs = {
+  bigItemBaseRate: 46,
+  bigItemAdditionalRate: 14,
+  volumeBuckets: [
+    { fromLitres: 0.001, toLitres: 0.2, ratePerLitre: 23 },
+    { fromLitres: 0.201, toLitres: 0.4, ratePerLitre: 26 },
+    { fromLitres: 0.401, toLitres: 0.6, ratePerLitre: 29 },
+    { fromLitres: 0.601, toLitres: 0.8, ratePerLitre: 30 },
+    { fromLitres: 0.801, toLitres: 1.0, ratePerLitre: 32 },
+  ],
+  reverseLogisticsFreezeDaysMin: 60,
+  reverseLogisticsFreezeDaysMax: 90,
   updatedAt: '2026-06-01T00:00:00Z',
 };
