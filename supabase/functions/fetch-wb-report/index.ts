@@ -34,6 +34,8 @@ interface WbReportRow {
   barcode?: string | number;
   sa_name?: string;
   doc_type_name?: string;
+  supplier_oper_name?: string;
+  bonus_type_name?: string;
   order_dt?: string;
   sale_dt?: string;
   rr_dt?: string;
@@ -43,10 +45,28 @@ interface WbReportRow {
   ppvz_for_pay?: number;
   delivery_rub?: number;
   ppvz_sales_commission?: number;
+  ppvz_vw?: number;
+  ppvz_vw_nds?: number;
+  ppvz_reward?: number;
+  acquiring_fee?: number;
+  acquiring_percent?: number;
+  storage_fee?: number;
+  deduction?: number;
+  rebill_logistic_cost?: number;
   penalty?: number;
   additional_payment?: number;
   office_name?: string;
   [k: string]: unknown;
+}
+
+function toNum(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
+}
+
+function toStr(v: unknown): string | null {
+  return v == null ? null : String(v);
 }
 
 async function upsertInBatches<T>(
@@ -131,18 +151,29 @@ Deno.serve(async (req: Request) => {
           nm_id: r.nm_id,
           barcode: r.barcode != null ? String(r.barcode) : null,
           sa_name: r.sa_name ?? null,
-          doc_type_name: r.doc_type_name ?? null,
+          doc_type_name: toStr(r.doc_type_name),
+          supplier_oper_name: toStr(r.supplier_oper_name),
+          bonus_type_name: toStr(r.bonus_type_name),
           order_dt: r.order_dt ?? null,
           sale_dt: r.sale_dt ?? null,
           rr_dt: r.rr_dt ?? null,
           quantity: r.quantity ?? null,
-          retail_price: r.retail_price ?? null,
-          retail_amount: r.retail_amount ?? null,
-          ppvz_for_pay: r.ppvz_for_pay ?? null,
-          delivery_rub: r.delivery_rub ?? null,
-          commission_rub: r.ppvz_sales_commission ?? null,
-          penalty: r.penalty ?? null,
-          additional_payment: r.additional_payment ?? null,
+          retail_price: toNum(r.retail_price),
+          retail_amount: toNum(r.retail_amount),
+          ppvz_for_pay: toNum(r.ppvz_for_pay),
+          delivery_rub: toNum(r.delivery_rub),
+          commission_rub: toNum(r.ppvz_sales_commission),
+          ppvz_sales_commission: toNum(r.ppvz_sales_commission),
+          ppvz_vw: toNum(r.ppvz_vw),
+          ppvz_vw_nds: toNum(r.ppvz_vw_nds),
+          ppvz_reward: toNum(r.ppvz_reward),
+          acquiring_fee: toNum(r.acquiring_fee),
+          acquiring_percent: toNum(r.acquiring_percent),
+          storage_fee: toNum(r.storage_fee),
+          deduction: toNum(r.deduction),
+          rebill_logistic_cost: toNum(r.rebill_logistic_cost),
+          penalty: toNum(r.penalty),
+          additional_payment: toNum(r.additional_payment),
           warehouse_name: r.office_name ?? null,
         });
       }

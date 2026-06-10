@@ -64,9 +64,16 @@ function matchesSearch(row: CatalogProduct, q: string): boolean {
   );
 }
 
-export function CatalogExplorer({ rows }: { rows: CatalogProduct[] }) {
+export function CatalogExplorer({
+  rows,
+  categories = [],
+}: {
+  rows: CatalogProduct[];
+  categories?: string[];
+}) {
   const marketplaces = useFiltersStore((s) => s.marketplaces);
   const [status, setStatus] = useState<CatalogStatus | 'all'>('all');
+  const [category, setCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(
@@ -74,8 +81,9 @@ export function CatalogExplorer({ rows }: { rows: CatalogProduct[] }) {
       rows
         .filter((r) => marketplaces.includes(r.channel))
         .filter((r) => matchesStatus(r, status))
+        .filter((r) => (category === 'all' ? true : r.category === category))
         .filter((r) => matchesSearch(r, search)),
-    [rows, marketplaces, status, search],
+    [rows, marketplaces, status, category, search],
   );
 
   const summary = useMemo(() => buildCatalogSummary(filtered), [filtered]);
@@ -119,6 +127,32 @@ export function CatalogExplorer({ rows }: { rows: CatalogProduct[] }) {
             <ExportCsvButton rows={filtered} columns={CSV_COLUMNS} filename="catalog" />
           </div>
         </div>
+        {categories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              variant={category === 'all' ? 'default' : 'outline'}
+              size="sm"
+              className={cn(category !== 'all' && 'text-muted-foreground')}
+              onClick={() => setCategory('all')}
+            >
+              Все категории
+            </Button>
+            {categories.map((c) => {
+              const active = category === c;
+              return (
+                <Button
+                  key={c}
+                  variant={active ? 'default' : 'outline'}
+                  size="sm"
+                  className={cn(!active && 'text-muted-foreground')}
+                  onClick={() => setCategory(c)}
+                >
+                  {c}
+                </Button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <DataTable

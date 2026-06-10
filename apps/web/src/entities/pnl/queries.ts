@@ -199,6 +199,54 @@ function buildSeriesFromMap(
   return points;
 }
 
+export type CategoryPnlRow = {
+  category: string;
+  revenue: number;
+  share: number;
+  marginPct: number;
+};
+
+export async function fetchPnlByCategory(range: PeriodRange): Promise<CategoryPnlRow[]> {
+  const supabase = createAdminClient();
+  const [rows, catalogRes] = await Promise.all([
+    fetchFullPnlRows(range),
+    supabase
+      .from('sku_catalog')
+      .select('id, category')
+      .range(0, 5000),
+  ]);
+  if (rows.length === 0) return [];
+
+  const catById = new Map<number, string>();
+  for (const r of (catalogRes.data ?? []) as { id: number; category: string | null }[]) {
+    catById.set(r.id, (r.category ?? '').trim() || '— без категории');
+  }
+
+  const agg = new Map<string, { revenue: number; profit: number }>();
+  let total = 0;
+  for (const r of rows) {
+    const cat = catById.get(r.sku_id) ?? '— без категории';
+    const cur = agg.get(cat) ?? { revenue: 0, profit: 0 };
+    const rev = toNumber(r.revenue_rub);
+    cur.revenue += rev;
+    cur.profit += toNumber(r.net_profit_rub);
+    agg.set(cat, cur);
+    total += rev;
+  }
+
+  const out: CategoryPnlRow[] = [];
+  for (const [category, v] of agg) {
+    out.push({
+      category,
+      revenue: Math.round(v.revenue),
+      share: total > 0 ? Math.round((v.revenue / total) * 1000) / 10 : 0,
+      marginPct: v.revenue > 0 ? Math.round((v.profit / v.revenue) * 1000) / 10 : 0,
+    });
+  }
+  out.sort((a, b) => b.revenue - a.revenue);
+  return out;
+}
+
 export function shiftRangeBack(range: PeriodRange): PeriodRange {
   const from = new Date(`${range.from}T00:00:00Z`);
   const to = new Date(`${range.to}T00:00:00Z`);

@@ -3,6 +3,7 @@ export { ProductSalesCard } from './product-sales-card';
 export { ProductFinanceCard } from './product-finance-card';
 export { ProductExpensesCard } from './product-expenses-card';
 export { ProductWarehousesCard } from './product-warehouses-card';
+export { ProductLogisticsForecastCard } from './product-logistics-forecast-card';
 export { ProductPhotosCard } from './product-photos-card';
 export { ProductEventsCard } from './product-events-card';
 export { ProductHistoryCard } from './product-history-card';

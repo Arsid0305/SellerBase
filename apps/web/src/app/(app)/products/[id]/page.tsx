@@ -9,6 +9,7 @@ import {
   ProductFinanceCard,
   ProductExpensesCard,
   ProductWarehousesCard,
+  ProductLogisticsForecastCard,
   ProductPhotosCard,
   ProductEventsCard,
   ProductHistoryCard,
@@ -23,6 +24,7 @@ import { ProductScenariosCard } from '@/features/customer';
 import { SuppliersCard } from '@/features/supplies';
 import { fetchSuppliersBySku } from '@/entities/suppliers';
 import { ProductWeeklyCard } from '@/features/weekly-analytics';
+import { fetchLatestBoxTariffs } from '@/entities/wb-tariffs';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -46,6 +48,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   const skuId = Number(product.id);
   const diffs = Number.isFinite(skuId) ? await fetchSnapshotsBySkuId(skuId) : [];
   const suppliers = Number.isFinite(skuId) ? await fetchSuppliersBySku(skuId) : [];
+  const boxTariffs = await fetchLatestBoxTariffs();
 
   return (
     <div className="flex flex-col gap-6">
@@ -96,6 +99,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductExpensesCard product={product} />
         <ProductWarehousesCard product={product} />
       </div>
+
+      <ProductLogisticsForecastCard warehouses={boxTariffs} />
 
       {Number.isFinite(skuId) ? <ProductScenariosCard skuId={skuId} /> : null}
 

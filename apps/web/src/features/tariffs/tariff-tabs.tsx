@@ -5,8 +5,11 @@ import { cn } from '@/shared/lib/utils';
 import type { TariffTabKey } from './types';
 
 const TABS: { key: TariffTabKey; label: string }[] = [
+  { key: 'wb-box', label: 'Базовые тарифы (WB)' },
+  { key: 'wb-return', label: 'Возврат (WB)' },
+  { key: 'wb-dynamics', label: 'Динамика коэф.' },
   { key: 'commission', label: 'Комиссии' },
-  { key: 'logistics', label: 'Логистика' },
+  { key: 'logistics', label: 'Логистика (mock)' },
   { key: 'storage', label: 'Хранение' },
   { key: 'penalty', label: 'Штрафы' },
   { key: 'dimension', label: 'Габариты' },
