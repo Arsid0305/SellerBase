@@ -225,6 +225,14 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
 
     const sparkline = allDates.map((d) => Math.round(sales?.sparkline.get(d) ?? 0));
 
+    const visibility = Math.round(((sales?.daysWithSales.size ?? 0) / 30) * 100);
+    const dailyUnitsArr = allDates.map((d) => sales?.sparkline.get(d) ?? 0);
+    const mean = dailyUnitsArr.reduce((a, b) => a + b, 0) / dailyUnitsArr.length;
+    const variance = dailyUnitsArr.reduce((a, b) => a + (b - mean) ** 2, 0) / dailyUnitsArr.length;
+    const cv = mean > 0 ? Math.sqrt(variance) / mean : 1;
+    const trust = Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
+    const value = Math.max(0, Math.min(100, Math.round(margin * 2)));
+
     return {
       id: String(c.id),
       name: c.title ?? c.my_article ?? 'Без названия',
@@ -244,6 +252,9 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       lastSaleDaysAgo,
       daysOfStock: Math.round(supply?.daysToOos ?? 0),
       salesSparkline: sparkline,
+      visibility,
+      trust,
+      value,
       lifecycle: lifecycleMap.get(c.id) ?? 'STABLE',
     };
   });
