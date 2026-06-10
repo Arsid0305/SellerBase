@@ -124,7 +124,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         </a>
       </div>
       <MorningBrief brief={brief} anomaliesCount={anomalies.length} />
-      <AnomaliesBanner anomalies={anomalies} />
       <KpiGrid
         kpis={{
           revenue: revenueKpi,
@@ -142,6 +141,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         <ChannelsDonut channels={channels} />
       </div>
       <CategoriesCard rows={categoryPnl} />
+      <AnomaliesBanner anomalies={anomalies} />
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
         Период выбирается в топбаре — цифры пересчитываются на сервере.
