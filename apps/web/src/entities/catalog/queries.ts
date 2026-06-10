@@ -70,6 +70,25 @@ function toLifecycle(v: string | null): ProductLifecycleState {
     : 'STABLE';
 }
 
+export async function fetchCategories(): Promise<string[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('sku_catalog')
+    .select('category')
+    .eq('is_active', true)
+    .not('category', 'is', null)
+    .range(0, 5000);
+  if (error) {
+    console.error('[fetchCategories]', error);
+    return [];
+  }
+  const set = new Set<string>();
+  for (const r of (data ?? []) as { category: string | null }[]) {
+    if (r.category && r.category.trim().length > 0) set.add(r.category);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
 export async function fetchCatalog(): Promise<CatalogProduct[]> {
   const supabase = createAdminClient();
 
