@@ -54,7 +54,7 @@ export async function GET() {
   }
 
   const buffer = await workbook.xlsx.writeBuffer();
-  return new NextResponse(buffer, {
+  return new NextResponse(Buffer.from(buffer as ArrayBuffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="CF_PL_${year}.xlsx"`,
