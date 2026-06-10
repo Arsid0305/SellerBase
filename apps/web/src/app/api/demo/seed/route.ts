@@ -137,7 +137,7 @@ async function findExistingTitles(
     if (error.code === '42P01') return new Set();
     return new Set();
   }
-  return new Set((data ?? []).map((r: Record<string, unknown>) => String(r[titleCol])));
+  return new Set((data ?? []).map((r: unknown) => String((r as Record<string, unknown>)[titleCol])));
 }
 
 async function seedGoals(supabase: SupabaseAdmin): Promise<number> {
