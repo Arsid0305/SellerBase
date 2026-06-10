@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import type { Anomaly } from '@/entities/anomalies';
+
+const ZSCORE_TOOLTIP =
+  'z-score = (значение − среднее) / стандартное отклонение. Считается по последним 30 дням. |z| > 2 означает отклонение, которое случайно встречается реже чем в 5% случаев — статистически значимая аномалия (spike — резкий рост, dip — провал).';
 
 function formatDate(iso: string): string {
   const [y, m, d] = iso.split('-');
@@ -15,7 +19,10 @@ export function AnomaliesBanner({ anomalies }: { anomalies: Anomaly[] }) {
       <div className="mb-3 flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
         <AlertTriangle className="size-4" />
         <span>Аномалии в продажах</span>
-        <span className="text-xs text-muted-foreground">· z-score &gt; 2σ от 30-дневного среднего</span>
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+          · z-score &gt; 2σ от 30-дневного среднего
+          <TooltipIcon text={ZSCORE_TOOLTIP} />
+        </span>
       </div>
       <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
         {anomalies.map((a) => {
