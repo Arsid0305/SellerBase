@@ -45,6 +45,9 @@ interface WbReportRow {
   ppvz_for_pay?: number;
   delivery_rub?: number;
   ppvz_sales_commission?: number;
+  ppvz_spp_prc?: number;
+  commission_percent?: number;
+  ppvz_kvw_prc?: number;
   ppvz_vw?: number;
   ppvz_vw_nds?: number;
   ppvz_reward?: number;
@@ -174,6 +177,9 @@ Deno.serve(async (req: Request) => {
           delivery_rub: toNum(r.delivery_rub),
           commission_rub: toNum(r.ppvz_sales_commission),
           ppvz_sales_commission: toNum(r.ppvz_sales_commission),
+          ppvz_spp_prc: toNum(r.ppvz_spp_prc),
+          commission_percent: toNum(r.commission_percent),
+          ppvz_kvw_prc: toNum(r.ppvz_kvw_prc),
           ppvz_vw: toNum(r.ppvz_vw),
           ppvz_vw_nds: toNum(r.ppvz_vw_nds),
           ppvz_reward: toNum(r.ppvz_reward),
