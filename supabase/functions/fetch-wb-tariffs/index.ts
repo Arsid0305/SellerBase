@@ -21,7 +21,7 @@ function adminClient(): SupabaseClient {
 
 function toNum(v: unknown, fallback = 0): number {
   if (v === null || v === undefined || v === "") return fallback;
-  const s = String(v).replace(",", ".");
+  const s = String(v).replace(/\s/g, "").replace(",", ".");
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : fallback;
 }
@@ -41,7 +41,7 @@ interface WbBoxWh {
 
 interface WbReturnWh {
   warehouseName: string;
-  geoName: string;
+  geoName?: string;
   returnBase?: string;
   returnLiter?: string;
   // На случай разных полей в ответе API
@@ -62,7 +62,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const supabase = adminClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const url = new URL(req.url);
+  const dateParam = url.searchParams.get("date");
+  const today = dateParam ?? new Date().toISOString().slice(0, 10);
 
   const { data: logRow, error: insErr } = await supabase
     .from("ingestion_log")
@@ -116,7 +118,7 @@ Deno.serve(async (req: Request) => {
     const retRows = retList.map((w) => ({
       effective_date: today,
       warehouse_name: w.warehouseName,
-      geo_name: w.geoName,
+      geo_name: w.geoName ?? null,
       return_base: toNum(w.returnBase ?? w.boxDeliveryReturnBase),
       return_liter: toNum(w.returnLiter ?? w.boxDeliveryReturnLiter),
       raw: w,
