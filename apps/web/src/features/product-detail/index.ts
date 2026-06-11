@@ -9,5 +9,4 @@ export { ProductEventsCard } from './product-events-card';
 export { ProductHistoryCard } from './product-history-card';
 export { ProductTabs } from './product-tabs';
 export { RevenueByDayChart, StockByDayChart } from './product-charts';
-export { buildProductDetailById } from './mock-data';
 export type { ProductDetail } from './types';
