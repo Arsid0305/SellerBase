@@ -1,3 +1,94 @@
+## 2026-06-10/11 — Финальная неделя: WB Tariffs/Content/Report, Поставки, Категории, Утренний бриф, Уведомления
+
+### Сделано
+
+**Реальные данные WB подключены полностью:**
+- `fetch-wb-content` Edge Function — title/brand/category/photo в `sku_catalog` (cron 00:00 UTC)
+- `fetch-wb-tariffs` Edge Function — Common Tariffs API (box+return), таблицы `wb_tariffs_box`, `wb_tariffs_return` (cron 01:00 UTC)
+- `fetch-wb-report` расширен — 10 новых колонок в `wb_reports_fact`: `storage_fee`, `acquiring_fee`, `acquiring_percent`, `deduction`, `rebill_logistic_cost`, `supplier_oper_name`, `bonus_type_name`, `ppvz_vw`, `ppvz_vw_nds`, `ppvz_sales_commission`, `ppvz_reward`
+- Размеры товаров: добавлены `length_cm`, `width_cm`, `height_cm`, `volume_l` (generated) в `sku_catalog`; заполнено 80 SKU из UNIT_WB.xlsx
+- WB_TOKEN_READ в Vercel + Supabase Edge Functions secrets
+
+**Уведомления (3 канала):**
+- Telegram бот `@SellerBase_bot` создан, webhook зарегистрирован, токен в Supabase secrets
+- Таблицы: `notifications`, `notification_subscribers`, `notification_settings`
+- Edge Functions `telegram-webhook` (принимает /start/mute/unmute/status) и `send-notification` (универсальная отправка с учётом тихих часов 23-08)
+- Колокольчик в топбаре, страница `/settings/notifications`, push с VAPID-заглушками
+- **Подписчик #1 chat_id 800516205** зарегистрирован, тестовое уведомление получено
+
+**Поставки (Phase 1):**
+- 5 таблиц: `sku_china_suppliers`, `external_stock`, `supply_plans`, `supply_plan_items`, `supply_plan_china`
+- UI `/supplies` — 3 блока (продажи 60д / остатки WB+Дом+ФФ / везти) + dropdown 1688-поставщика
+- Кнопки «ФФ-шаблон.csv» и «Заказ 1688.csv» (XLSX переключить позже)
+- `/products/stock` — inline-edit Дом/ФФ остатков
+- На карточке товара: `SuppliersCard`, `ProductLogisticsForecastCard` (формула WB), `ProductWeeklyCard`
+
+**Дашборд:**
+- Утренний бриф сверху (вчера + критичные SKU + аномалии + проблемы)
+- Виджет «Логистический пульс» — средний коэф моих складов vs неделя назад
+- Карточка «Категории» — выручка/доля/маржа по категориям WB
+- Баннер аномалий перенесён вниз
+- Кнопка «Скачать XLSX» (Этап A — exceljs заполняет твой шаблон CF/PL по неделям)
+
+**Каталог:**
+- Чипы-фильтры по категориям WB
+- Колонки «Состояние» (lifecycle), «TVV» (видимость/доверие/ценность)
+- Tooltips на сложных метриках
+
+**Бизнес-пороги (по решению владельца):**
+- LEADER маржа ≥ **20%** (было 25%)
+- Z-score аномалий: оставлен 2
+- v_sku_lifecycle SQL view обновлён
+
+**Аналитика:**
+- `/analytics/weekly` — заготовка для UNIT_WB по неделям (таблица `sku_weekly_metrics`, view планируется через агрегацию `wb_reports_fact`)
+- `/analytics/pareto` — Pareto 80/20
+- `/compare` — сравнение двух периодов
+
+**Чистка (PR #82):**
+- Удалены 7 mock-data.ts (dashboard/pnl/analytics/turnover/deficit/product-detail) + `data-table-pro.tsx`
+- Lint warning `linkedSkuIds` пофикшен
+- `/products/stock` добавлен в nav «Остатки Дом/ФФ»
+
+### Бизнес-решения зафиксированные в плане
+
+- **Точка безубыточности** по партиям/SKU (карточка/каталог/поставки) — в план
+- **Симулятор цены** с эластичной моделью + сохранение сценариев — в план
+- **Анализатор маржи** («почему падает») — главная боль, приоритет 1
+- **Акции** с расчётом маржи каждого SKU — отдельный модуль (модуль WB Calendar API + персональная таблица)
+- **Группы товаров** = категории WB (используем `category` из Content API)
+- **Утренний бриф** должен быть «термометром бизнеса» с градиентом по health-score
+- **Тихие часы** уведомлений 23-08
+- **Дизайн** — лёгкий воздушный для глаз, дашборд **в один экран без скролла**
+
+### Очередь на следующую сессию
+
+1. **Сверка с UNIT_WB 2025** — данные за 2025 в БД (912 425 ₽ январь, 875 183 февраль и т.д.). Владелица проверяет рубль-в-рубль.
+2. **Анализатор маржи** — разбор «почему упала: логистика +8% / себестоимость +3% / скидки +4%»
+3. **Дизайн-проход** — лёгкий воздушный, всё на один экран
+4. **`/tariffs` UI на реальных данных** (сейчас мок, edge function есть)
+5. **Промо-акции модуль** с расчётом маржи каждого SKU при участии
+6. **Точка безубыточности** + Симулятор цены
+
+### Активация выполнена (всё работает)
+
+- Telegram webhook ✅ (тестовое уведомление пришло)
+- WB Tariffs cron ✅ зашедулен
+- WB Content cron ✅ зашедулен
+- WB Report полные поля ✅ деплоится при следующем cron
+- exceljs в package.json + pnpm-lock.yaml
+
+### Известные потери (сознательные)
+
+- **Расследования (#64)** — слой Problems/Causes/Hypotheses, каркас был полным. Закрыт при чистке. Перезалить отдельным PR при необходимости.
+- **Демо-кнопки (#68)** — закрыт при чистке (на странице `/goals`/`/tasks`/`/customers` нет кнопок «Заполнить демо»). Перезалить при необходимости.
+
+### Состояние main
+
+70+ PR смержено. Все основные фичи в продакшене. Главные модули: Дашборд, Каталог, Карточка товара, Поставки, Уведомления, Тарифы, P&L, Аналитика, Аналитика по неделям, Pareto, Сравнение периодов, Себестоимость, Цели, Задачи, Покупатели, Снимок бизнеса.
+
+---
+
 # Session Log — SellerBase
 
 > **Правило:** читать этот файл ПЕРВЫМ в начале каждой новой сессии или после перерыва.
