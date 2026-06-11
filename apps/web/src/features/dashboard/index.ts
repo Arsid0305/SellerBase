@@ -5,5 +5,4 @@ export { AnomaliesBanner } from './anomalies-banner';
 export { LogisticsPulseCard } from './logistics-pulse-card';
 export { MorningBrief } from './morning-brief';
 export { CategoriesCard } from './categories-card';
-export { mockDashboardSummary } from './mock-data';
 export type { DashboardSummary, DailyPoint, ChannelShare, DashboardKpi } from './types';

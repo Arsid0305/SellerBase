@@ -41,10 +41,10 @@ export function ScenarioDetailCard({ scenario, allPersonas, allSkus }: Props) {
   const [skuFit, setSkuFit] = useState('0.5');
 
   const linkedPersonaIds = new Set(scenario.personas.map((p) => p.id));
-  const linkedSkuIds = new Set(scenario.skus.map((s) => s.id));
   const availablePersonas = allPersonas.filter((p) => !linkedPersonaIds.has(p.id));
 
   const skuMatches = useMemo(() => {
+    const linkedSkuIds = new Set(scenario.skus.map((s) => s.id));
     const q = skuQuery.trim().toLowerCase();
     if (!q) return [];
     return allSkus
@@ -54,7 +54,7 @@ export function ScenarioDetailCard({ scenario, allPersonas, allSkus }: Props) {
           ((s.barcode ?? '').toLowerCase().includes(q) || s.title.toLowerCase().includes(q)),
       )
       .slice(0, 6);
-  }, [skuQuery, allSkus, linkedSkuIds]);
+  }, [skuQuery, allSkus, scenario.skus]);
 
   async function linkPersona() {
     if (!personaId) return;
