@@ -4,7 +4,7 @@
 >
 > **ПЕРВЫМ делом в любой новой сессии или после перерыва** — прочитать `tasks/SESSION_LOG.md`.
 > Самая верхняя запись = точка возобновления.
-> Дальше — `SYSTEM.md`, `docs/PLAN.md`, `tasks/todo.md`.
+> Дальше — `SYSTEM.md`, `docs/PLAN.md`, `tasks/rules.md`, `tasks/todo.md`.
 
 ---
 
