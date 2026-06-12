@@ -175,7 +175,6 @@ Deno.serve(async (req: Request) => {
           retail_amount: toNum(r.retail_amount),
           ppvz_for_pay: toNum(r.ppvz_for_pay),
           delivery_rub: toNum(r.delivery_rub),
-          commission_rub: toNum(r.ppvz_sales_commission),
           ppvz_sales_commission: toNum(r.ppvz_sales_commission),
           ppvz_spp_prc: toNum(r.ppvz_spp_prc),
           commission_percent: toNum(r.commission_percent),

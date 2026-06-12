@@ -1,7 +1,7 @@
-// fetch-wb-funnel-aggregate — суммарная воронка за период (без разбивки по дням).
+// fetch-wb-funnel-aggregate — воронка за длительный период (агрегат).
 // WB: POST /api/analytics/v3/sales-funnel/products
-// Запись результата в ingestion_log.meta для теста, потом решим как хранить.
-
+// UPSERT в wb_sales_funnel_period.
+// По умолчанию: last 60 days.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -21,6 +21,16 @@ function adminClient(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+function toInt(v: unknown): number {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? 0));
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+function toNum(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -30,8 +40,8 @@ Deno.serve(async (req: Request) => {
   const qTo = url.searchParams.get("to");
 
   const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10);
-  const dateFrom = qFrom ?? monthAgo;
+  const monthsAgo = new Date(Date.now() - 60 * 86400 * 1000).toISOString().slice(0, 10);
+  const dateFrom = qFrom ?? monthsAgo;
   const dateTo = qTo ?? today;
 
   const { data: logRow } = await supabase.from("ingestion_log")
@@ -47,8 +57,8 @@ Deno.serve(async (req: Request) => {
       .from("sku_catalog").select("wb_article").not("wb_article", "is", null);
     const allNm = (skus ?? []).map((s: { wb_article: number }) => s.wb_article).filter(Boolean);
 
-    let firstRaw: unknown = null;
     let totalProducts = 0;
+    let totalRows = 0;
 
     for (let i = 0; i < allNm.length; i += PAGE) {
       const batch = allNm.slice(i, i + PAGE);
@@ -69,22 +79,53 @@ Deno.serve(async (req: Request) => {
         throw new Error(`WB ${resp.status}: ${txt.slice(0, 500)}`);
       }
       const json = await resp.json();
-      if (i === 0) firstRaw = json;
-      const arr = Array.isArray(json) ? json
-        : Array.isArray((json as { data?: unknown[] })?.data) ? (json as { data: unknown[] }).data
-        : Array.isArray((json as { data?: { products?: unknown[] } })?.data?.products) ? (json as { data: { products: unknown[] } }).data.products
-        : [];
-      totalProducts += arr.length;
+      // deno-lint-ignore no-explicit-any
+      const products = (json as { data?: { products?: any[] } })?.data?.products ?? [];
+      totalProducts += products.length;
+
+      // deno-lint-ignore no-explicit-any
+      const rows = products.map((p: any) => {
+        const sel = p?.statistic?.selected ?? {};
+        const conv = sel?.conversions ?? {};
+        return {
+          nm_id: p?.product?.nmId,
+          period_start: dateFrom,
+          period_end: dateTo,
+          open_count: toInt(sel.openCount),
+          cart_count: toInt(sel.cartCount),
+          order_count: toInt(sel.orderCount),
+          order_sum: toNum(sel.orderSum),
+          buyout_count: toInt(sel.buyoutCount),
+          buyout_sum: toNum(sel.buyoutSum),
+          cancel_count: toInt(sel.cancelCount),
+          buyout_percent: toInt(conv.buyoutPercent),
+          add_to_cart_percent: toInt(conv.addToCartPercent),
+          cart_to_order_percent: toInt(conv.cartToOrderPercent),
+          avg_price: toNum(sel.avgPrice),
+          avg_orders_per_day: toNum(sel.avgOrdersCountPerDay),
+          share_order_percent: toNum(sel.shareOrderPercent),
+          localization_percent: toNum(sel.localizationPercent),
+          fetched_at: new Date().toISOString(),
+        };
+      // deno-lint-ignore no-explicit-any
+      }).filter((r: any) => r.nm_id);
+
+      if (rows.length > 0) {
+        const { error: upErr } = await supabase.from("wb_sales_funnel_period")
+          .upsert(rows, { onConflict: "nm_id" });
+        if (upErr) throw new Error(`upsert: ${upErr.message}`);
+        totalRows += rows.length;
+      }
       if (i + PAGE < allNm.length) await new Promise((r) => setTimeout(r, 22000));
     }
 
     await supabase.from("ingestion_log").update({
       status: "ok", finished_at: new Date().toISOString(),
-      rows_in: totalProducts, rows_out: 0,
-      meta: { from: dateFrom, to: dateTo, products: totalProducts, raw_sample: firstRaw },
+      rows_in: totalProducts, rows_out: totalRows,
+      meta: { from: dateFrom, to: dateTo, products: totalProducts, rows: totalRows },
     }).eq("id", jobId);
 
-    return new Response(JSON.stringify({ ok: true, products: totalProducts }), {
+    return new Response(JSON.stringify({ ok: true, products: totalProducts, rows: totalRows }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }});
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -15,3 +15,23 @@ verify_jwt = false
 [functions.send-notification]
 # Вызывается из pg_cron / других функций — JWT не нужен.
 verify_jwt = false
+
+[functions.fetch-wb-funnel]
+# pg_cron daily — JWT не нужен.
+verify_jwt = false
+
+[functions.fetch-wb-funnel-aggregate]
+# pg_cron daily — JWT не нужен.
+verify_jwt = false
+
+[functions.fetch-wb-promotions]
+# pg_cron daily — JWT не нужен.
+verify_jwt = false
+
+[functions.fetch-wb-tariffs]
+# pg_cron daily — JWT не нужен.
+verify_jwt = false
+
+[functions.fetch-wb-report]
+# pg_cron daily/manual — JWT не нужен.
+verify_jwt = false
