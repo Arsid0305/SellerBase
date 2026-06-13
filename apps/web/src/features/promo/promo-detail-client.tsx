@@ -19,7 +19,7 @@ const fmtTurnover = (d: number | null) => (d == null ? '—' : `${d} д`);
 function marginColor(pct: number | null) {
   if (pct == null) return 'text-muted-foreground';
   if (pct >= 0.25) return 'text-emerald-600';
-  if (pct >= 0.15) return 'text-amber-600';
+  if (pct >= 0.2) return 'text-amber-600';
   if (pct >= 0) return 'text-orange-600';
   return 'text-red-600';
 }
