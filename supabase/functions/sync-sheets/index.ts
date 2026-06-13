@@ -1,14 +1,19 @@
-// sync-sheets v0.4 — создаёт/обновляет Google Spreadsheet под структуру владелицы.
-// 1) Первый запуск: создаёт новую таблицу, добавляет листы Дашборд / PL WB / PL WB (нед),
-//    шапки, формулы, голубую заливку ячеек ручного ввода.
-//    ID сохраняется в pricing_settings.description под ключом 'google_sheet_id_<YEAR>'.
-// 2) Последующие запуски: заливают в PL WB (нед) данные за указанный год.
-//    Формулы и Дашборд НЕ трогаются — пересчитаются сами.
+// sync-sheets v0.5 — заливает в Google Spreadsheet структуру владелицы.
+// Поведение:
+//  - sheet_id берётся из pricing_settings.description ключ 'google_sheet_id_<YEAR>'
+//    или из ?sheet_id=. Если ничего нет — создаётся новый.
+//  - Каждый запуск: проверяет наличие листов Дашборд / PL WB / PL WB (нед).
+//    Если нет — создаёт и заполняет шапки/формулы.
+//  - Старые listы (P&L по SKU, Остатки, Поставка, Cash Flow и т.п.)
+//    удаляются если в query передан ?cleanup=1.
+//  - Заливает данные из v_wb_pl_weekly за указанный год в R7..R23.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const JOB_NAME = "sync-sheets";
+const REQUIRED_TABS = ["Дашборд", "PL WB", "PL WB (нед)"];
+const OLD_TABS_TO_REMOVE = ["P&L по SKU", "Остатки", "Поставка", "Cash Flow", "PNL", "Balance", "Supply", "Quality"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,11 +67,7 @@ async function getAccessToken(sa: { client_email: string; private_key: string },
 
 function colLetter(n: number): string {
   let s = "";
-  while (n > 0) {
-    const r = (n - 1) % 26;
-    s = String.fromCharCode(65 + r) + s;
-    n = Math.floor((n - 1) / 26);
-  }
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
   return s;
 }
 
@@ -83,26 +84,61 @@ async function ga(token: string, url: string, method = "GET", body?: unknown): P
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!resp.ok) {
-    const txt = await resp.text();
-    throw new Error(`Google ${method}: ${resp.status} ${txt.slice(0, 400)}`);
-  }
+  if (!resp.ok) { const txt = await resp.text(); throw new Error(`Google ${method} ${url.split('/').slice(-2).join('/')}: ${resp.status} ${txt.slice(0, 400)}`); }
   return resp.json();
 }
 
-async function createSpreadsheet(token: string, title: string, year: number): Promise<{ id: string; sheetIds: Record<string, number> }> {
-  const r = await ga(token, "https://sheets.googleapis.com/v4/spreadsheets", "POST", {
-    properties: { title, locale: "ru_RU", timeZone: "Europe/Moscow" },
-    sheets: [
-      { properties: { title: "Дашборд", gridProperties: { rowCount: 50, columnCount: 14 } } },
-      { properties: { title: "PL WB", gridProperties: { rowCount: 70, columnCount: 16 } } },
-      { properties: { title: "PL WB (нед)", gridProperties: { rowCount: 80, columnCount: 60 } } },
-    ],
-  }) as { spreadsheetId: string; sheets: Array<{ properties: { sheetId: number; title: string } }> };
-  const sheetIds: Record<string, number> = {};
-  r.sheets.forEach((s) => { sheetIds[s.properties.title] = s.properties.sheetId; });
+interface SheetMeta { sheetId: number; title: string; }
 
-  // Build PL WB (нед) headers
+async function getSheetMetadata(token: string, spreadsheetId: string): Promise<Record<string, number>> {
+  const meta = await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`) as { sheets: Array<{ properties: SheetMeta }> };
+  const m: Record<string, number> = {};
+  meta.sheets.forEach((s) => { m[s.properties.title] = s.properties.sheetId; });
+  return m;
+}
+
+async function ensureSheetsExist(token: string, spreadsheetId: string, cleanup: boolean): Promise<Record<string, number>> {
+  let existing = await getSheetMetadata(token, spreadsheetId);
+
+  // Step 1: add missing required tabs first
+  const addReqs: unknown[] = [];
+  for (const tab of REQUIRED_TABS) {
+    if (existing[tab] == null) {
+      const grid = tab === "PL WB (нед)" ? { rowCount: 80, columnCount: 60 } :
+                   tab === "PL WB" ? { rowCount: 70, columnCount: 16 } :
+                   { rowCount: 50, columnCount: 14 };
+      addReqs.push({ addSheet: { properties: { title: tab, gridProperties: grid } } });
+    }
+  }
+  if (addReqs.length > 0) {
+    await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, "POST", { requests: addReqs });
+    existing = await getSheetMetadata(token, spreadsheetId);
+  }
+
+  // Step 2: now safe to delete old tabs
+  if (cleanup) {
+    const delReqs: unknown[] = [];
+    for (const old of OLD_TABS_TO_REMOVE) {
+      if (existing[old] != null) delReqs.push({ deleteSheet: { sheetId: existing[old] } });
+    }
+    if (delReqs.length > 0) {
+      await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, "POST", { requests: delReqs });
+      existing = await getSheetMetadata(token, spreadsheetId);
+    }
+  }
+
+  return existing;
+}
+
+async function setupStructure(token: string, spreadsheetId: string, year: number, sheetIds: Record<string, number>) {
+  // Check if structure already set (look for label "Продажи шт" in PL WB (нед) A7)
+  let alreadySet = false;
+  try {
+    const probe = await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent("PL WB (нед)!A7")}`) as { values?: string[][] };
+    if (probe.values?.[0]?.[0]?.includes("Продажи")) alreadySet = true;
+  } catch { /* ignore */ }
+  if (alreadySet) return;
+
   const monStart = new Date(Date.UTC(year, 0, 1));
   const dow = monStart.getUTCDay() || 7;
   monStart.setUTCDate(monStart.getUTCDate() - (dow - 1));
@@ -112,22 +148,16 @@ async function createSpreadsheet(token: string, title: string, year: number): Pr
     weeks.push(weekLabel(ws.toISOString().slice(0, 10)));
   }
   const totalCol = colLetter(2 + 53 + 1);
-
   const writes: Array<{ range: string; values: unknown[][] }> = [];
-  writes.push({ range: "PL WB (нед)!A1", values: [[`Прибыли и убытки, еженедельно — ${year}`]] });
+  writes.push({ range: "PL WB (нед)!A1", values: [[`Прибыли и убытки еженедельно — ${year}`]] });
   writes.push({ range: "PL WB (нед)!A3", values: [["Метрика", "", ...weeks, "ИТОГО"]] });
   const labels: Array<[number, string]> = [
-    [7, "Продажи шт"], [14, "Продано по карточке"],
-    [15, "Выручка ВБ реализовал"], [17, "Комиссия ВБ"], [18, "% комиссии"],
-    [20, "К перечислению"], [22, "Возвраты, руб"], [23, "Возвраты, шт"],
+    [7, "Продажи шт"], [14, "По карточке"], [15, "Выручка"],
+    [17, "Комиссия ВБ"], [18, "% комиссии"], [20, "К перечислению"],
+    [22, "Возвраты, руб"], [23, "Возвраты, шт"],
   ];
   for (const [row, label] of labels) writes.push({ range: `PL WB (нед)!A${row}`, values: [[label]] });
-
-  // Year-total formulas
-  for (const r of [7, 14, 15, 20, 22, 23]) {
-    writes.push({ range: `PL WB (нед)!${totalCol}${r}`, values: [[`=SUM(C${r}:${colLetter(2 + 53)}${r})`]] });
-  }
-  // R17 commission and R18 percent formulas
+  for (const r of [7, 14, 15, 20, 22, 23]) writes.push({ range: `PL WB (нед)!${totalCol}${r}`, values: [[`=SUM(C${r}:${colLetter(2 + 53)}${r})`]] });
   for (let c = 3; c <= 2 + 53; c++) {
     const L = colLetter(c);
     writes.push({ range: `PL WB (нед)!${L}17`, values: [[`=IFERROR(${L}14-${L}20,0)`]] });
@@ -136,72 +166,50 @@ async function createSpreadsheet(token: string, title: string, year: number): Pr
   writes.push({ range: `PL WB (нед)!${totalCol}17`, values: [[`=IFERROR(${totalCol}14-${totalCol}20,0)`]] });
   writes.push({ range: `PL WB (нед)!${totalCol}18`, values: [[`=IFERROR(${totalCol}17/${totalCol}14,0)`]] });
 
-  // Дашборд
   const dashWrites: Array<[string, unknown]> = [
     ["A1", `ФИНАНСОВЫЙ ДАШБОРД ${year}`],
     ["A5", "Показатель"], ["C5", "Значение"],
     ["A6", "Продажи, шт"], ["C6", `='PL WB (нед)'!${totalCol}7`],
     ["A7", "Выручка"], ["C7", `='PL WB (нед)'!${totalCol}15`],
-    ["A8", "Цена карточки"], ["C8", `='PL WB (нед)'!${totalCol}14`],
+    ["A8", "По карточке"], ["C8", `='PL WB (нед)'!${totalCol}14`],
     ["A9", "К перечислению"], ["C9", `='PL WB (нед)'!${totalCol}20`],
     ["A10", "Возвраты руб"], ["C10", `='PL WB (нед)'!${totalCol}22`],
     ["A11", "% комиссии (общий)"], ["C11", `=IFERROR(('PL WB (нед)'!${totalCol}14-'PL WB (нед)'!${totalCol}20)/'PL WB (нед)'!${totalCol}14,0)`],
   ];
   for (const [a, v] of dashWrites) writes.push({ range: `Дашборд!${a}`, values: [[v]] });
 
-  // PL WB (помесячно) — пока labels
   const months = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
   writes.push({ range: "PL WB!A2", values: [[`P&L по месяцам, WB — ${year}`]] });
   writes.push({ range: "PL WB!C3", values: [months] });
-  writes.push({ range: "PL WB!A7", values: [["Продажи шт"]] });
-  writes.push({ range: "PL WB!A14", values: [["По карточке"]] });
-  writes.push({ range: "PL WB!A15", values: [["Выручка"]] });
-  writes.push({ range: "PL WB!A20", values: [["К перечислению"]] });
 
-  await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${r.spreadsheetId}/values:batchUpdate`, "POST", {
+  await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, "POST", {
     valueInputOption: "USER_ENTERED",
     data: writes,
   });
 
   // Format
-  await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${r.spreadsheetId}:batchUpdate`, "POST", {
-    requests: [
-      { updateSheetProperties: {
-        properties: { sheetId: sheetIds["PL WB (нед)"], gridProperties: { frozenRowCount: 3, frozenColumnCount: 2 } },
-        fields: "gridProperties.frozenRowCount,gridProperties.frozenColumnCount",
-      }},
-      { repeatCell: {
-        range: { sheetId: sheetIds["PL WB (нед)"], startRowIndex: 2, endRowIndex: 3 },
-        cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.85, green: 0.95, blue: 1 }, horizontalAlignment: "CENTER" } },
-        fields: "userEnteredFormat(textFormat.bold,backgroundColor,horizontalAlignment)",
-      }},
-      ...[7, 14, 15, 20, 22, 23].map((r) => ({
-        repeatCell: {
-          range: { sheetId: sheetIds["PL WB (нед)"], startRowIndex: r - 1, endRowIndex: r, startColumnIndex: 2, endColumnIndex: 2 + 53 },
-          cell: { userEnteredFormat: { backgroundColor: { red: 0.78, green: 0.92, blue: 0.98 } } },
-          fields: "userEnteredFormat.backgroundColor",
-        },
-      })),
-      { repeatCell: {
-        range: { sheetId: sheetIds["Дашборд"], startRowIndex: 0, endRowIndex: 1 },
-        cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 16, foregroundColor: { red: 1, green: 1, blue: 1 } }, backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 }, horizontalAlignment: "CENTER" } },
-        fields: "userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)",
-      }},
-    ],
-  });
+  const formatReqs: unknown[] = [
+    { updateSheetProperties: { properties: { sheetId: sheetIds["PL WB (нед)"], gridProperties: { frozenRowCount: 3, frozenColumnCount: 2 } }, fields: "gridProperties.frozenRowCount,gridProperties.frozenColumnCount" } },
+    { repeatCell: { range: { sheetId: sheetIds["PL WB (нед)"], startRowIndex: 2, endRowIndex: 3 }, cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.85, green: 0.95, blue: 1 } } }, fields: "userEnteredFormat(textFormat.bold,backgroundColor)" } },
+    ...[7, 14, 15, 20, 22, 23].map((row) => ({ repeatCell: { range: { sheetId: sheetIds["PL WB (нед)"], startRowIndex: row - 1, endRowIndex: row, startColumnIndex: 2, endColumnIndex: 2 + 53 }, cell: { userEnteredFormat: { backgroundColor: { red: 0.78, green: 0.92, blue: 0.98 } } }, fields: "userEnteredFormat.backgroundColor" } })),
+    { repeatCell: { range: { sheetId: sheetIds["Дашборд"], startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 16, foregroundColor: { red: 1, green: 1, blue: 1 } }, backgroundColor: { red: 0.2, green: 0.4, blue: 0.6 }, horizontalAlignment: "CENTER" } }, fields: "userEnteredFormat(textFormat,backgroundColor,horizontalAlignment)" } },
+  ];
+  await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, "POST", { requests: formatReqs });
+}
 
-  return { id: r.spreadsheetId, sheetIds };
+async function createSpreadsheet(token: string, title: string): Promise<string> {
+  const r = await ga(token, "https://sheets.googleapis.com/v4/spreadsheets", "POST", {
+    properties: { title, locale: "ru_RU", timeZone: "Europe/Moscow" },
+    sheets: REQUIRED_TABS.map((t) => ({ properties: { title: t } })),
+  }) as { spreadsheetId: string };
+  return r.spreadsheetId;
 }
 
 async function shareWith(token: string, fileId: string, email?: string) {
   if (!email) return;
   try {
-    await ga(token, `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?sendNotificationEmail=true`, "POST", {
-      role: "writer", type: "user", emailAddress: email,
-    });
-  } catch (e) {
-    console.error(`Share with ${email}: ${e instanceof Error ? e.message : e}`);
-  }
+    await ga(token, `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?sendNotificationEmail=true`, "POST", { role: "writer", type: "user", emailAddress: email });
+  } catch (e) { console.error(`Share: ${e instanceof Error ? e.message : e}`); }
 }
 
 Deno.serve(async (req: Request) => {
@@ -210,10 +218,12 @@ Deno.serve(async (req: Request) => {
   const supabase = adminClient();
   const url = new URL(req.url);
   const year = parseInt(url.searchParams.get("year") || "2025", 10);
+  const cleanup = url.searchParams.get("cleanup") === "1";
   const forceCreate = url.searchParams.get("create") === "1";
+  const explicitSheetId = url.searchParams.get("sheet_id");
 
   const { data: logRow } = await supabase.from("ingestion_log")
-    .insert({ job_name: JOB_NAME, meta: { year } }).select("id").single();
+    .insert({ job_name: JOB_NAME, meta: { year, cleanup } }).select("id").single();
   const jobId: number = logRow?.id ?? 0;
 
   try {
@@ -221,30 +231,34 @@ Deno.serve(async (req: Request) => {
     const token = await getAccessToken(sa, "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive");
 
     const settingKey = `google_sheet_id_${year}`;
-    const { data: sett } = await supabase.from("pricing_settings").select("description").eq("key", settingKey).maybeSingle();
-    let spreadsheetId = sett?.description?.trim();
-    let created = false;
+    let spreadsheetId = explicitSheetId;
+    if (!spreadsheetId) {
+      const { data: sett } = await supabase.from("pricing_settings").select("description").eq("key", settingKey).maybeSingle();
+      spreadsheetId = sett?.description?.trim();
+    }
 
-    if (!spreadsheetId || forceCreate) {
-      const title = `SellerBase: PL WB ${year}`;
-      const r = await createSpreadsheet(token, title, year);
-      spreadsheetId = r.id;
+    let created = false;
+    if (forceCreate || !spreadsheetId) {
+      spreadsheetId = await createSpreadsheet(token, `SellerBase: PL WB ${year}`);
       const ownerEmail = url.searchParams.get("email") || Deno.env.get("OWNER_EMAIL");
       await shareWith(token, spreadsheetId, ownerEmail);
-      await supabase.from("pricing_settings").upsert({
-        key: settingKey, value: 0, description: spreadsheetId,
-      }, { onConflict: "key" });
       created = true;
     }
+
+    // Save id to settings (even if was passed via ?sheet_id=)
+    await supabase.from("pricing_settings").upsert({ key: settingKey, value: 0, description: spreadsheetId }, { onConflict: "key" });
+
+    // Ensure structure
+    const sheetIds = await ensureSheetsExist(token, spreadsheetId!, cleanup);
+    await setupStructure(token, spreadsheetId!, year, sheetIds);
 
     // Read weekly data
     const { data: weekly } = await supabase.from("v_wb_pl_weekly")
       .select("*").gte("week_from", `${year}-01-01`).lt("week_from", `${year + 1}-01-01`).order("week_from");
 
-    // Read existing week headers row 3
+    // Read week headers row 3
     const hdr = await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent("PL WB (нед)!3:3")}`) as { values?: string[][] };
     const headerRow: string[] = (hdr.values && hdr.values[0]) || [];
-
     const colByMonday: Record<string, number> = {};
     headerRow.forEach((label, idx) => {
       if (!label || !label.includes("-")) return;
@@ -267,9 +281,7 @@ Deno.serve(async (req: Request) => {
       let col = colByMonday[wf];
       if (!col) {
         const t0 = new Date(wf).getTime();
-        const cand = Object.entries(colByMonday)
-          .map(([d, c]) => ({ d, c, diff: Math.abs(new Date(d).getTime() - t0) }))
-          .sort((a, b) => a.diff - b.diff);
+        const cand = Object.entries(colByMonday).map(([d, c]) => ({ d, c, diff: Math.abs(new Date(d).getTime() - t0) })).sort((a, b) => a.diff - b.diff);
         if (cand[0] && cand[0].diff <= 3 * 86400 * 1000) col = cand[0].c;
       }
       if (!col) { unmatched++; continue; }
@@ -282,23 +294,20 @@ Deno.serve(async (req: Request) => {
 
     if (data.length > 0) {
       for (let i = 0; i < data.length; i += 200) {
-        await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, "POST", {
-          valueInputOption: "USER_ENTERED",
-          data: data.slice(i, i + 200),
-        });
+        await ga(token, `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, "POST", { valueInputOption: "USER_ENTERED", data: data.slice(i, i + 200) });
       }
     }
 
     await supabase.from("ingestion_log").update({
       status: "ok", finished_at: new Date().toISOString(),
       rows_in: weekly?.length || 0, rows_out: data.length,
-      meta: { year, spreadsheet_id: spreadsheetId, matched, unmatched, created },
+      meta: { year, spreadsheet_id: spreadsheetId, matched, unmatched, created, cleanup },
     }).eq("id", jobId);
 
     return new Response(JSON.stringify({
       ok: true, spreadsheet_id: spreadsheetId,
       url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
-      matched, unmatched, writes: data.length, created,
+      matched, unmatched, writes: data.length, created, cleanup,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
