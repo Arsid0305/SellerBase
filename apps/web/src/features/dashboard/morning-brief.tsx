@@ -12,6 +12,18 @@ function fmtToday(): string {
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' });
 }
 
+function fmtDayLabel(isoDate: string): string {
+  const today = new Date();
+  const day = new Date(`${isoDate}T00:00:00Z`);
+  const diffDays = Math.round(
+    (Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()) - day.getTime()) /
+      86_400_000,
+  );
+  if (diffDays === 1) return 'Вчера';
+  if (diffDays === 2) return 'Позавчера';
+  return day.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+
 function calcDelta(curr: number, prev: number): number {
   if (prev === 0) return curr === 0 ? 0 : 100;
   return Math.round(((curr - prev) / Math.abs(prev)) * 100);
@@ -40,7 +52,9 @@ export function MorningBrief({
       </div>
 
       <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-        <span className="text-muted-foreground">Вчера:</span>
+        <span className="text-muted-foreground">
+          {fmtDayLabel(brief.yesterday.date)}:
+        </span>
         <Link href="/pnl" className="hover:underline">
           Выручка <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.revenue)}</span>
         </Link>

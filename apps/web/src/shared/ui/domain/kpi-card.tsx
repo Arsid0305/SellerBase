@@ -9,6 +9,7 @@ export type KpiCardProps = {
   value: string;
   delta?: number;
   deltaLabel?: string;
+  /** Семантика «хорошо/плохо» — влияет на цвет. По умолчанию выводится из знака delta (рост = хорошо). */
   trend?: 'up' | 'down' | 'flat';
   series?: number[];
   hint?: string;
@@ -17,6 +18,10 @@ export type KpiCardProps = {
 
 /**
  * KpiCard — базовая карточка KPI: значение + дельта + направление + sparkline.
+ *
+ * Стрелка всегда следует знаку `delta` (рост вверх / падение вниз), а `trend`
+ * определяет только цвет: `up` — зелёный (положительный исход), `down` — красный.
+ * Это нужно чтобы для метрик типа «расходы» можно было показать ↓ зелёным.
  */
 export function KpiCard({
   label,
@@ -28,13 +33,14 @@ export function KpiCard({
   hint,
   className,
 }: KpiCardProps) {
-  const direction: 'up' | 'down' | 'flat' =
-    trend ?? (delta == null ? 'flat' : delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat');
-  const Icon = direction === 'up' ? ArrowUpRight : direction === 'down' ? ArrowDownRight : Minus;
+  const arrowDir: 'up' | 'down' | 'flat' =
+    delta == null ? 'flat' : delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  const toneDir: 'up' | 'down' | 'flat' = trend ?? arrowDir;
+  const Icon = arrowDir === 'up' ? ArrowUpRight : arrowDir === 'down' ? ArrowDownRight : Minus;
   const tone =
-    direction === 'up'
+    toneDir === 'up'
       ? 'text-emerald-600 dark:text-emerald-400'
-      : direction === 'down'
+      : toneDir === 'down'
         ? 'text-rose-600 dark:text-rose-400'
         : 'text-muted-foreground';
 
@@ -54,7 +60,7 @@ export function KpiCard({
           {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
         </div>
         {series && series.length > 1 && (
-          <Sparkline data={series} trend={direction} className="shrink-0" />
+          <Sparkline data={series} trend={toneDir} className="shrink-0" />
         )}
       </CardContent>
     </Card>

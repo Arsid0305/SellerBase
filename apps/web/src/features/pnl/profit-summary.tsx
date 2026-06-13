@@ -25,7 +25,9 @@ export function ProfitSummary({
         delta={kpis.expenses.delta}
         deltaLabel={deltaLabel}
         series={kpis.expenses.series}
-        trend={kpis.expenses.delta < 0 ? 'up' : 'down'}
+        trend={
+          kpis.expenses.delta < 0 ? 'up' : kpis.expenses.delta > 0 ? 'down' : 'flat'
+        }
       />
       <KpiCard
         label="Прибыль"
@@ -36,11 +38,17 @@ export function ProfitSummary({
       />
       <KpiCard
         label="Маржа"
-        value={`${kpis.margin.value.toFixed(1)}%`}
+        value={`${(kpis.margin.value ?? 0).toFixed(1)}%`}
         delta={kpis.margin.delta}
         deltaLabel={deltaLabel}
         series={kpis.margin.series}
-        hint={kpis.margin.delta < 0 ? 'Ниже прошлого периода' : 'Выше прошлого периода'}
+        hint={
+          kpis.margin.delta > 0
+            ? 'Выше прошлого периода'
+            : kpis.margin.delta < 0
+              ? 'Ниже прошлого периода'
+              : 'Без изменений'
+        }
       />
     </div>
   );
