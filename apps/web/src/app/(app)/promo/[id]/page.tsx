@@ -27,7 +27,7 @@ export default async function PromoDetailPage({
         title={promo.name}
         description={`${start} – ${end} · ${promo.skuCount} SKU · ${promo.type === 'auto' ? 'Авто-акция' : 'Стандартная'}`}
       />
-      <PromoDetailClient promo={promo} rows={rows} />
+      <PromoDetailClient promo={promo} rows={rows} isAutoPromo={promo.type === 'auto'} />
     </div>
   );
 }

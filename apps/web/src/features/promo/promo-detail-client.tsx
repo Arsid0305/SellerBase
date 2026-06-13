@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { Download, Check, X, Sparkles, Loader2 } from 'lucide-react';
+import { Download, Check, X, Sparkles, Loader2, AlertTriangle } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import type { PromoSkuRow, PromoSummary } from '@/entities/promo';
 import { setParticipationAction, bulkSetParticipationAction } from './actions';
@@ -31,9 +31,25 @@ function turnoverColor(days: number | null) {
   return 'text-emerald-600';
 }
 
-export function PromoDetailClient({ promo, rows }: { promo: PromoSummary; rows: PromoSkuRow[] }) {
+export function PromoDetailClient({
+  promo,
+  rows,
+  isAutoPromo,
+}: {
+  promo: PromoSummary;
+  rows: PromoSkuRow[];
+  isAutoPromo: boolean;
+}) {
   const [filter, setFilter] = useState<Filter>('all');
   const [busy, startTransition] = useTransition();
+
+  const negativeAutoSku = useMemo(
+    () =>
+      isAutoPromo
+        ? rows.filter((r) => r.marginPromoPct != null && r.marginPromoPct < 0)
+        : [],
+    [isAutoPromo, rows],
+  );
 
   const filtered = useMemo(() => {
     switch (filter) {
@@ -94,6 +110,31 @@ export function PromoDetailClient({ promo, rows }: { promo: PromoSummary; rows: 
 
   return (
     <div className="flex flex-col gap-4">
+      {negativeAutoSku.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+          <div className="flex-1">
+            <div className="font-medium text-red-700 dark:text-red-400">
+              Авто-акция: {negativeAutoSku.length} SKU уйдут в минус
+            </div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              WB сам тащит товар в эту акцию, отказаться через API нельзя — выйди вручную
+              в{' '}
+              <a
+                href="https://seller.wildberries.ru/promotions/all-promotions"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-red-600 underline hover:text-red-700"
+              >
+                ЛК WB → Акции
+              </a>{' '}
+              или будь готова к убытку. Минусовые SKU помечены красным в столбце «Маржа при
+              акции».
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           {FILTERS.map((f) => (
