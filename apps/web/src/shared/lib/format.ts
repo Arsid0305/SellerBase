@@ -29,7 +29,8 @@ export function formatInt(value: number): string {
   return intFormatter.format(value);
 }
 
-export function formatDelta(value: number): string {
+export function formatDelta(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
   const sign = value > 0 ? '+' : '';
   return `${sign}${value.toFixed(0)}%`;
 }

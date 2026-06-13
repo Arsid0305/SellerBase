@@ -31,8 +31,10 @@ export function ExpenseBreakdown({
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-base">Структура расходов</CardTitle>
         <div className="text-xs text-muted-foreground">
-          Итого расходов: <span className="font-medium text-foreground">{formatRub(totalExpenses)}</span>{' '}
-          ({((totalExpenses / totalRevenue) * 100).toFixed(1)}% от выручки)
+          Итого расходов: <span className="font-medium text-foreground">{formatRub(totalExpenses)}</span>
+          {totalRevenue > 0
+            ? ` (${((totalExpenses / totalRevenue) * 100).toFixed(1)}% от выручки)`
+            : ''}
         </div>
       </CardHeader>
       <CardContent className="p-0">

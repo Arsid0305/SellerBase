@@ -21,7 +21,13 @@ export function KpiGrid({ kpis, comparison }: { kpis: DashboardSummary['kpis']; 
         deltaLabel={deltaLabel}
         series={kpis.mainExpenses.series}
         hint={kpis.mainExpenses.hint}
-        trend={kpis.mainExpenses.delta < 0 ? 'up' : 'down'} // снижение расходов — хорошо
+        trend={
+          kpis.mainExpenses.delta < 0
+            ? 'up'
+            : kpis.mainExpenses.delta > 0
+              ? 'down'
+              : 'flat'
+        }
       />
       <KpiCard
         label={kpis.extraExpenses.label}
@@ -30,7 +36,13 @@ export function KpiGrid({ kpis, comparison }: { kpis: DashboardSummary['kpis']; 
         deltaLabel={deltaLabel}
         series={kpis.extraExpenses.series}
         hint={kpis.extraExpenses.hint}
-        trend={kpis.extraExpenses.delta < 0 ? 'up' : 'down'}
+        trend={
+          kpis.extraExpenses.delta < 0
+            ? 'up'
+            : kpis.extraExpenses.delta > 0
+              ? 'down'
+              : 'flat'
+        }
       />
       <KpiCard
         label={kpis.profit.label}

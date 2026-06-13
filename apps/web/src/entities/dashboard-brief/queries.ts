@@ -9,8 +9,8 @@ export type CriticalSkuBrief = {
 };
 
 export type DashboardBrief = {
-  yesterday: { revenue: number; profit: number };
-  dayBefore: { revenue: number; profit: number };
+  yesterday: { revenue: number; profit: number; date: string };
+  dayBefore: { revenue: number; profit: number; date: string };
   criticalCount: number;
   criticalTop: CriticalSkuBrief[];
   tasksTodayCount: number;
@@ -33,13 +33,30 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
 
   const today = new Date();
   const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-  const yesterday = new Date(todayUtc);
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  const dayBefore = new Date(todayUtc);
-  dayBefore.setUTCDate(dayBefore.getUTCDate() - 2);
   const todayIso = iso(todayUtc);
-  const yIso = iso(yesterday);
-  const dbIso = iso(dayBefore);
+
+  // WB report лагает 1-2 дня — берём последний день, где в БД есть факты.
+  // Окно: последние 7 дней. yesterday = последний день с выручкой; dayBefore = предыдущий.
+  const sevenAgo = new Date(todayUtc);
+  sevenAgo.setUTCDate(sevenAgo.getUTCDate() - 7);
+  const { data: recentDates } = await supabase
+    .from('wb_reports_fact')
+    .select('rr_dt')
+    .gte('rr_dt', iso(sevenAgo))
+    .order('rr_dt', { ascending: false })
+    .range(0, 5000);
+
+  const distinctDates: string[] = [];
+  const seen = new Set<string>();
+  for (const r of (recentDates ?? []) as { rr_dt: string | null }[]) {
+    if (!r.rr_dt || seen.has(r.rr_dt)) continue;
+    seen.add(r.rr_dt);
+    distinctDates.push(r.rr_dt);
+    if (distinctDates.length >= 2) break;
+  }
+
+  const yIso = distinctDates[0] ?? iso(new Date(todayUtc.getTime() - 86400000));
+  const dbIso = distinctDates[1] ?? iso(new Date(todayUtc.getTime() - 2 * 86400000));
 
   const [pnlY, pnlDb, lifecycleRes, criticalListRes, tasksRes, problemsRes] = await Promise.all([
     supabase.rpc('get_full_pnl_by_period', { p_from: yIso, p_to: yIso }),
@@ -79,8 +96,12 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
     return { revenue: Math.round(revenue), profit: Math.round(profit) };
   };
 
-  const yesterdayAgg = pnlY.error ? { revenue: 0, profit: 0 } : sumPnl(pnlY.data);
-  const dayBeforeAgg = pnlDb.error ? { revenue: 0, profit: 0 } : sumPnl(pnlDb.data);
+  const yesterdayAgg = pnlY.error
+    ? { revenue: 0, profit: 0, date: yIso }
+    : { ...sumPnl(pnlY.data), date: yIso };
+  const dayBeforeAgg = pnlDb.error
+    ? { revenue: 0, profit: 0, date: dbIso }
+    : { ...sumPnl(pnlDb.data), date: dbIso };
 
   const criticalCount = lifecycleRes.error
     ? 0
