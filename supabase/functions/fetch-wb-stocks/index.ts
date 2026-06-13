@@ -1,12 +1,16 @@
-// fetch-wb-stocks — ежедневный фетч остатков с WB Statistics API.
-// UPSERT в wb_stocks (текущий снапшот) + wb_stocks_history (снапшот дня).
-// Лог в ingestion_log. Повторный запуск идемпотентен.
+// fetch-wb-stocks — ежедневный фетч остатков с WB Analytics API.
+// Endpoint: POST /api/analytics/v1/stocks-report/wb-warehouses (заменяет /api/v1/supplier/stocks, отключённый 23.06.2026).
+// Категория токена: Аналитика (WB_TOKEN_READ).
+// Лимит: 1 req / 20 c per seller, до 250 000 строк за ответ, offset-пагинация, sort by nmId ASC.
+// UPSERT в wb_stocks (текущий снапшот) + wb_stocks_history (снапшот дня). Идемпотентен.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const JOB_NAME = "fetch-wb-stocks";
-const WB_BASE = "https://statistics-api.wildberries.ru";
+const WB_BASE = "https://seller-analytics-api.wildberries.ru";
+const PAGE_LIMIT = 250_000;
+const RATE_DELAY_MS = 21_000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,15 +24,52 @@ function adminClient(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-interface WbStock {
-  lastChangeDate: string;
-  warehouseName: string;
-  supplierArticle?: string;
-  nmId: number;
-  barcode: string;
-  quantity: number;
-  inWayToClient: number;
-  inWayFromClient: number;
+interface WbStockRow {
+  nmId?: number;
+  nmID?: number;
+  chrtId?: number;
+  chrtID?: number;
+  barcode?: string;
+  warehouseId?: number;
+  warehouseName?: string;
+  warehouseRegion?: string;
+  quantity?: number;
+  inWayToClient?: number;
+  inWayFromClient?: number;
+  lastChangeDate?: string;
+}
+
+const num = (v: unknown): number => (typeof v === "number" ? v : 0);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchPage(token: string, offset: number): Promise<WbStockRow[]> {
+  const url = `${WB_BASE}/api/analytics/v1/stocks-report/wb-warehouses`;
+  const body = { limit: PAGE_LIMIT, offset };
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (resp.status === 429) {
+    await sleep(RATE_DELAY_MS);
+    return fetchPage(token, offset);
+  }
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`WB API ${resp.status}: ${text.slice(0, 500)}`);
+  }
+  const json = await resp.json();
+  const rows = Array.isArray(json) ? json : json?.data ?? json?.rows ?? json?.items ?? [];
+  if (!Array.isArray(rows)) {
+    throw new Error(`WB API returned non-array payload: ${JSON.stringify(json).slice(0, 300)}`);
+  }
+  return rows as WbStockRow[];
 }
 
 Deno.serve(async (req: Request) => {
@@ -36,11 +77,10 @@ Deno.serve(async (req: Request) => {
 
   const supabase = adminClient();
   const snapshotDate = new Date().toISOString().slice(0, 10);
-  const dateFrom = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
   const { data: logRow, error: insErr } = await supabase
     .from("ingestion_log")
-    .insert({ job_name: JOB_NAME, meta: { snapshot_date: snapshotDate, dateFrom } })
+    .insert({ job_name: JOB_NAME, meta: { snapshot_date: snapshotDate } })
     .select("id")
     .single();
   if (insErr || !logRow) {
@@ -55,28 +95,30 @@ Deno.serve(async (req: Request) => {
     const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
     if (!token) throw new Error("WB_TOKEN_READ is not set in function secrets");
 
-    const url = `${WB_BASE}/api/v1/supplier/stocks?dateFrom=${encodeURIComponent(dateFrom)}`;
-    const resp = await fetch(url, { headers: { Authorization: token } });
-    if (!resp.ok) {
-      const body = await resp.text();
-      throw new Error(`WB API ${resp.status}: ${body.slice(0, 500)}`);
+    const all: WbStockRow[] = [];
+    let offset = 0;
+    let pages = 0;
+    while (true) {
+      const page = await fetchPage(token, offset);
+      pages++;
+      all.push(...page);
+      if (page.length < PAGE_LIMIT) break;
+      offset += PAGE_LIMIT;
+      await sleep(RATE_DELAY_MS);
     }
-    const stocks: WbStock[] = await resp.json();
 
-    if (!Array.isArray(stocks)) {
-      throw new Error(`WB API returned non-array: ${JSON.stringify(stocks).slice(0, 300)}`);
-    }
-
-    const stocksRows = stocks.map((s) => ({
-      barcode: String(s.barcode),
-      nm_id: s.nmId,
-      warehouse_name: s.warehouseName,
-      quantity: s.quantity ?? 0,
-      in_way_to_client: s.inWayToClient ?? 0,
-      in_way_from_client: s.inWayFromClient ?? 0,
-      last_change_date: s.lastChangeDate,
-      fetched_at: new Date().toISOString(),
-    }));
+    const stocksRows = all
+      .filter((s) => s.barcode && (s.warehouseName || s.warehouseId !== undefined))
+      .map((s) => ({
+        barcode: String(s.barcode),
+        nm_id: s.nmId ?? s.nmID ?? null,
+        warehouse_name: s.warehouseName ?? String(s.warehouseId),
+        quantity: num(s.quantity),
+        in_way_to_client: num(s.inWayToClient),
+        in_way_from_client: num(s.inWayFromClient),
+        last_change_date: s.lastChangeDate ?? null,
+        fetched_at: new Date().toISOString(),
+      }));
 
     if (stocksRows.length > 0) {
       const { error: upsertErr } = await supabase
@@ -105,13 +147,19 @@ Deno.serve(async (req: Request) => {
       .update({
         status: "ok",
         finished_at: new Date().toISOString(),
-        rows_in: stocks.length,
+        rows_in: all.length,
         rows_out: stocksRows.length,
+        meta: { snapshot_date: snapshotDate, pages, offset_final: offset },
       })
       .eq("id", jobId);
 
     return new Response(
-      JSON.stringify({ ok: true, rows: stocksRows.length, snapshot_date: snapshotDate }),
+      JSON.stringify({
+        ok: true,
+        rows: stocksRows.length,
+        pages,
+        snapshot_date: snapshotDate,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {

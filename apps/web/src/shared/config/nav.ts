@@ -53,6 +53,7 @@ export const navItems: NavItem[] = [
   { title: 'Pareto 80/20', href: '/analytics/pareto', icon: Sigma, group: 'analytics' },
   { title: 'Аналитика по неделям', href: '/analytics/weekly', icon: CalendarRange, group: 'analytics' },
   { title: 'Сравнение периодов', href: '/compare', icon: GitCompare, group: 'analytics' },
+  { title: 'Промо-акции WB', href: '/promo', icon: Percent, group: 'operations' },
   { title: 'Дефицит товаров', href: '/deficit', icon: AlertTriangle, group: 'operations' },
   { title: 'Остатки Дом/ФФ', href: '/products/stock', icon: Warehouse, group: 'operations' },
   { title: 'Поставки', href: '/supplies', icon: Truck, group: 'operations' },
