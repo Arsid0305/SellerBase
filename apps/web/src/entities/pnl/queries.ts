@@ -112,25 +112,31 @@ function sumByCategory(rows: PnlSkuRow[]): {
 /** Дневная серия «операционная маржа» — (revenue - commission - delivery - penalty) / revenue * 100. */
 export async function fetchDailyMarginSeries(range: PeriodRange): Promise<ProfitMarginPoint[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('wb_reports_fact')
-    .select('rr_dt, retail_amount, commission_rub, delivery_rub, penalty')
-    .gte('rr_dt', range.from)
-    .lte('rr_dt', range.to)
-    .range(0, 100_000);
+  const { data, error } = await supabase.rpc('get_daily_pnl_series', {
+    p_from: range.from,
+    p_to: range.to,
+  });
   if (error) {
-    console.error('[fetchDailyMarginSeries] error', error);
+    console.error('[fetchDailyMarginSeries] rpc error', error);
     return buildEmptyMargin(range);
   }
-  type Row = { rr_dt: string; retail_amount: number | null; commission_rub: number | null; delivery_rub: number | null; penalty: number | null };
+  type Row = {
+    rr_dt: string;
+    revenue_rub: number | null;
+    commission_rub: number | null;
+    logistics_rub: number | null;
+    penalty_rub: number | null;
+  };
   const rows = (data ?? []) as Row[];
   const map = new Map<string, { rev: number; exp: number }>();
   for (const r of rows) {
-    const day = r.rr_dt;
-    const cur = map.get(day) ?? { rev: 0, exp: 0 };
-    cur.rev += toNumber(r.retail_amount);
-    cur.exp += toNumber(r.commission_rub) + toNumber(r.delivery_rub) + toNumber(r.penalty);
-    map.set(day, cur);
+    map.set(r.rr_dt, {
+      rev: toNumber(r.revenue_rub),
+      exp:
+        toNumber(r.commission_rub) +
+        toNumber(r.logistics_rub) +
+        toNumber(r.penalty_rub),
+    });
   }
   return buildMarginFromMap(range, map);
 }
@@ -157,25 +163,31 @@ function buildMarginFromMap(
 
 export async function fetchDailyRevenue(range: PeriodRange): Promise<DailyRevenuePoint[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('wb_reports_fact')
-    .select('rr_dt, retail_amount, commission_rub, delivery_rub, penalty')
-    .gte('rr_dt', range.from)
-    .lte('rr_dt', range.to)
-    .range(0, 100_000);
+  const { data, error } = await supabase.rpc('get_daily_pnl_series', {
+    p_from: range.from,
+    p_to: range.to,
+  });
   if (error) {
-    console.error('[fetchDailyRevenue] query error', error);
+    console.error('[fetchDailyRevenue] rpc error', error);
     return buildEmptyRevenueSeries(range);
   }
-  type Row = { rr_dt: string; retail_amount: number | null; commission_rub: number | null; delivery_rub: number | null; penalty: number | null };
+  type Row = {
+    rr_dt: string;
+    revenue_rub: number | null;
+    commission_rub: number | null;
+    logistics_rub: number | null;
+    penalty_rub: number | null;
+  };
   const rows = (data ?? []) as Row[];
   const map = new Map<string, { revenue: number; expenses: number }>();
   for (const r of rows) {
-    const day = r.rr_dt;
-    const cur = map.get(day) ?? { revenue: 0, expenses: 0 };
-    cur.revenue += toNumber(r.retail_amount);
-    cur.expenses += toNumber(r.commission_rub) + toNumber(r.delivery_rub) + toNumber(r.penalty);
-    map.set(day, cur);
+    map.set(r.rr_dt, {
+      revenue: toNumber(r.revenue_rub),
+      expenses:
+        toNumber(r.commission_rub) +
+        toNumber(r.logistics_rub) +
+        toNumber(r.penalty_rub),
+    });
   }
   return buildSeriesFromMap(range, map);
 }

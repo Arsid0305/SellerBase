@@ -113,9 +113,12 @@ function colLetter(n) {
 
 module.exports.handler = async () => {
   const supabase = adminClient();
-  const { data: logRow } = await supabase
+  const { data: logRow, error: logErr } = await supabase
     .from('ingestion_log').insert({ job_name: JOB_NAME, meta: {} }).select('id').single();
-  const jobId = logRow?.id;
+  if (logErr || !logRow) {
+    throw new Error(`Failed to init ingestion_log: ${logErr?.message ?? 'no row returned'}`);
+  }
+  const jobId = logRow.id;
 
   try {
     const sheetId = process.env.GOOGLE_SHEET_ID;
