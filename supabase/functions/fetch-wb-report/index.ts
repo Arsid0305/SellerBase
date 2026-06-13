@@ -45,6 +45,9 @@ interface WbReportRow {
   ppvz_for_pay?: number;
   delivery_rub?: number;
   ppvz_sales_commission?: number;
+  ppvz_spp_prc?: number;
+  commission_percent?: number;
+  ppvz_kvw_prc?: number;
   ppvz_vw?: number;
   ppvz_vw_nds?: number;
   ppvz_reward?: number;
@@ -103,20 +106,29 @@ Deno.serve(async (req: Request) => {
   const jobId: number = logRow.id;
 
   try {
-    const token = Deno.env.get("WB_API_TOKEN");
-    if (!token) throw new Error("WB_API_TOKEN is not set");
+    const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
+    if (!token) throw new Error("WB_TOKEN_READ is not set");
 
-    const { data: latest } = await supabase
-      .from("wb_reports_fact")
-      .select("rr_dt")
-      .order("rr_dt", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const qFrom = url.searchParams.get("from");
+    const qTo = url.searchParams.get("to");
 
-    const dateFrom = latest?.rr_dt
-      ? new Date(new Date(latest.rr_dt).getTime() - 7 * 86400 * 1000).toISOString().slice(0, 10)
-      : new Date(Date.now() - lookbackDays * 86400 * 1000).toISOString().slice(0, 10);
-    const dateTo = new Date().toISOString().slice(0, 10);
+    let dateFrom: string;
+    let dateTo: string;
+    if (qFrom && qTo) {
+      dateFrom = qFrom;
+      dateTo = qTo;
+    } else {
+      const { data: latest } = await supabase
+        .from("wb_reports_fact")
+        .select("rr_dt")
+        .order("rr_dt", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      dateFrom = latest?.rr_dt
+        ? new Date(new Date(latest.rr_dt).getTime() - 7 * 86400 * 1000).toISOString().slice(0, 10)
+        : new Date(Date.now() - lookbackDays * 86400 * 1000).toISOString().slice(0, 10);
+      dateTo = new Date().toISOString().slice(0, 10);
+    }
 
     let totalIn = 0;
     let totalOut = 0;
@@ -140,13 +152,14 @@ Deno.serve(async (req: Request) => {
       if (rows.length === 0) break;
       totalIn += rows.length;
 
-      const rawMap = new Map<string, { realizationreport_id: number; payload: WbReportRow }>();
-      const factMap = new Map<string, Record<string, unknown>>();
+      const rawMap = new Map<number, { realizationreport_id: number; payload: WbReportRow }>();
+      const factMap = new Map<number, Record<string, unknown>>();
       for (const r of rows) {
-        if (!r.srid) continue;
-        rawMap.set(r.srid, { realizationreport_id: r.realizationreport_id, payload: r });
-        factMap.set(r.srid, {
-          srid: r.srid,
+        if (!r.rrd_id) continue;
+        rawMap.set(r.rrd_id, { realizationreport_id: r.realizationreport_id, payload: r });
+        factMap.set(r.rrd_id, {
+          rrd_id: r.rrd_id,
+          srid: r.srid ?? null,
           realizationreport_id: r.realizationreport_id,
           nm_id: r.nm_id,
           barcode: r.barcode != null ? String(r.barcode) : null,
@@ -162,8 +175,10 @@ Deno.serve(async (req: Request) => {
           retail_amount: toNum(r.retail_amount),
           ppvz_for_pay: toNum(r.ppvz_for_pay),
           delivery_rub: toNum(r.delivery_rub),
-          commission_rub: toNum(r.ppvz_sales_commission),
           ppvz_sales_commission: toNum(r.ppvz_sales_commission),
+          ppvz_spp_prc: toNum(r.ppvz_spp_prc),
+          commission_percent: toNum(r.commission_percent),
+          ppvz_kvw_prc: toNum(r.ppvz_kvw_prc),
           ppvz_vw: toNum(r.ppvz_vw),
           ppvz_vw_nds: toNum(r.ppvz_vw_nds),
           ppvz_reward: toNum(r.ppvz_reward),
@@ -178,8 +193,8 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      await upsertInBatches(supabase, "wb_reports_fact_raw", Array.from(rawMap.values()), "srid");
-      await upsertInBatches(supabase, "wb_reports_fact", Array.from(factMap.values()), "srid");
+      await upsertInBatches(supabase, "wb_reports_fact_raw", Array.from(rawMap.values()), "rrd_id");
+      await upsertInBatches(supabase, "wb_reports_fact", Array.from(factMap.values()), "rrd_id");
       totalOut += factMap.size;
 
       if (rows.length < PAGE_LIMIT) break;

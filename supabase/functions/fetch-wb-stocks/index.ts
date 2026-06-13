@@ -52,8 +52,8 @@ Deno.serve(async (req: Request) => {
   const jobId: number = logRow.id;
 
   try {
-    const token = Deno.env.get("WB_API_TOKEN");
-    if (!token) throw new Error("WB_API_TOKEN is not set in function secrets");
+    const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
+    if (!token) throw new Error("WB_TOKEN_READ is not set in function secrets");
 
     const url = `${WB_BASE}/api/v1/supplier/stocks?dateFrom=${encodeURIComponent(dateFrom)}`;
     const resp = await fetch(url, { headers: { Authorization: token } });

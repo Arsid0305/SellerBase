@@ -1,5 +1,5 @@
 if (!globalThis.WebSocket) globalThis.WebSocket = require('ws');
-// sync-sheets v0.2 — без googleapis, JWT через встроенный crypto.
+// sync-sheets v0.3 — заливает PL WB (нед) в Google Sheet по структуре владелицы.
 
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
@@ -54,25 +54,61 @@ async function getAccessToken(sa) {
   return data.access_token;
 }
 
-async function writeTab(token, spreadsheetId, tabName, headerRow, dataRows) {
-  const enc = encodeURIComponent;
-  await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${enc(tabName + '!A:Z')}:clear`,
-    { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
-  );
-  const values = [headerRow, ...dataRows];
+async function gsGet(token, spreadsheetId, range) {
   const resp = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${enc(tabName + '!A1')}?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!resp.ok) throw new Error(`Sheets GET ${range}: ${resp.status} ${(await resp.text()).slice(0, 300)}`);
+  return resp.json();
+}
+
+async function gsBatchUpdate(token, spreadsheetId, valueRanges) {
+  const resp = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`,
     {
-      method: 'PUT',
+      method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values }),
+      body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: valueRanges }),
     },
   );
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`Sheets write error on "${tabName}": ${resp.status} ${text.slice(0, 300)}`);
+  if (!resp.ok) throw new Error(`Sheets batchUpdate: ${resp.status} ${(await resp.text()).slice(0, 300)}`);
+  return resp.json();
+}
+
+// Parse week header like "01.12-07.12" or "1-7.09" or "30.12-05.01" → ISO start date.
+// year is needed because Excel labels don't include year.
+function parseWeekStart(label, year) {
+  if (!label) return null;
+  const s = String(label).trim();
+  // First part of "-": "01.12" or "1" or "30.12"
+  const left = s.split('-')[0].trim();
+  let day, month;
+  if (left.includes('.')) {
+    [day, month] = left.split('.').map((x) => parseInt(x, 10));
+  } else {
+    // "1-7.09" → left="1", we need month from second part
+    day = parseInt(left, 10);
+    const right = s.split('-')[1] || '';
+    const mt = right.match(/\.(\d{1,2})/);
+    if (!mt) return null;
+    month = parseInt(mt[1], 10);
   }
+  if (!day || !month) return null;
+  // Edge case: "30.12-05.01" — week pre-spans year boundary, start belongs to prev year
+  const yr = (month === 12 && day >= 28) ? year - 1 : year;
+  return new Date(Date.UTC(yr, month - 1, day)).toISOString().slice(0, 10);
+}
+
+// Column number (1-based) → letter (A, B, ..., Z, AA, AB...)
+function colLetter(n) {
+  let s = '';
+  while (n > 0) {
+    const r = (n - 1) % 26;
+    s = String.fromCharCode(65 + r) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
 }
 
 module.exports.handler = async () => {
@@ -84,57 +120,85 @@ module.exports.handler = async () => {
   try {
     const sheetId = process.env.GOOGLE_SHEET_ID;
     if (!sheetId) throw new Error('GOOGLE_SHEET_ID not set');
+    const year = parseInt(process.env.SYNC_YEAR || '2025', 10);
 
     const sa = parseSa();
     const token = await getAccessToken(sa);
 
-    let totalRows = 0;
+    // 1) Read week headers from "PL WB (нед)" row 3
+    const TAB = 'PL WB (нед)';
+    const headers = await gsGet(token, sheetId, `${TAB}!3:3`);
+    const headerRow = (headers.values && headers.values[0]) || [];
+    if (headerRow.length === 0) throw new Error(`Tab "${TAB}" not found or row 3 empty`);
 
-    const today = new Date().toISOString().slice(0, 10);
-    const from30 = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10);
+    // 2) Map column index (1-based) → week start date
+    const colByDate = {};
+    headerRow.forEach((label, idx) => {
+      const dt = parseWeekStart(label, year);
+      if (dt) colByDate[dt] = idx + 1; // 1-based
+    });
 
-    const { data: pnl, error: pnlErr } = await supabase.rpc('get_full_pnl_by_period', { p_from: from30, p_to: today });
-    if (pnlErr) throw new Error(`get_full_pnl_by_period: ${pnlErr.message}`);
-    if (pnl) {
-      await writeTab(token, sheetId, 'P&L по SKU',
-        ['SKU', 'Мой артикул', 'Арт WB', 'Выручка', 'Комиссия', 'Логистика', 'Шт', 'С/С', 'Маркетинг', 'Налог', 'Чистый', 'Маржа %'],
-        pnl.map((r) => [r.sku_id, r.my_article, r.wb_article, r.revenue_rub, r.commission_rub, r.logistics_rub, r.units_sold, r.cogs_rub, r.marketing_rub, r.tax_rub, r.net_profit_rub, r.margin_pct]),
-      );
-      totalRows += pnl.length;
+    // 3) Get weekly data from DB
+    const { data: weekly, error } = await supabase
+      .from('v_wb_pl_weekly')
+      .select('*')
+      .gte('week_from', `${year}-01-01`)
+      .lt('week_from', `${year + 1}-01-01`)
+      .order('week_from');
+    if (error) throw new Error(`v_wb_pl_weekly: ${error.message}`);
+
+    // 4) For each weekly row find matching column by week_from
+    // Excel "30.12-05.01" labels include weeks from prev year — try exact match first,
+    // then fuzzy: find a column whose start is within ±3 days of week_from.
+    const writes = []; // {row, col, value}
+    const colDates = Object.keys(colByDate).sort();
+    let matched = 0;
+    let unmatched = 0;
+    for (const r of (weekly || [])) {
+      const wf = r.week_from;
+      let col = colByDate[wf];
+      if (!col) {
+        // fuzzy match within 3 days
+        const t0 = new Date(wf).getTime();
+        const candidate = colDates
+          .map((d) => ({ d, diff: Math.abs(new Date(d).getTime() - t0) }))
+          .sort((a, b) => a.diff - b.diff)[0];
+        if (candidate && candidate.diff <= 3 * 86400 * 1000) col = colByDate[candidate.d];
+      }
+      if (!col) { unmatched++; continue; }
+      matched++;
+      writes.push({ row: 7, col, value: r.sales_qty });        // R7  Продажи шт
+      writes.push({ row: 14, col, value: r.by_card_rub });     // R14 Продано по карточке
+      writes.push({ row: 15, col, value: r.retail_net_rub });  // R15 Выручка
+      writes.push({ row: 20, col, value: r.ppvz_for_pay_rub }); // R20 К перечислению
+      writes.push({ row: 22, col, value: r.returns_rub });     // R22 Возвраты руб
+      writes.push({ row: 23, col, value: r.returns_qty });     // R23 Возвраты шт
     }
 
-    const { data: stocks } = await supabase
-      .from('wb_stocks').select('barcode,nm_id,warehouse_name,quantity,in_way_to_client,in_way_from_client')
-      .order('warehouse_name').order('nm_id');
-    if (stocks) {
-      await writeTab(token, sheetId, 'Остатки',
-        ['Штрихкод', 'Арт WB', 'Склад', 'На складе', 'В пути к клиенту', 'В пути от клиента'],
-        stocks.map((r) => [r.barcode, r.nm_id, r.warehouse_name, r.quantity, r.in_way_to_client, r.in_way_from_client]),
-      );
-      totalRows += stocks.length;
+    if (writes.length === 0) throw new Error('Nothing to write — check week headers in your sheet');
+
+    // 5) Build value ranges and batch update
+    const valueRanges = writes.map((w) => ({
+      range: `${TAB}!${colLetter(w.col)}${w.row}`,
+      values: [[w.value == null ? '' : w.value]],
+    }));
+
+    // batch in chunks of 100
+    for (let i = 0; i < valueRanges.length; i += 100) {
+      await gsBatchUpdate(token, sheetId, valueRanges.slice(i, i + 100));
     }
 
-    const { data: supply } = await supabase.from('v_supply_recommendation').select('*');
-    if (supply && supply.length > 0) {
-      const keys = Object.keys(supply[0]);
-      await writeTab(token, sheetId, 'Поставка', keys, supply.map((r) => keys.map((k) => r[k])));
-      totalRows += supply.length;
+    if (jobId) {
+      await supabase.from('ingestion_log').update({
+        status: 'ok',
+        finished_at: new Date().toISOString(),
+        rows_in: weekly?.length || 0,
+        rows_out: writes.length,
+        meta: { year, matched, unmatched, weeks_in_db: weekly?.length || 0 },
+      }).eq('id', jobId);
     }
 
-    const { data: cf } = await supabase.from('v_cash_flow_by_month').select('*');
-    if (cf) {
-      await writeTab(token, sheetId, 'Cash Flow',
-        ['Месяц', 'Направление', 'Категория', 'Сумма', 'Операций'],
-        cf.map((r) => [r.month, r.direction, r.category, r.total_rub, r.count]),
-      );
-      totalRows += cf.length;
-    }
-
-    if (jobId) await supabase.from('ingestion_log').update({
-      status: 'ok', finished_at: new Date().toISOString(), rows_out: totalRows,
-    }).eq('id', jobId);
-
-    return { statusCode: 200, body: JSON.stringify({ ok: true, rows: totalRows }) };
+    return { statusCode: 200, body: JSON.stringify({ ok: true, matched, unmatched, writes: writes.length }) };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     if (jobId) await supabase.from('ingestion_log').update({
