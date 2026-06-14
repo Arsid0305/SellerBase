@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { PnlAggregate, PnlSkuRow, DailyRevenuePoint, PeriodRange } from './types';
 import type { ExpenseCategory, ProfitMarginPoint } from '@/features/pnl/types';
 
@@ -291,6 +292,58 @@ export async function fetchPnlByCategory(range: PeriodRange): Promise<CategoryPn
   }
   out.sort((a, b) => b.revenue - a.revenue);
   return out;
+}
+
+export type TopProductRow = {
+  skuId: number;
+  title: string;
+  myArticle: string | null;
+  wbArticle: number | null;
+  photoUrl: string | null;
+  revenue: number;
+  unitsSold: number;
+  share: number;
+};
+
+export async function fetchTopProductsByRevenue(
+  range: PeriodRange,
+  limit = 5,
+): Promise<TopProductRow[]> {
+  const rows = await fetchFullPnlRows(range);
+  if (rows.length === 0) return [];
+  const supabase = createAdminClient();
+  const skuIds = rows.map((r) => r.sku_id);
+  const { data: cat } = await supabase
+    .from('sku_catalog')
+    .select('id, title, my_article, wb_article, photo_url')
+    .in('id', skuIds);
+  const meta = new Map<number, { title: string; myArticle: string | null; wbArticle: number | null; photoUrl: string | null }>();
+  for (const c of (cat ?? []) as { id: number; title: string | null; my_article: string | null; wb_article: number | null; photo_url: string | null }[]) {
+    meta.set(c.id, {
+      title: c.title ?? c.my_article ?? `SKU ${c.id}`,
+      myArticle: c.my_article,
+      wbArticle: c.wb_article,
+      photoUrl: c.photo_url ?? wbPhotoUrl(c.wb_article),
+    });
+  }
+  const total = rows.reduce((acc, r) => acc + toNumber(r.revenue_rub), 0);
+  return rows
+    .map((r) => {
+      const m = meta.get(r.sku_id);
+      return {
+        skuId: r.sku_id,
+        title: m?.title ?? `SKU ${r.sku_id}`,
+        myArticle: m?.myArticle ?? r.my_article ?? null,
+        wbArticle: m?.wbArticle ?? r.wb_article ?? null,
+        photoUrl: m?.photoUrl ?? null,
+        revenue: Math.round(toNumber(r.revenue_rub)),
+        unitsSold: Math.round(toNumber(r.units_sold)),
+        share: total > 0 ? Math.round((toNumber(r.revenue_rub) / total) * 1000) / 10 : 0,
+      };
+    })
+    .filter((r) => r.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, limit);
 }
 
 export function shiftRangeBack(range: PeriodRange): PeriodRange {

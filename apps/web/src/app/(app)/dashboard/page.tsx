@@ -1,12 +1,13 @@
 import { Download, Info } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard } from '@/features/dashboard';
+import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard } from '@/features/dashboard';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
 import {
   fetchPnlAggregate,
   fetchDailyRevenue,
   fetchPnlByCategory,
+  fetchTopProductsByRevenue,
   shiftRangeBack,
   lastNDaysRange,
   type PeriodRange,
@@ -58,7 +59,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   const weekAgoIso = weekAgo.toISOString().slice(0, 10);
 
-  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl] = await Promise.all([
+  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
@@ -67,6 +68,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     fetchAverageWarehouseCoefAtOrBefore(weekAgoIso),
     fetchDashboardBrief(),
     fetchPnlByCategory(lastNDaysRange(30)),
+    fetchTopProductsByRevenue(range, 5),
   ]);
 
   const revenueKpi: DashboardKpi = {
@@ -167,7 +169,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         <div className="xl:col-span-2">
           <RevenueExpensesChart data={series} />
         </div>
-        <ChannelsDonut channels={channels} />
+        <div className="flex flex-col gap-4">
+          <ChannelsDonut channels={channels} />
+          <TopProductsCard rows={topProducts} />
+        </div>
       </div>
       <LogisticsPulseCard current={coefNow} previous={coefPrev} />
       <CategoriesCard rows={categoryPnl} />
