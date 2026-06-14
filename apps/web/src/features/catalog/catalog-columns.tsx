@@ -52,11 +52,6 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
     ),
   },
   {
-    accessorKey: 'brand',
-    header: 'Бренд',
-    cell: ({ row }) => <span className="text-sm">{row.original.brand}</span>,
-  },
-  {
     accessorKey: 'category',
     header: 'Категория',
     cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.category}</span>,
@@ -160,18 +155,6 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
               ? 'text-amber-600 dark:text-amber-400'
               : 'text-foreground';
       return <span className={cn('tabular-nums', tone)}>{d} д.</span>;
-    },
-  },
-  {
-    accessorKey: 'lastSaleDaysAgo',
-    header: 'Посл. продажа',
-    cell: ({ row }) => {
-      const d = row.original.lastSaleDaysAgo;
-      if (d === 0) return <span className="text-emerald-600 dark:text-emerald-400 font-medium">Сегодня</span>;
-      if (d === 1) return <span className="text-foreground">Вчера</span>;
-      if (d < 7) return <span className="text-foreground">{d} д. назад</span>;
-      if (d < 30) return <span className="text-amber-600 dark:text-amber-400">{d} д. назад</span>;
-      return <span className="text-rose-600 dark:text-rose-400 font-medium">{d} д. назад</span>;
     },
   },
   {
