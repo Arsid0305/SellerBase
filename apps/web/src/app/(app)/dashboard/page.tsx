@@ -175,11 +175,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         </div>
       </div>
       <LogisticsPulseCard current={coefNow} previous={coefPrev} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+        <div className="xl:col-span-3">
           <CategoriesCard rows={categoryPnl} />
         </div>
-        <AnomaliesBanner anomalies={anomalies} />
+        <div className="xl:col-span-2">
+          <AnomaliesBanner anomalies={anomalies} />
+        </div>
       </div>
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
