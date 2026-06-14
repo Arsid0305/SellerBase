@@ -123,21 +123,12 @@ export async function fetchDailyMarginSeries(range: PeriodRange): Promise<Profit
   }
   type Row = {
     rr_dt: string;
-    revenue_rub: number | null;
-    commission_rub: number | null;
-    logistics_rub: number | null;
-    penalty_rub: number | null;
+    margin_pct: number | null;
   };
   const rows = (data ?? []) as Row[];
-  const map = new Map<string, { rev: number; exp: number }>();
+  const map = new Map<string, number>();
   for (const r of rows) {
-    map.set(r.rr_dt, {
-      rev: toNumber(r.revenue_rub),
-      exp:
-        toNumber(r.commission_rub) +
-        toNumber(r.logistics_rub) +
-        toNumber(r.penalty_rub),
-    });
+    map.set(r.rr_dt, toNumber(r.margin_pct));
   }
   return buildMarginFromMap(range, map);
 }
@@ -148,15 +139,14 @@ function buildEmptyMargin(range: PeriodRange): ProfitMarginPoint[] {
 
 function buildMarginFromMap(
   range: PeriodRange,
-  map: Map<string, { rev: number; exp: number }>,
+  map: Map<string, number>,
 ): ProfitMarginPoint[] {
   const out: ProfitMarginPoint[] = [];
   const start = new Date(`${range.from}T00:00:00Z`);
   const end = new Date(`${range.to}T00:00:00Z`);
   for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
     const day = d.toISOString().slice(0, 10);
-    const v = map.get(day) ?? { rev: 0, exp: 0 };
-    const margin = v.rev > 0 ? ((v.rev - v.exp) / v.rev) * 100 : 0;
+    const margin = map.get(day) ?? 0;
     out.push({ date: day, margin: Math.round(margin * 10) / 10 });
   }
   return out;
