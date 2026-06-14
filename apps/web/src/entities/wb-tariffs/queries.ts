@@ -217,14 +217,27 @@ export async function fetchAverageWarehouseCoef(
 
   let weightedSum = 0;
   let totalQty = 0;
-  let matched = 0;
+  const matchedRows: { warehouseName: string; coef: number; units: number }[] = [];
   for (const [wh, qty] of stocksByWh) {
     const coef = coefByWh.get(wh);
     if (coef === undefined || qty <= 0) continue;
     weightedSum += coef * qty;
     totalQty += qty;
-    matched += 1;
+    matchedRows.push({ warehouseName: wh, coef, units: qty });
   }
   if (totalQty === 0) return { coef: 0, date: eff, warehouseCount: 0 };
-  return { coef: weightedSum / totalQty, date: eff, warehouseCount: matched };
+
+  const warehouses = matchedRows
+    .map((r) => ({
+      ...r,
+      sharePct: (r.units / totalQty) * 100,
+    }))
+    .sort((a, b) => b.units - a.units);
+
+  return {
+    coef: weightedSum / totalQty,
+    date: eff,
+    warehouseCount: matchedRows.length,
+    warehouses,
+  };
 }

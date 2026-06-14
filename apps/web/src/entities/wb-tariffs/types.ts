@@ -26,8 +26,16 @@ export type WbTariffsBoxDynamicsPoint = {
   warehouseCoef: number;
 };
 
+export type WbWarehouseCoefRow = {
+  warehouseName: string;
+  coef: number;     // как в БД, в шкале 100 = база
+  units: number;    // твои остатки на этом складе
+  sharePct: number; // доля от твоих суммарных остатков, 0-100
+};
+
 export type WbAverageWarehouseCoef = {
   coef: number;
   date: string;
   warehouseCount: number;
+  warehouses?: WbWarehouseCoefRow[];
 };
