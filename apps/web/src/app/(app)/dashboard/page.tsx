@@ -175,8 +175,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         </div>
       </div>
       <LogisticsPulseCard current={coefNow} previous={coefPrev} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <CategoriesCard rows={categoryPnl} />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <CategoriesCard rows={categoryPnl} />
+        </div>
         <AnomaliesBanner anomalies={anomalies} />
       </div>
       <p className="text-xs text-muted-foreground">
