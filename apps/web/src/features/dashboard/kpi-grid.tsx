@@ -5,7 +5,7 @@ import type { DashboardSummary } from './types';
 export function KpiGrid({ kpis, comparison }: { kpis: DashboardSummary['kpis']; comparison: DashboardSummary['comparison'] }) {
   const deltaLabel = `vs ${comparison.label}`;
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <KpiCard
         label={kpis.revenue.label}
         value={formatRub(kpis.revenue.value)}
@@ -51,6 +51,14 @@ export function KpiGrid({ kpis, comparison }: { kpis: DashboardSummary['kpis']; 
         deltaLabel={deltaLabel}
         series={kpis.profit.series}
         hint={kpis.profit.hint}
+      />
+      <KpiCard
+        label={kpis.margin.label}
+        value={`${kpis.margin.value.toFixed(1)}%`}
+        delta={kpis.margin.delta}
+        deltaLabel={deltaLabel}
+        series={kpis.margin.series}
+        hint={kpis.margin.hint}
       />
     </div>
   );
