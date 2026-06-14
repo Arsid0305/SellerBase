@@ -4,6 +4,11 @@ export type DailyPoint = {
   expenses: number;
   commission: number;
   logistics: number;
+  storage: number;
+  acquiring: number;
+  cogs: number;
+  tax: number;
+  marginPct: number;
 };
 
 export type ChannelShare = {

@@ -34,6 +34,11 @@ export type DailyRevenuePoint = {
   expenses: number;
   commission: number;
   logistics: number;
+  storage: number;
+  acquiring: number;
+  cogs: number;
+  tax: number;
+  marginPct: number;
 };
 
 export type PeriodRange = { from: string; to: string }; // ISO yyyy-mm-dd inclusive
