@@ -4,7 +4,7 @@ import type { DailyPoint } from './types';
 
 const WIDTH = 800;
 const HEIGHT = 260;
-const PAD_X = 36;
+const PAD_X = 52;
 const PAD_TOP = 16;
 const PAD_BOTTOM = 28;
 
