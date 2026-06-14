@@ -224,14 +224,16 @@ export async function fetchPnlByCategory(range: PeriodRange): Promise<CategoryPn
     fetchFullPnlRows(range),
     supabase
       .from('sku_catalog')
-      .select('id, category')
+      .select('id, subject_name, category')
       .range(0, 5000),
   ]);
   if (rows.length === 0) return [];
 
   const catById = new Map<number, string>();
-  for (const r of (catalogRes.data ?? []) as { id: number; category: string | null }[]) {
-    catById.set(r.id, (r.category ?? '').trim() || '— без категории');
+  for (const r of (catalogRes.data ?? []) as { id: number; subject_name: string | null; category: string | null }[]) {
+    const subj = (r.subject_name ?? '').trim();
+    const cat = (r.category ?? '').trim();
+    catById.set(r.id, subj || cat || '— без категории');
   }
 
   const agg = new Map<string, { revenue: number; profit: number }>();
