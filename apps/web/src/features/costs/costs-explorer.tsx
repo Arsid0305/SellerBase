@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useRouter } from 'next/navigation';
 import { DataTable } from '@/shared/ui/domain/data-table';
@@ -8,8 +8,6 @@ import { Button } from '@/shared/ui/button';
 import type { CostRow, CostHistoryEntry } from '@/entities/costs';
 
 type Props = { rows: CostRow[] };
-
-type RowState = { value: string; saving: boolean };
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -19,27 +17,33 @@ function fmtRub(n: number): string {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(n);
 }
 
-export function CostsExplorer({ rows }: Props) {
-  const router = useRouter();
-  const [, startTransition] = useTransition();
-  const [state, setState] = useState<Record<number, RowState>>({});
-  const [historyFor, setHistoryFor] = useState<CostRow | null>(null);
-  const [history, setHistory] = useState<CostHistoryEntry[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+function downloadBlob(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
-  const updateRow = (id: number, patch: Partial<RowState>) => {
-    setState((s) => ({ ...s, [id]: { value: '', saving: false, ...s[id], ...patch } }));
-  };
+type EditCellProps = {
+  row: CostRow;
+  onSaved: () => void;
+};
 
-  const save = async (row: CostRow) => {
-    const cur = state[row.sku_id];
-    const raw = (cur?.value ?? '').replace(',', '.').trim();
+function EditCell({ row, onSaved }: EditCellProps) {
+  const [value, setValue] = useState('');
+  const [date, setDate] = useState(todayIso());
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const raw = value.replace(',', '.').trim();
     const num = Number(raw);
     if (!Number.isFinite(num) || num < 0) return;
-    updateRow(row.sku_id, { saving: true });
+    setSaving(true);
     try {
       const res = await fetch('/api/costs', {
         method: 'POST',
@@ -47,7 +51,7 @@ export function CostsExplorer({ rows }: Props) {
         body: JSON.stringify({
           sku_id: row.sku_id,
           cost_rub: num,
-          valid_from: todayIso(),
+          valid_from: date,
           source: 'manual',
         }),
       });
@@ -55,17 +59,55 @@ export function CostsExplorer({ rows }: Props) {
         const err = await res.json().catch(() => ({}));
         alert('Ошибка: ' + (err.error ?? res.statusText));
       } else {
-        updateRow(row.sku_id, { value: '', saving: false });
-        startTransition(() => router.refresh());
-        return;
+        setValue('');
+        setDate(todayIso());
+        onSaved();
       }
     } catch {
       alert('Ошибка сети');
+    } finally {
+      setSaving(false);
     }
-    updateRow(row.sku_id, { saving: false });
   };
 
-  const openHistory = async (row: CostRow) => {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="text"
+        inputMode="decimal"
+        placeholder="0.00"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="h-8 w-20 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      />
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+        className="h-8 w-36 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      />
+      <Button size="sm" onClick={save} disabled={!value || saving}>
+        {saving ? '...' : 'Сохранить'}
+      </Button>
+    </div>
+  );
+}
+
+export function CostsExplorer({ rows }: Props) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [historyFor, setHistoryFor] = useState<CostRow | null>(null);
+  const [history, setHistory] = useState<CostHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onSaved = useCallback(() => {
+    startTransition(() => router.refresh());
+  }, [router]);
+
+  const openHistory = useCallback(async (row: CostRow) => {
     setHistoryFor(row);
     setHistory([]);
     setHistoryLoading(true);
@@ -78,6 +120,12 @@ export function CostsExplorer({ rows }: Props) {
     } finally {
       setHistoryLoading(false);
     }
+  }, []);
+
+  const downloadTemplate = () => {
+    const header = 'barcode;cost;valid_from';
+    const example = `2000000000001;123.45;${todayIso()}`;
+    downloadBlob('costs-template.csv', `﻿${header}\n${example}\n`, 'text/csv;charset=utf-8');
   };
 
   const handleImport = async (file: File) => {
@@ -156,33 +204,10 @@ export function CostsExplorer({ rows }: Props) {
       {
         id: 'edit',
         header: 'Новое значение',
-        cell: ({ row }) => {
-          const r = row.original;
-          const s = state[r.sku_id];
-          return (
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={s?.value ?? ''}
-                onChange={(e) => updateRow(r.sku_id, { value: e.target.value })}
-                className="h-8 w-24 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <Button
-                size="sm"
-                onClick={() => save(r)}
-                disabled={!s?.value || s?.saving}
-              >
-                {s?.saving ? '...' : 'Сохранить'}
-              </Button>
-            </div>
-          );
-        },
+        cell: ({ row }) => <EditCell row={row.original} onSaved={onSaved} />,
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state],
+    [openHistory, onSaved],
   );
 
   return (
@@ -193,6 +218,9 @@ export function CostsExplorer({ rows }: Props) {
         </div>
         <div className="flex items-center gap-2">
           {importResult && <span className="text-xs text-muted-foreground">{importResult}</span>}
+          <Button variant="ghost" size="sm" onClick={downloadTemplate}>
+            Шаблон CSV
+          </Button>
           <input
             ref={fileRef}
             type="file"
@@ -217,7 +245,8 @@ export function CostsExplorer({ rows }: Props) {
       <DataTable data={rows} columns={columns} rowKey={(r) => String(r.sku_id)} />
 
       <p className="text-xs text-muted-foreground">
-        Формат CSV: <code>barcode;cost;valid_from</code> (разделитель «;», UTF-8). Дата в формате YYYY-MM-DD.
+        Формат CSV: <code>barcode;cost;valid_from</code> (разделитель «;», UTF-8). Дата YYYY-MM-DD.
+        Нажми «Шаблон CSV» чтобы скачать пример.
       </p>
 
       {historyFor && (
