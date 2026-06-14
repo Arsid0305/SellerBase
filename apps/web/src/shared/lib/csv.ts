@@ -34,7 +34,8 @@ export function downloadCsv<T>(rows: T[], columns: CsvColumn<T>[], filename: str
 function formatValue(value: unknown): string {
   if (value == null) return '';
   if (typeof value === 'number') {
-    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+    // RU-локаль: десятичный разделитель — запятая.
+    return Number.isInteger(value) ? String(value) : value.toFixed(2).replace('.', ',');
   }
   if (Array.isArray(value)) return value.join(' / ');
   return String(value);

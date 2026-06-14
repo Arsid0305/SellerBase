@@ -11,14 +11,36 @@ import {
 import { cn } from '@/shared/lib/utils';
 import { useFiltersStore, type MarketplaceKey } from '@/shared/stores/filters';
 
-const CHANNELS: { key: MarketplaceKey; label: string; dotClass: string }[] = [
-  { key: 'WB', label: 'Wildberries', dotClass: 'bg-fuchsia-500' },
-  { key: 'OZON', label: 'Ozon', dotClass: 'bg-sky-500' },
+const CHANNELS: {
+  key: MarketplaceKey;
+  label: string;
+  dotClass: string;
+  // Цвет триггера, когда выбран только этот канал.
+  triggerClass: string;
+}[] = [
+  {
+    key: 'WB',
+    label: 'Wildberries',
+    dotClass: 'bg-fuchsia-500',
+    triggerClass:
+      'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 hover:bg-fuchsia-500/15 dark:text-fuchsia-300',
+  },
+  {
+    key: 'OZON',
+    label: 'Ozon',
+    dotClass: 'bg-sky-500',
+    triggerClass:
+      'border-sky-500/40 bg-sky-500/10 text-sky-700 hover:bg-sky-500/15 dark:text-sky-300',
+  },
 ];
 
 export function MarketplaceFilter() {
   const marketplaces = useFiltersStore((s) => s.marketplaces);
   const toggle = useFiltersStore((s) => s.toggleMarketplace);
+
+  const single = marketplaces.length === 1
+    ? CHANNELS.find((c) => c.key === marketplaces[0]) ?? null
+    : null;
 
   const label =
     marketplaces.length === CHANNELS.length
@@ -28,7 +50,11 @@ export function MarketplaceFilter() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn('gap-2', single?.triggerClass)}
+        >
           <Store className="size-4" />
           <span>{label}</span>
         </Button>
