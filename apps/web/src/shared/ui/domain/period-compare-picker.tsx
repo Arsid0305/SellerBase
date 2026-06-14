@@ -104,6 +104,7 @@ export function PeriodComparePicker() {
 
   const [customFrom, setCustomFrom] = useState(activeFrom);
   const [customTo, setCustomTo] = useState(activeTo);
+  const [open, setOpen] = useState(false);
 
   const applyRange = (from: string, to: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -112,6 +113,7 @@ export function PeriodComparePicker() {
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     });
+    setOpen(false);
   };
 
   const onPreset = (key: PeriodPreset) => {
@@ -120,7 +122,7 @@ export function PeriodComparePicker() {
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           {pending ? <Loader2 className="size-4 animate-spin" /> : <CalendarRange className="size-4" />}

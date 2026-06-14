@@ -1,4 +1,5 @@
-import { Download } from 'lucide-react';
+import { Download, Info } from 'lucide-react';
+import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
 import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard } from '@/features/dashboard';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
@@ -123,6 +124,28 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
           Скачать XLSX
         </a>
       </div>
+      {brief.yesterday.date && range.to > brief.yesterday.date && (
+        <Card className="border-amber-500/30 bg-amber-500/5 p-3">
+          <div className="flex items-start gap-2 text-sm">
+            <Info className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <div>
+              <span className="font-medium text-amber-700 dark:text-amber-400">
+                За выбранный период данных от WB ещё нет.
+              </span>{' '}
+              <span className="text-muted-foreground">
+                Отчёт WB приходит с задержкой 1-2 дня. Последний день с данными:{' '}
+                <span className="font-medium text-foreground">
+                  {new Date(`${brief.yesterday.date}T00:00:00Z`).toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'long',
+                  })}
+                </span>
+                . Сдвинь конец периода назад, чтобы увидеть цифры.
+              </span>
+            </div>
+          </div>
+        </Card>
+      )}
       <MorningBrief brief={brief} anomaliesCount={anomalies.length} />
       <KpiGrid
         kpis={{
