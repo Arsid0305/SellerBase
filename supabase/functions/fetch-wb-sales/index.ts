@@ -1,6 +1,7 @@
 // fetch-wb-sales — ежедневный фетч продаж из Statistics API.
 // /api/v1/supplier/sales?dateFrom=YYYY-MM-DDThh:mm:ss
 // Пагинация через lastChangeDate (берём max + 1 секунда). UPSERT по srid.
+// Запуск: cron каждые 30 мин (см. миграцию 20260614_cron_fetch_wb_sales.sql).
 //
 // Запуск: cron каждые 30 мин. dateFrom = max(last_change_date) - 1 час (overlap),
 // либо ?days=N для бэкфилла.
