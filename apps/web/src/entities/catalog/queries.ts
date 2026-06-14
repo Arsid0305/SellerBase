@@ -23,6 +23,7 @@ type CatalogDb = {
   brand: string | null;
   cost_price_rub: number | null;
   is_active: boolean | null;
+  photo_url: string | null;
 };
 
 type FactRow = {
@@ -94,7 +95,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
 
   const { data: catalogData, error: e1 } = await supabase
     .from('sku_catalog')
-    .select('id, my_article, wb_article, barcode, title, category, brand, cost_price_rub, is_active')
+    .select('id, my_article, wb_article, barcode, title, category, brand, cost_price_rub, is_active, photo_url')
     .eq('is_active', true)
     .order('id', { ascending: true })
     .range(0, 5000);
@@ -256,6 +257,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       id: String(c.id),
       name: c.title ?? c.my_article ?? 'Без названия',
       barcode: c.barcode ?? '',
+      photoUrl: c.photo_url,
       channel: 'WB',
       brand: c.brand ?? '—',
       category: c.category ?? '—',

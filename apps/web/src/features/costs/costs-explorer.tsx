@@ -5,6 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useRouter } from 'next/navigation';
 import { DataTable } from '@/shared/ui/domain/data-table';
 import { Button } from '@/shared/ui/button';
+import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import type { CostRow, CostHistoryEntry } from '@/entities/costs';
 
 type Props = { rows: CostRow[] };
@@ -181,7 +182,16 @@ export function CostsExplorer({ rows }: Props) {
   const columns = useMemo<ColumnDef<CostRow>[]>(
     () => [
       { accessorKey: 'barcode', header: 'Штрихкод', cell: (info) => <span className="font-mono text-xs">{info.getValue<string>() || '—'}</span> },
-      { accessorKey: 'title', header: 'Товар', cell: (info) => <span className="line-clamp-2">{info.getValue<string>()}</span> },
+      {
+        accessorKey: 'title',
+        header: 'Товар',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <SkuThumb src={row.original.photo_url} alt={row.original.title} />
+            <span className="line-clamp-2">{row.original.title}</span>
+          </div>
+        ),
+      },
       {
         accessorKey: 'current_cost',
         header: 'Текущая cost (₽)',

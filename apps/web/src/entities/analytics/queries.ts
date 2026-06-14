@@ -78,6 +78,7 @@ type CatalogDb = {
   title: string | null;
   brand: string | null;
   cost_price_rub: number | null;
+  photo_url: string | null;
 };
 
 type PnlDb = {
@@ -117,7 +118,7 @@ export async function fetchAnalytics(): Promise<{
   const [catalogResult, pnlResult, factsResult] = await Promise.all([
     supabase
       .from('sku_catalog')
-      .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub')
+      .select('id, my_article, wb_article, barcode, title, brand, cost_price_rub, photo_url')
       .eq('is_active', true)
       .range(0, 5000),
     supabase.rpc('get_full_pnl_by_period', { p_from: fromIso, p_to: toIso }),
@@ -196,6 +197,7 @@ export async function fetchAnalytics(): Promise<{
       id: String(e.catalog.id),
       name: e.catalog.title ?? e.catalog.my_article ?? 'Без названия',
       barcode: e.catalog.barcode ?? '',
+      photoUrl: e.catalog.photo_url,
       channel: 'WB',
       tags,
       profit,

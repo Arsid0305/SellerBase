@@ -22,6 +22,7 @@ export type AnalyticsRow = {
   id: string;
   name: string;
   barcode: string;
+  photoUrl?: string | null;
   channel: 'WB' | 'OZON';
   tags: ProductTagKind[];
   profit: ProfitTier;

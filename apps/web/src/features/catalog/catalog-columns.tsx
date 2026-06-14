@@ -5,6 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
 import { LifecycleBadge } from '@/shared/ui/domain/lifecycle-badge';
 import { Sparkline } from '@/shared/ui/domain/sparkline';
+import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { Badge } from '@/shared/ui/badge';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { formatRub, formatInt } from '@/shared/lib/format';
@@ -24,10 +25,13 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
     cell: ({ row }) => (
       <Link
         href={`/products/${encodeURIComponent(row.original.barcode)}`}
-        className="flex min-w-[260px] flex-col gap-0.5 hover:underline"
+        className="flex min-w-[260px] items-center gap-2 hover:underline"
       >
-        <span className="font-medium leading-tight">{row.original.name}</span>
-        <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
+        <SkuThumb src={row.original.photoUrl} alt={row.original.name} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="font-medium leading-tight">{row.original.name}</span>
+          <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
+        </div>
       </Link>
     ),
   },

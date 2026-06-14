@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import {
   COMPONENT_LABEL,
   type ComponentKey,
@@ -154,13 +155,18 @@ function SkuRow({
         className="cursor-pointer border-b border-border transition last:border-b-0 hover:bg-muted/30"
       >
         <td className="px-3 py-2">
-          <div className="line-clamp-1 max-w-xs font-medium">
-            {data.title ?? data.myArticle ?? `nm ${data.nmId}`}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {data.myArticle && <span>{data.myArticle} · </span>}
-            {data.nmId}
-            {data.subjectName && <span> · {data.subjectName}</span>}
+          <div className="flex items-center gap-2">
+            <SkuThumb src={data.photoUrl} alt={data.title ?? ''} />
+            <div className="min-w-0">
+              <div className="line-clamp-1 max-w-xs font-medium">
+                {data.title ?? data.myArticle ?? `nm ${data.nmId}`}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {data.myArticle && <span>{data.myArticle} · </span>}
+                {data.nmId}
+                {data.subjectName && <span> · {data.subjectName}</span>}
+              </div>
+            </div>
           </div>
         </td>
         <td className="px-3 py-2 text-right tabular-nums">{fmtRub(data.current.byCardRub)}</td>

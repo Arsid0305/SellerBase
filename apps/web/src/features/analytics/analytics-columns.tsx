@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
 import { Badge } from '@/shared/ui/badge';
+import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { formatRub, formatInt } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
 import type { AnalyticsRow } from './types';
@@ -15,10 +16,13 @@ export const analyticsColumns: ColumnDef<AnalyticsRow, unknown>[] = [
     cell: ({ row }) => (
       <Link
         href={`/products/${encodeURIComponent(row.original.barcode)}`}
-        className="flex min-w-[240px] flex-col gap-0.5 hover:underline"
+        className="flex min-w-[240px] items-center gap-2 hover:underline"
       >
-        <span className="font-medium leading-tight">{row.original.name}</span>
-        <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
+        <SkuThumb src={row.original.photoUrl} alt={row.original.name} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="font-medium leading-tight">{row.original.name}</span>
+          <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
+        </div>
       </Link>
     ),
   },
