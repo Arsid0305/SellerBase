@@ -40,8 +40,6 @@ export function MorningBrief({
 }) {
   const delta = calcDelta(brief.yesterday.revenue, brief.dayBefore.revenue);
   const deltaSign = delta > 0 ? '+' : '';
-  const deltaColor =
-    delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : delta < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground';
 
   return (
     <Card className="border-l-4 border-l-emerald-500 p-4">
@@ -59,9 +57,17 @@ export function MorningBrief({
           Выручка <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.revenue)}</span>
         </Link>
         <span className="text-muted-foreground">{brief.yesterday.units} шт</span>
-        <span className="flex items-baseline gap-1">
-          <span className="text-muted-foreground">Динамика выручки</span>
-          <span className={`font-medium tabular-nums ${deltaColor}`}>
+        <span className="inline-flex items-baseline gap-1">
+          <span className="text-muted-foreground">vs позавчера</span>
+          <span
+            className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${
+              delta > 0
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                : delta < 0
+                  ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                  : 'bg-muted text-muted-foreground'
+            }`}
+          >
             {deltaSign}
             {delta}%
           </span>
