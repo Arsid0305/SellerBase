@@ -25,7 +25,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
     cell: ({ row }) => (
       <Link
         href={`/products/${encodeURIComponent(row.original.barcode)}`}
-        className="flex min-w-[260px] items-center gap-2 hover:underline"
+        className="flex min-w-[200px] items-center gap-2 hover:underline"
       >
         <SkuThumb src={row.original.photoUrl} alt={row.original.name} />
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -161,28 +161,20 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
     id: 'tvv',
     header: () => (
       <span className="inline-flex items-center gap-1">
-        Видимость / Доверие / Ценность
+        В / Д / Ц
         <TooltipIcon text={TVV_TOOLTIP} />
       </span>
     ),
     enableSorting: false,
     cell: ({ row }) => {
       const { visibility, trust, value } = row.original;
-      const Bar = ({ pct, label, color }: { pct: number; label: string; color: string }) => (
-        <div className="flex items-center gap-1">
-          <span className="w-10 text-[10px] text-muted-foreground">{label}</span>
-          <div className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
-            <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
-          </div>
-          <span className="w-7 text-right text-[10px] tabular-nums">{pct}</span>
-        </div>
-      );
       return (
-        <div className="flex flex-col gap-0.5">
-          <Bar pct={visibility} label="Вид." color="bg-sky-500" />
-          <Bar pct={trust} label="Дов." color="bg-emerald-500" />
-          <Bar pct={value} label="Цен." color="bg-violet-500" />
-        </div>
+        <span
+          className="font-mono text-[11px] tabular-nums text-muted-foreground"
+          title={`Видимость ${visibility} · Доверие ${trust} · Ценность ${value}`}
+        >
+          {visibility}/{trust}/{value}
+        </span>
       );
     },
   },
