@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'supabase/functions/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -17,7 +19,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.x
+          version: latest
 
       - name: Deploy functions
         run: supabase functions deploy --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
