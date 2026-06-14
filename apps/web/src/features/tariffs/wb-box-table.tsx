@@ -22,7 +22,7 @@ const columns: ColumnDef<WbTariffsBox, unknown>[] = [
     accessorKey: 'warehouseCoef',
     header: 'Коэф. склада',
     cell: ({ row }) => (
-      <span className="tabular-nums font-medium">{row.original.warehouseCoef.toFixed(2)}</span>
+      <span className="tabular-nums font-medium">{row.original.warehouseCoef.toFixed(2).replace(/\.?0+$/, '')}</span>
     ),
   },
   {

@@ -61,7 +61,7 @@ export function ProductLogisticsForecastCard({
             >
               {warehouses.map((w) => (
                 <option key={w.id} value={w.warehouseName}>
-                  {w.warehouseName} — коэф {w.warehouseCoef.toFixed(2)}
+                  {w.warehouseName} — коэф {w.warehouseCoef.toFixed(2).replace(/\.?0+$/, '')}
                 </option>
               ))}
             </select>
@@ -127,7 +127,7 @@ export function ProductLogisticsForecastCard({
           <p className="text-[11px] text-muted-foreground">
             Формула: {volumeL < 1 ? `volume × liter × coef` : `(base + (volume−1) × liter) × coef`} × ИЛ + ИРП.
             База: {selected.boxDeliveryBase.toFixed(2)} ₽, литр: {selected.boxDeliveryLiter.toFixed(2)} ₽,
-            коэф склада: {selected.warehouseCoef.toFixed(2)}.
+            коэф склада: {selected.warehouseCoef.toFixed(2).replace(/\.?0+$/, '')}.
           </p>
         )}
       </div>
