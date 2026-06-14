@@ -33,7 +33,7 @@ export async function GET() {
     wbByWeek.set(week, (wbByWeek.get(week) ?? 0) + f.quantity);
   }
 
-  const templatePath = path.join(process.cwd(), 'apps/web/templates/cf_pl_2026.xlsx');
+  const templatePath = path.join(process.cwd(), 'templates/cf_pl_2026.xlsx');
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(templatePath);
 

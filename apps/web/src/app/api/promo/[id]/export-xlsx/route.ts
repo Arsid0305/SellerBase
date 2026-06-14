@@ -31,7 +31,7 @@ export async function GET(
     return NextResponse.json({ error: 'promo not found' }, { status: 404 });
   }
 
-  const templatePath = path.join(process.cwd(), 'apps/web/templates/wb_promo_prices.xlsx');
+  const templatePath = path.join(process.cwd(), 'templates/wb_promo_prices.xlsx');
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(templatePath);
 
