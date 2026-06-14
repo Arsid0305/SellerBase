@@ -180,18 +180,22 @@ export async function fetchDailyRevenue(range: PeriodRange): Promise<DailyRevenu
     penalty_rub: number | null;
   };
   const rows = (data ?? []) as Row[];
-  const map = new Map<string, { revenue: number; expenses: number }>();
+  const map = new Map<string, Parts>();
   for (const r of rows) {
+    const commission = toNumber(r.commission_rub);
+    const logistics = toNumber(r.logistics_rub);
+    const penalty = toNumber(r.penalty_rub);
     map.set(r.rr_dt, {
       revenue: toNumber(r.revenue_rub),
-      expenses:
-        toNumber(r.commission_rub) +
-        toNumber(r.logistics_rub) +
-        toNumber(r.penalty_rub),
+      expenses: commission + logistics + penalty,
+      commission,
+      logistics,
     });
   }
   return buildSeriesFromMap(range, map);
 }
+
+type Parts = { revenue: number; expenses: number; commission: number; logistics: number };
 
 function buildEmptyRevenueSeries(range: PeriodRange): DailyRevenuePoint[] {
   return buildSeriesFromMap(range, new Map());
@@ -219,29 +223,29 @@ function bucketKey(d: Date, g: Granularity): string {
   return d.toISOString().slice(0, 10);
 }
 
-function buildSeriesFromMap(
-  range: PeriodRange,
-  map: Map<string, { revenue: number; expenses: number }>,
-): DailyRevenuePoint[] {
+function buildSeriesFromMap(range: PeriodRange, map: Map<string, Parts>): DailyRevenuePoint[] {
   const start = new Date(`${range.from}T00:00:00Z`);
   const end = new Date(`${range.to}T00:00:00Z`);
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
   const g = pickGranularity(days);
 
-  const buckets = new Map<string, { revenue: number; expenses: number }>();
+  const empty = (): Parts => ({ revenue: 0, expenses: 0, commission: 0, logistics: 0 });
+  const buckets = new Map<string, Parts>();
   for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
     const day = d.toISOString().slice(0, 10);
     const key = bucketKey(d, g);
-    const v = map.get(day) ?? { revenue: 0, expenses: 0 };
-    const cur = buckets.get(key) ?? { revenue: 0, expenses: 0 };
+    const v = map.get(day) ?? empty();
+    const cur = buckets.get(key) ?? empty();
     cur.revenue += v.revenue;
     cur.expenses += v.expenses;
+    cur.commission += v.commission;
+    cur.logistics += v.logistics;
     buckets.set(key, cur);
   }
 
   return [...buckets.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([date, v]) => ({ date, revenue: v.revenue, expenses: v.expenses }));
+    .map(([date, v]) => ({ date, revenue: v.revenue, expenses: v.expenses, commission: v.commission, logistics: v.logistics }));
 }
 
 export type CategoryPnlRow = {

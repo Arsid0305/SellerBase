@@ -21,6 +21,7 @@ type CatalogDb = {
   barcode: string | null;
   title: string | null;
   category: string | null;
+  subject_name: string | null;
   brand: string | null;
   cost_price_rub: number | null;
   is_active: boolean | null;
@@ -96,7 +97,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
 
   const { data: catalogData, error: e1 } = await supabase
     .from('sku_catalog')
-    .select('id, my_article, wb_article, barcode, title, category, brand, cost_price_rub, is_active, photo_url')
+    .select('id, my_article, wb_article, barcode, title, category, subject_name, brand, cost_price_rub, is_active, photo_url')
     .eq('is_active', true)
     .order('id', { ascending: true })
     .range(0, 5000);
@@ -261,7 +262,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       photoUrl: c.photo_url ?? wbPhotoUrl(c.wb_article),
       channel: 'WB',
       brand: c.brand ?? '—',
-      category: c.category ?? '—',
+      category: c.subject_name ?? c.category ?? '—',
       tags: [],
       stock: stock?.totalStock ?? 0,
       inTransit: stock?.inTransit ?? 0,

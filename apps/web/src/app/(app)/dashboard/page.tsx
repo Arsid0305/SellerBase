@@ -2,10 +2,12 @@ import { Download, Info } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
 import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard } from '@/features/dashboard';
+import { ProfitMarginChart } from '@/features/pnl';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
 import {
   fetchPnlAggregate,
   fetchDailyRevenue,
+  fetchDailyMarginSeries,
   fetchPnlByCategory,
   fetchTopProductsByRevenue,
   shiftRangeBack,
@@ -59,10 +61,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   const weekAgoIso = weekAgo.toISOString().slice(0, 10);
 
-  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts] = await Promise.all([
+  const [current, previous, series, marginSeries, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
+    fetchDailyMarginSeries(range),
     fetchAnomalies(),
     fetchAverageWarehouseCoef(),
     fetchAverageWarehouseCoefAtOrBefore(weekAgoIso),
@@ -166,8 +169,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         comparison={{ from: comparison.from, to: comparison.to, label: formatRange(comparison) }}
       />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+        <div className="flex flex-col gap-4 xl:col-span-2">
           <RevenueExpensesChart data={series} />
+          <ProfitMarginChart data={marginSeries} />
         </div>
         <div className="flex flex-col gap-4">
           <ChannelsDonut channels={channels} />
@@ -175,11 +179,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         </div>
       </div>
       <LogisticsPulseCard current={coefNow} previous={coefPrev} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+        <div className="xl:col-span-3">
           <CategoriesCard rows={categoryPnl} />
         </div>
-        <AnomaliesBanner anomalies={anomalies} />
+        <div className="xl:col-span-2">
+          <AnomaliesBanner anomalies={anomalies} />
+        </div>
       </div>
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.

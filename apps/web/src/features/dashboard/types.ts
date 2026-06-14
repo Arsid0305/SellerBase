@@ -2,6 +2,8 @@ export type DailyPoint = {
   date: string; // ISO yyyy-mm-dd
   revenue: number;
   expenses: number;
+  commission: number;
+  logistics: number;
 };
 
 export type ChannelShare = {
