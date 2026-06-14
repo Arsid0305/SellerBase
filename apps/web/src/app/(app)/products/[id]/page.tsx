@@ -13,7 +13,6 @@ import {
   ProductPhotosCard,
   ProductEventsCard,
   ProductHistoryCard,
-  ProductTabs,
   RevenueByDayChart,
   StockByDayChart,
 } from '@/features/product-detail';
@@ -86,7 +85,12 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         </div>
       </div>
 
-      <ProductTabs />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <RevenueByDayChart data={product.revenueByDay} />
+        <StockByDayChart data={product.stockByDay} />
+      </div>
+
+      <ProductWarehousesCard product={product} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:grid-cols-4">
         <ProductMetaCard product={product} />
@@ -95,10 +99,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductPhotosCard imageUrl={product.photoUrl} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ProductExpensesCard product={product} />
-        <ProductWarehousesCard product={product} />
-      </div>
+      <ProductExpensesCard product={product} />
 
       <ProductLogisticsForecastCard warehouses={boxTariffs} />
 
@@ -111,11 +112,6 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
       <ProductEventsCard events={events} />
 
       <ProductHistoryCard diffs={diffs} />
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <RevenueByDayChart data={product.revenueByDay} />
-        <StockByDayChart data={product.stockByDay} />
-      </div>
 
       <p className="text-xs text-muted-foreground">
         · Данные из `sku_catalog` + RPC `get_full_pnl_by_period` + `wb_reports_fact` (30 дней) + `wb_stocks` (текущие остатки). История остатков из `wb_stocks_history` подключится позже.

@@ -1,33 +1,38 @@
 /**
- * URL фото товара WB по nm_id. На сервере хранится `sku_catalog.photo_url`,
- * но он у нас не заполнен — fallback на детерминированный basket-URL.
- * Таблица басков обновляется WB, при расширении ассортимента — расширить ниже.
+ * URL фото товара WB по nm_id через CDN-баскеты.
+ * После vol ≤ 3485 (basket-20) WB добавляет по ~216 vol на каждый следующий басок —
+ * формула покрывает текущий потолок ассортимента (nm ~9 млрд).
  */
 export function wbPhotoUrl(nmId: number | null | undefined): string | null {
   if (!nmId || nmId <= 0) return null;
   const vol = Math.floor(nmId / 100_000);
   const part = Math.floor(nmId / 1_000);
-  let basket: string;
-  if (vol <= 143) basket = '01';
-  else if (vol <= 287) basket = '02';
-  else if (vol <= 431) basket = '03';
-  else if (vol <= 719) basket = '04';
-  else if (vol <= 1007) basket = '05';
-  else if (vol <= 1061) basket = '06';
-  else if (vol <= 1115) basket = '07';
-  else if (vol <= 1169) basket = '08';
-  else if (vol <= 1313) basket = '09';
-  else if (vol <= 1601) basket = '10';
-  else if (vol <= 1655) basket = '11';
-  else if (vol <= 1919) basket = '12';
-  else if (vol <= 2045) basket = '13';
-  else if (vol <= 2189) basket = '14';
-  else if (vol <= 2405) basket = '15';
-  else if (vol <= 2621) basket = '16';
-  else if (vol <= 2837) basket = '17';
-  else if (vol <= 3053) basket = '18';
-  else if (vol <= 3269) basket = '19';
-  else if (vol <= 3485) basket = '20';
-  else basket = '21';
+  const basket = pickBasket(vol);
   return `https://basket-${basket}.wbbasket.ru/vol${vol}/part${part}/${nmId}/images/big/1.webp`;
+}
+
+function pickBasket(vol: number): string {
+  let n: number;
+  if (vol <= 143) n = 1;
+  else if (vol <= 287) n = 2;
+  else if (vol <= 431) n = 3;
+  else if (vol <= 719) n = 4;
+  else if (vol <= 1007) n = 5;
+  else if (vol <= 1061) n = 6;
+  else if (vol <= 1115) n = 7;
+  else if (vol <= 1169) n = 8;
+  else if (vol <= 1313) n = 9;
+  else if (vol <= 1601) n = 10;
+  else if (vol <= 1655) n = 11;
+  else if (vol <= 1919) n = 12;
+  else if (vol <= 2045) n = 13;
+  else if (vol <= 2189) n = 14;
+  else if (vol <= 2405) n = 15;
+  else if (vol <= 2621) n = 16;
+  else if (vol <= 2837) n = 17;
+  else if (vol <= 3053) n = 18;
+  else if (vol <= 3269) n = 19;
+  else if (vol <= 3485) n = 20;
+  else n = 20 + Math.ceil((vol - 3485) / 216);
+  return String(n).padStart(2, '0');
 }

@@ -83,7 +83,17 @@ export function MorningBrief({
       <div className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
         {brief.criticalCount > 0 && (
           <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-500" />
+            <span
+              title={
+                'Критичный SKU = одно из двух:\n' +
+                '• Остаток = 0, но товар продаётся (упускаем заказы).\n' +
+                '• Остаток есть, но продаж не было больше 14 дней (склад висит).\n\n' +
+                'Архивные и новые (< 14 дн в каталоге) не считаются.'
+              }
+              className="mt-0.5 inline-flex shrink-0 cursor-help"
+            >
+              <AlertCircle className="size-4 text-rose-500" />
+            </span>
             <div className="min-w-0">
               <Link href="/products?status=critical" className="font-medium hover:underline">
                 Критичных SKU: {brief.criticalCount}

@@ -95,7 +95,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     value: current.profit,
     delta: Math.round(calcDelta(current.profit, previous.profit)),
     series: [],
-    hint: `Маржа ${current.marginPct.toFixed(1)}%`,
+  };
+  const marginKpi: DashboardKpi = {
+    label: 'Маржа',
+    value: current.marginPct,
+    delta: Math.round((current.marginPct - previous.marginPct) * 10) / 10,
+    series: [],
+    hint: 'п.п. к прошлому периоду',
   };
 
   const channels: ChannelShare[] = [
@@ -153,6 +159,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
           mainExpenses: mainExpensesKpi,
           extraExpenses: extraExpensesKpi,
           profit: profitKpi,
+          margin: marginKpi,
         }}
         comparison={{ from: comparison.from, to: comparison.to, label: formatRange(comparison) }}
       />

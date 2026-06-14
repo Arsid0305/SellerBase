@@ -28,6 +28,7 @@ export type DashboardSummary = {
     mainExpenses: DashboardKpi;
     extraExpenses: DashboardKpi;
     profit: DashboardKpi;
+    margin: DashboardKpi;
   };
   channels: ChannelShare[];
   series: DailyPoint[];

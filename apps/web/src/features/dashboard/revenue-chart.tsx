@@ -43,7 +43,11 @@ export function RevenueExpensesChart({ data }: { data: DailyPoint[] }) {
   const gridLines = [0.25, 0.5, 0.75];
   const innerH = HEIGHT - PAD_TOP - PAD_BOTTOM;
 
-  const xLabels = [0, Math.floor(data.length / 2), data.length - 1]
+  const xLabelIdxs =
+    data.length <= 12
+      ? data.map((_, i) => i)
+      : [0, Math.floor(data.length / 2), data.length - 1];
+  const xLabels = xLabelIdxs
     .map((i) => ({ idx: i, pt: revenue.points[i] }))
     .filter((x): x is { idx: number; pt: { x: number; y: number; raw: DailyPoint } } => Boolean(x.pt));
 
