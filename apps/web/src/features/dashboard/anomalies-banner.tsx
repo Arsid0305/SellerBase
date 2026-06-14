@@ -15,7 +15,7 @@ function formatDate(iso: string): string {
 export function AnomaliesBanner({ anomalies }: { anomalies: Anomaly[] }) {
   if (anomalies.length === 0) return null;
   return (
-    <Card className="border-amber-500/30 bg-amber-500/5 p-4">
+    <Card id="anomalies" className="scroll-mt-20 border-amber-500/30 bg-amber-500/5 p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
         <AlertTriangle className="size-4" />
         <span>Аномалии в продажах</span>

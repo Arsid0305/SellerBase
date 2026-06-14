@@ -61,6 +61,41 @@ export function ChannelsDonut({ channels }: { channels: ChannelShare[] }) {
     return { ...c, path };
   });
 
+  // Когда канал один — нет смысла рисовать donut, показываем компактную карточку.
+  if (visible.length === 1) {
+    const c = visible[0]!;
+    const TrendIcon = c.delta > 0 ? ArrowUpRight : c.delta < 0 ? ArrowDownRight : Minus;
+    const trendTone =
+      c.delta > 0
+        ? 'text-emerald-600 dark:text-emerald-400'
+        : c.delta < 0
+          ? 'text-rose-600 dark:text-rose-400'
+          : 'text-muted-foreground';
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Доля каналов по продажам</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className={cn('size-3 rounded-full', PALETTE_DOT[c.channel])} />
+            <div>
+              <div className="text-sm font-medium">{c.label}</div>
+              <div className="text-xs text-muted-foreground">единственный канал — 100%</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-right">
+            <span className="text-lg font-semibold tabular-nums">{formatRub(c.amount)}</span>
+            <span className={cn('inline-flex items-center gap-0.5 text-sm tabular-nums', trendTone)}>
+              <TrendIcon className="size-3.5" />
+              {formatDelta(c.delta)}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="pb-2">
