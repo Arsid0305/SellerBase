@@ -16,8 +16,8 @@ export function WeeklyTable({ rows, year }: { rows: WeeklySummaryPoint[]; year: 
         r.units_sold,
         Math.round(r.revenue),
         Math.round(r.profit),
-        r.margin_pct.toFixed(2),
-        r.turnover_days_avg.toFixed(1),
+        r.margin_pct.toFixed(2).replace('.', ','),
+        r.turnover_days_avg.toFixed(1).replace('.', ','),
       ].join(';'));
     }
     const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });

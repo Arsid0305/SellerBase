@@ -124,7 +124,7 @@ export function CostsExplorer({ rows }: Props) {
 
   const downloadTemplate = () => {
     const header = 'barcode;cost;valid_from';
-    const example = `2000000000001;123.45;${todayIso()}`;
+    const example = `2000000000001;123,45;${todayIso()}`;
     downloadBlob('costs-template.csv', `﻿${header}\n${example}\n`, 'text/csv;charset=utf-8');
   };
 
