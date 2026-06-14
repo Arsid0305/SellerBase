@@ -1,6 +1,61 @@
 # Tasks — SellerBase
 
-## [2026-06-13 — актуально]
+## [2026-06-14 — актуально]
+
+### 🔴 Критическое (в первую очередь)
+
+- [ ] **Проверить что cron `fetch-wb-sales-30min` живой.** Миграция PR #109 смержена, но автоприменения нет:
+  ```sql
+  SELECT * FROM cron.job WHERE jobname = 'fetch-wb-sales-30min';
+  ```
+  Если пусто — выполнить SQL из `supabase/migrations/20260614_cron_fetch_wb_sales.sql` руками в SQL Editor.
+- [ ] **UAT остальных страниц** (продолжение от /dashboard): /products → /products/[id] → /products/costs → /pnl → /turnover → /analytics/* → /promo (новая матрица) → /deficit → /supplies → /reviews → /customers → /tasks → /goals → /settings.
+- [ ] **«50% маржа» на /pnl** — владелица заметила странное число. Сверить `v_margin_breakdown_weekly` с эталоном 01-07.12.2025.
+- [ ] **migrate.yml workflow** — миграции из `supabase/migrations/` сейчас не доходят до БД (deploy.yml деплоит только функции). Нужен workflow с `supabase db push` либо переход на supabase-cli action.
+- [ ] **Stocks API миграция** — WB отключает `/api/v1/supplier/stocks` 23.06.2026 (осталось ~9 дней). Переписать `fetch-wb-stocks` на `/api/analytics/v1/stocks-report/wb-warehouses`. Сейчас 401 каждый день, остатки не льются.
+
+### 🟡 Можно делать без согласования
+
+- [ ] **Granularity picker** во всех отчётах с диапазоном — день/неделя/месяц/квартал/год
+- [ ] **Smoke-тесты в Playwright** — все страницы открываются без ошибок
+- [ ] **Юнит-тесты SQL-формул** P&L, оборачиваемость, ABC/XYZ — эталонные данные + ожидаемые числа
+- [ ] **Data Quality view** — единое окно «что не в порядке с данными»
+- [ ] **fetch-wb-content** — карточки товаров (рейтинги/отзывы), авто-обновление subject_name для новых SKU
+- [ ] **Анализатор маржи «почему падает»** view + UI (комиссия выросла / хранение съело / возвраты)
+- [ ] **Точка безубыточности** — для каждого SKU при какой цене маржа = 0
+- [ ] **Симулятор цены** — «при цене X маржа Y%»
+- [ ] **Telegram алерты** при падении маржи/выкупа
+- [ ] **Документация cron'ов** в одном месте
+- [ ] **Гемини-аудит follow-ups:** cogs_history для исторического P&L; YC fetch-wb-report timeout
+- [ ] **ChatGPT-аудит:** автотесты на P&L формулы
+
+### ⏸ Ждём от пользователя
+
+- Параметры порогов промо-светофора (целевая маржа ≥25% / 15-25% / <15%, мин. остаток)
+- Excel «Заказы Китай», «Фулфилмент», «Поставки» — для автосебеса
+
+### 🔵 Перспектива
+
+- **Автоматический себес** roadmap: `china_order_items` + `supplies_transport` + `fulfillment_costs` + `delivery_to_wb` → view `v_sku_cost_breakdown`
+- **Google Sheets sync** — на паузе по решению владелицы. Backend готов (`sync-sheets` v0.5), id таблицы 1SaIQB... в `pricing_settings`. Возвращаться когда сама скажет.
+- **Лайфсайклы товаров** (Events / Anomaly / Trust-Visibility-Value / Goals)
+- **Excel-экспорт** в шаблон владелицы (templates/CF_PL_template_wb_only.xlsx есть)
+- **Office Add-in / Power Query** — отложено
+
+### Сделано в этой сессии (14.06)
+- UAT /dashboard: 7 фиксов (даты, лейблы, KPI стрелки, логист пульс, каналы, период в шапке)
+- Запятая в CSV, цвет канала-маркетплейса
+- Промо матрица + XLSX-шаблон + parse
+- KpiCard arrow direction фикс
+- Costs editor focus фикс
+- P&L returns/penalty фикс
+- `fetch-wb-sales` Edge Function (+ миграция + cron) — новый канал ежедневных продаж
+- Чистка БД: 660 MB → 101 MB (дроп `wb_reports_fact_raw` 459 MB)
+- CI deploy.yml починен + GitHub Secrets для функций
+
+---
+
+## [2026-06-13 — устарело]
 
 ### 🔴 Критическое (брать в первую очередь)
 
