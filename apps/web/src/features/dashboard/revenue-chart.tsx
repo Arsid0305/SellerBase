@@ -47,10 +47,20 @@ export function RevenueExpensesChart({ data }: { data: DailyPoint[] }) {
     .map((i) => ({ idx: i, pt: revenue.points[i] }))
     .filter((x): x is { idx: number; pt: { x: number; y: number; raw: DailyPoint } } => Boolean(x.pt));
 
+  const periodLabel =
+    data.length > 0
+      ? `${formatDate(data[0]!.date)} — ${formatDate(data[data.length - 1]!.date)} · ${data.length} дн.`
+      : '';
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-base">Динамика доходов и расходов</CardTitle>
+        <div className="flex flex-col gap-0.5">
+          <CardTitle className="text-base">Динамика доходов и расходов</CardTitle>
+          {periodLabel && (
+            <span className="text-xs text-muted-foreground tabular-nums">{periodLabel}</span>
+          )}
+        </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-emerald-500" />

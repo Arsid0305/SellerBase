@@ -1,7 +1,11 @@
 import { Truck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
 import type { WbAverageWarehouseCoef } from '@/entities/wb-tariffs';
+
+const PULSE_TOOLTIP =
+  'Средняя надбавка WB к базовой ставке хранения и доставки, взвешенная по твоим остаткам на складах. 100 = базовая ставка. 142 значит, что в среднем твои товары хранятся на складах с надбавкой +42% к базе. Меньше — выгоднее.';
 
 export function LogisticsPulseCard({
   current,
@@ -14,8 +18,9 @@ export function LogisticsPulseCard({
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardTitle className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground">
             Логистический пульс
+            <TooltipIcon text={PULSE_TOOLTIP} />
           </CardTitle>
           <Truck className="size-4 text-muted-foreground" />
         </CardHeader>
@@ -48,15 +53,16 @@ export function LogisticsPulseCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
         <div className="flex items-baseline gap-3">
-          <span className="text-2xl font-semibold tabular-nums">{current.coef.toFixed(2)}</span>
+          <span className="text-2xl font-semibold tabular-nums">{current.coef.toFixed(0)}</span>
+          <span className="text-sm text-muted-foreground">из 100 базовых</span>
           {delta !== null && (
             <span className={cn('text-sm font-medium', tone)}>
-              {delta >= 0 ? '+' : ''}{delta.toFixed(2)} vs неделя назад
+              {delta >= 0 ? '+' : ''}{delta.toFixed(1)} vs неделя назад
             </span>
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Средний коэф. склада, взвешенный по остаткам ({current.warehouseCount} складов).
+          Усреднено по {current.warehouseCount} складам с твоими остатками.
           {delta !== null && (delta < 0
             ? ' Доставка дешевеет.'
             : delta > 0

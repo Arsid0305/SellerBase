@@ -123,7 +123,7 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
         criticalTop = topIds.map((id) => ({
           skuId: id,
           title: meta.get(id)?.title ?? `SKU ${id}`,
-          hint: 'критический lifecycle',
+          hint: 'требует срочного решения',
         }));
       }
     }

@@ -95,7 +95,7 @@ export function MorningBrief({
         {anomaliesCount > 0 && (
           <div className="flex items-center gap-2">
             <AlertCircle className="size-4 text-amber-500" />
-            <Link href="/dashboard" className="hover:underline">
+            <Link href="/dashboard#anomalies" className="hover:underline">
               Аномалий: <span className="font-medium">{anomaliesCount}</span>
             </Link>
           </div>
