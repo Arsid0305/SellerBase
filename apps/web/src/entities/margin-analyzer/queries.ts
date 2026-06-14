@@ -32,6 +32,7 @@ type CatalogDb = {
   my_article: string | null;
   title: string | null;
   subject_name: string | null;
+  photo_url: string | null;
 };
 
 function rowToWeek(row: BreakdownDb): WeekBreakdown {
@@ -145,7 +146,7 @@ export async function fetchMarginAnalyzerData(): Promise<SkuMarginAnalysis[]> {
 
   const { data: catalog } = await supabase
     .from('sku_catalog')
-    .select('wb_article, my_article, title, subject_name')
+    .select('wb_article, my_article, title, subject_name, photo_url')
     .in('wb_article', nmIds);
 
   const catalogMap = new Map<number, CatalogDb>();
@@ -173,6 +174,7 @@ export async function fetchMarginAnalyzerData(): Promise<SkuMarginAnalysis[]> {
       myArticle: cat?.my_article ?? null,
       title: cat?.title ?? null,
       subjectName: cat?.subject_name ?? null,
+      photoUrl: cat?.photo_url ?? null,
       weeks,
       current,
       prevAvg,

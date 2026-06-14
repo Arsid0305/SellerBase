@@ -37,6 +37,7 @@ export type SkuMarginAnalysis = {
   myArticle: string | null;
   title: string | null;
   subjectName: string | null;
+  photoUrl: string | null;
   weeks: WeekBreakdown[];
   current: WeekBreakdown;
   prevAvg: WeekBreakdown | null;

@@ -4,6 +4,7 @@ export type CostRow = {
   sku_id: number;
   barcode: string;
   title: string;
+  photo_url: string | null;
   current_cost: number;
   valid_from: string | null;
 };
@@ -23,6 +24,7 @@ type SkuRow = {
   barcode: string | null;
   title: string | null;
   cost_price_rub: number | null;
+  photo_url: string | null;
 };
 
 type HistoryRow = {
@@ -37,7 +39,7 @@ export async function fetchCostRows(): Promise<CostRow[]> {
 
   const { data: skus, error: skuErr } = await supabase
     .from('sku_catalog')
-    .select('id, barcode, title, cost_price_rub')
+    .select('id, barcode, title, cost_price_rub, photo_url')
     .eq('is_active', true)
     .order('id', { ascending: true })
     .range(0, 5000);
@@ -73,6 +75,7 @@ export async function fetchCostRows(): Promise<CostRow[]> {
       sku_id: s.id,
       barcode: s.barcode ?? '',
       title: s.title ?? '—',
+      photo_url: s.photo_url,
       current_cost: h ? Number(h.cost_rub) : Number(s.cost_price_rub ?? 0),
       valid_from: h?.valid_from ?? null,
     };
