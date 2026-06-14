@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import { Moon, Sun, Search, Menu } from 'lucide-react';
+import { Moon, Sun, Menu } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/shared/ui/button';
 import { PeriodComparePicker } from '@/shared/ui/domain/period-compare-picker';
@@ -31,9 +31,6 @@ export function Topbar() {
         aria-label="Открыть меню"
       >
         <Menu className="size-4" />
-      </Button>
-      <Button variant="ghost" size="icon" className="hidden text-muted-foreground md:inline-flex">
-        <Search className="size-4" />
       </Button>
       <div className="flex-1" />
       <div className="hidden sm:block">

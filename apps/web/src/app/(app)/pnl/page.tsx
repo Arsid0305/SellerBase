@@ -1,9 +1,12 @@
 import { Download } from 'lucide-react';
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { ExpenseBreakdown, PnlSkuTable } from '@/features/pnl';
+import { ExpenseBreakdown, PnlSkuTable, ProfitMarginChart } from '@/features/pnl';
+import { RevenueExpensesChart } from '@/features/dashboard';
 import {
   fetchPnlBreakdown,
   fetchPnlSkuTable,
+  fetchDailyRevenue,
+  fetchDailyMarginSeries,
   shiftRangeBack,
   lastNDaysRange,
   type PeriodRange,
@@ -40,9 +43,11 @@ export default async function PnLPage({ searchParams }: { searchParams: SearchPa
   const range = parseRange(sp);
   const comparison = shiftRangeBack(range);
 
-  const [breakdown, skuRows] = await Promise.all([
+  const [breakdown, skuRows, dailySeries, marginSeries] = await Promise.all([
     fetchPnlBreakdown(range, comparison),
     fetchPnlSkuTable(range),
+    fetchDailyRevenue(range),
+    fetchDailyMarginSeries(range),
   ]);
 
   const year = new Date().getUTCFullYear();
@@ -72,6 +77,11 @@ export default async function PnLPage({ searchParams }: { searchParams: SearchPa
             За {year - 1}
           </a>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        <RevenueExpensesChart data={dailySeries} />
+        <ProfitMarginChart data={marginSeries} />
       </div>
 
       <ExpenseBreakdown categories={breakdown.categories} totalRevenue={breakdown.revenue} />
