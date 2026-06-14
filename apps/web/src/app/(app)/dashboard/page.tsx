@@ -174,8 +174,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
           <TopProductsCard rows={topProducts} />
         </div>
       </div>
-      <LogisticsPulseCard current={coefNow} previous={coefPrev} />
-      <CategoriesCard rows={categoryPnl} />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <LogisticsPulseCard current={coefNow} previous={coefPrev} />
+        <CategoriesCard rows={categoryPnl} />
+      </div>
       <AnomaliesBanner anomalies={anomalies} />
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
