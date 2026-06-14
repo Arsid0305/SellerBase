@@ -47,9 +47,21 @@ export function RevenueExpensesChart({ data }: { data: DailyPoint[] }) {
     .map((i) => ({ idx: i, pt: revenue.points[i] }))
     .filter((x): x is { idx: number; pt: { x: number; y: number; raw: DailyPoint } } => Boolean(x.pt));
 
+  const granularityLabel =
+    data.length >= 2
+      ? (() => {
+          const a = new Date(`${data[0]!.date}T00:00:00Z`).getTime();
+          const b = new Date(`${data[1]!.date}T00:00:00Z`).getTime();
+          const stepDays = Math.round((b - a) / 86_400_000);
+          if (stepDays >= 28) return 'по месяцам';
+          if (stepDays >= 7) return 'по неделям';
+          return 'по дням';
+        })()
+      : '';
+
   const periodLabel =
     data.length > 0
-      ? `${formatDate(data[0]!.date)} — ${formatDate(data[data.length - 1]!.date)} · ${data.length} дн.`
+      ? `${formatDate(data[0]!.date)} — ${formatDate(data[data.length - 1]!.date)}${granularityLabel ? ` · ${granularityLabel}` : ''}`
       : '';
 
   return (

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { ProductDetail } from '@/features/product-detail/types';
 
 function toNumber(v: unknown): number {
@@ -230,7 +231,7 @@ export async function fetchProductDetailByBarcode(barcode: string): Promise<Prod
       rating: c.rating != null ? Number(c.rating) : undefined,
       reviewsCount: c.reviews_count != null ? c.reviews_count : undefined,
     },
-    photoUrl: c.photo_url ?? undefined,
+    photoUrl: c.photo_url ?? wbPhotoUrl(c.wb_article) ?? undefined,
     sales: {
       price: Math.round(avgPrice),
       priceWithoutDiscount: 0,

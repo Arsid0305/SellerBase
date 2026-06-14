@@ -156,13 +156,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         }}
         comparison={{ from: comparison.from, to: comparison.to, label: formatRange(comparison) }}
       />
-      <LogisticsPulseCard current={coefNow} previous={coefPrev} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <RevenueExpensesChart data={series} />
         </div>
         <ChannelsDonut channels={channels} />
       </div>
+      <LogisticsPulseCard current={coefNow} previous={coefPrev} />
       <CategoriesCard rows={categoryPnl} />
       <AnomaliesBanner anomalies={anomalies} />
       <p className="text-xs text-muted-foreground">

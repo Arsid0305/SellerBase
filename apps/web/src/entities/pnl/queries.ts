@@ -196,19 +196,51 @@ function buildEmptyRevenueSeries(range: PeriodRange): DailyRevenuePoint[] {
   return buildSeriesFromMap(range, new Map());
 }
 
+type Granularity = 'day' | 'week' | 'month';
+
+function pickGranularity(days: number): Granularity {
+  if (days <= 14) return 'day';
+  if (days <= 40) return 'week';
+  return 'month';
+}
+
+function bucketKey(d: Date, g: Granularity): string {
+  if (g === 'month') {
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  }
+  if (g === 'week') {
+    const dow = d.getUTCDay();
+    const shift = dow === 0 ? 6 : dow - 1;
+    const mon = new Date(d);
+    mon.setUTCDate(mon.getUTCDate() - shift);
+    return mon.toISOString().slice(0, 10);
+  }
+  return d.toISOString().slice(0, 10);
+}
+
 function buildSeriesFromMap(
   range: PeriodRange,
   map: Map<string, { revenue: number; expenses: number }>,
 ): DailyRevenuePoint[] {
-  const points: DailyRevenuePoint[] = [];
   const start = new Date(`${range.from}T00:00:00Z`);
   const end = new Date(`${range.to}T00:00:00Z`);
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const g = pickGranularity(days);
+
+  const buckets = new Map<string, { revenue: number; expenses: number }>();
   for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
     const day = d.toISOString().slice(0, 10);
+    const key = bucketKey(d, g);
     const v = map.get(day) ?? { revenue: 0, expenses: 0 };
-    points.push({ date: day, revenue: v.revenue, expenses: v.expenses });
+    const cur = buckets.get(key) ?? { revenue: 0, expenses: 0 };
+    cur.revenue += v.revenue;
+    cur.expenses += v.expenses;
+    buckets.set(key, cur);
   }
-  return points;
+
+  return [...buckets.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([date, v]) => ({ date, revenue: v.revenue, expenses: v.expenses }));
 }
 
 export type CategoryPnlRow = {
@@ -224,14 +256,16 @@ export async function fetchPnlByCategory(range: PeriodRange): Promise<CategoryPn
     fetchFullPnlRows(range),
     supabase
       .from('sku_catalog')
-      .select('id, category')
+      .select('id, subject_name, category')
       .range(0, 5000),
   ]);
   if (rows.length === 0) return [];
 
   const catById = new Map<number, string>();
-  for (const r of (catalogRes.data ?? []) as { id: number; category: string | null }[]) {
-    catById.set(r.id, (r.category ?? '').trim() || '— без категории');
+  for (const r of (catalogRes.data ?? []) as { id: number; subject_name: string | null; category: string | null }[]) {
+    const subj = (r.subject_name ?? '').trim();
+    const cat = (r.category ?? '').trim();
+    catById.set(r.id, subj || cat || '— без категории');
   }
 
   const agg = new Map<string, { revenue: number; profit: number }>();

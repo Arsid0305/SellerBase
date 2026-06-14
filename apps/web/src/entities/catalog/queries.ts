@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { CatalogProduct } from '@/features/catalog/types';
 import type { ProductLifecycleState } from '@/entities/product-state/types';
 
@@ -257,7 +258,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       id: String(c.id),
       name: c.title ?? c.my_article ?? 'Без названия',
       barcode: c.barcode ?? '',
-      photoUrl: c.photo_url,
+      photoUrl: c.photo_url ?? wbPhotoUrl(c.wb_article),
       channel: 'WB',
       brand: c.brand ?? '—',
       category: c.category ?? '—',
