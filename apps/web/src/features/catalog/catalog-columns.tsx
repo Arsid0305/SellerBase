@@ -18,6 +18,9 @@ const LIFECYCLE_TOOLTIP =
 const TVV_TOOLTIP =
   'Видимость = % дней с продажами за период. Доверие = стабильность спроса (1 − коэф. вариации). Ценность = маржа% × 2 (нормализовано 0–100).';
 
+const TAGS_TOOLTIP =
+  'ABC — место по выручке (A: топ-80%, B: 15%, C: 5%). XYZ — стабильность спроса (X: ровно, Y: средне, Z: рывками). PPP/PP/P/-P — рентабельность (PPP: маржа ≥30%, PP: 20–30%, P: 10–20%, -P: убыточный). FBO/FBS — схема хранения.';
+
 export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
   {
     accessorKey: 'name',
@@ -33,22 +36,6 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
           <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
         </div>
       </Link>
-    ),
-  },
-  {
-    accessorKey: 'channel',
-    header: 'Канал',
-    cell: ({ row }) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          'font-mono text-[10px]',
-          row.original.channel === 'WB' && 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-400',
-          row.original.channel === 'OZON' && 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400',
-        )}
-      >
-        {row.original.channel}
-      </Badge>
     ),
   },
   {
@@ -69,14 +56,23 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
   },
   {
     id: 'tags',
-    header: 'Метки',
-    cell: ({ row }) => (
-      <div className="flex flex-wrap items-center gap-1">
-        {row.original.tags.map((tag) => (
-          <ProductTagBadge key={tag} kind={tag} />
-        ))}
-      </div>
+    header: () => (
+      <span className="inline-flex items-center gap-1">
+        Метки
+        <TooltipIcon text={TAGS_TOOLTIP} />
+      </span>
     ),
+    cell: ({ row }) => {
+      const tags = row.original.tags;
+      if (tags.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+      return (
+        <div className="flex flex-wrap items-center gap-1">
+          {tags.map((tag) => (
+            <ProductTagBadge key={tag} kind={tag} />
+          ))}
+        </div>
+      );
+    },
     enableSorting: false,
   },
   {
@@ -143,9 +139,16 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
   },
   {
     accessorKey: 'daysOfStock',
-    header: 'Хватит',
+    header: () => (
+      <span className="inline-flex items-center gap-1">
+        Хватит
+        <TooltipIcon text="На сколько дней хватит текущего остатка при средних продажах за 30 дней. Это и есть оборачиваемость в днях." />
+      </span>
+    ),
     cell: ({ row }) => {
       const d = row.original.daysOfStock;
+      const stock = row.original.stock;
+      if (stock === 0 && d === 0) return <span className="text-xs text-muted-foreground">—</span>;
       const tone =
         d === 0
           ? 'text-rose-600 dark:text-rose-400 font-semibold'
