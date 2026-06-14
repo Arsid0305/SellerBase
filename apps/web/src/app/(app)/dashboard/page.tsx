@@ -157,7 +157,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
           </div>
         </Card>
       )}
-      <MorningBrief brief={brief} anomaliesCount={anomalies.length} />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          <MorningBrief brief={brief} anomaliesCount={anomalies.length} />
+        </div>
+        <ChannelsDonut channels={channels} />
+      </div>
       <KpiGrid
         kpis={{
           revenue: revenueKpi,
@@ -168,25 +173,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         }}
         comparison={{ from: comparison.from, to: comparison.to, label: formatRange(comparison) }}
       />
+      <RevenueExpensesChart data={series} />
+      <ProfitMarginChart data={marginSeries} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="flex flex-col gap-4 xl:col-span-2">
-          <RevenueExpensesChart data={series} />
-          <ProfitMarginChart data={marginSeries} />
-        </div>
-        <div className="flex flex-col gap-4">
-          <ChannelsDonut channels={channels} />
-          <TopProductsCard rows={topProducts} />
-        </div>
+        <CategoriesCard rows={categoryPnl} />
+        <AnomaliesBanner anomalies={anomalies} />
+        <TopProductsCard rows={topProducts} />
       </div>
       <LogisticsPulseCard current={coefNow} previous={coefPrev} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-        <div className="xl:col-span-3">
-          <CategoriesCard rows={categoryPnl} />
-        </div>
-        <div className="xl:col-span-2">
-          <AnomaliesBanner anomalies={anomalies} />
-        </div>
-      </div>
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
         Период выбирается в топбаре — цифры пересчитываются на сервере.
