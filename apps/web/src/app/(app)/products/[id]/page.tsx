@@ -90,6 +90,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <StockByDayChart data={product.stockByDay} />
       </div>
 
+      <ProductWarehousesCard product={product} />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:grid-cols-4">
         <ProductMetaCard product={product} />
         <ProductSalesCard product={product} />
@@ -97,10 +99,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductPhotosCard imageUrl={product.photoUrl} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ProductExpensesCard product={product} />
-        <ProductWarehousesCard product={product} />
-      </div>
+      <ProductExpensesCard product={product} />
 
       <ProductLogisticsForecastCard warehouses={boxTariffs} />
 
