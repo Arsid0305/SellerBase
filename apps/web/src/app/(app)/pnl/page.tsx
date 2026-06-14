@@ -1,10 +1,9 @@
+import { Download } from 'lucide-react';
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { ProfitSummary, ExpenseBreakdown, ProfitMarginChart } from '@/features/pnl';
-import type { PnlKpis } from '@/features/pnl/types';
+import { ExpenseBreakdown, PnlSkuTable } from '@/features/pnl';
 import {
-  fetchPnlAggregate,
   fetchPnlBreakdown,
-  fetchDailyMarginSeries,
+  fetchPnlSkuTable,
   shiftRangeBack,
   lastNDaysRange,
   type PeriodRange,
@@ -14,7 +13,7 @@ export const metadata = { title: 'Прибыль и убытки' };
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type SearchParams = Promise<{ from?: string; to?: string }>;
+type SearchParams = Promise<{ from?: string; to?: string; year?: string }>;
 
 function formatRange(range: PeriodRange): string {
   const months = [
@@ -36,60 +35,52 @@ function parseRange(sp: { from?: string; to?: string }): PeriodRange {
   return lastNDaysRange(30);
 }
 
-function calcDelta(current: number, previous: number): number {
-  if (previous === 0) return current === 0 ? 0 : 100;
-  return ((current - previous) / Math.abs(previous)) * 100;
-}
-
 export default async function PnLPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
   const comparison = shiftRangeBack(range);
 
-  const [current, previous, breakdown, marginSeries] = await Promise.all([
-    fetchPnlAggregate(range),
-    fetchPnlAggregate(comparison),
+  const [breakdown, skuRows] = await Promise.all([
     fetchPnlBreakdown(range, comparison),
-    fetchDailyMarginSeries(range),
+    fetchPnlSkuTable(range),
   ]);
 
-  const totalExpenses = current.mainExpenses + current.extraExpenses;
-  const totalExpensesPrev = previous.mainExpenses + previous.extraExpenses;
-
-  const kpis: PnlKpis = {
-    revenue: {
-      value: current.revenue,
-      delta: Math.round(calcDelta(current.revenue, previous.revenue)),
-      series: [],
-    },
-    expenses: {
-      value: totalExpenses,
-      delta: Math.round(calcDelta(totalExpenses, totalExpensesPrev)),
-      series: [],
-    },
-    profit: {
-      value: current.profit,
-      delta: Math.round(calcDelta(current.profit, previous.profit)),
-      series: [],
-    },
-    margin: {
-      value: current.marginPct,
-      delta: Math.round((current.marginPct - previous.marginPct) * 10) / 10,
-      series: [],
-    },
-  };
+  const year = new Date().getUTCFullYear();
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Прибыль и убытки"
-        description={`Реальная прибыль с учётом всех комиссий · Текущий: ${formatRange(range)} · Сравнение: ${formatRange(comparison)}`}
-      />
-      <ProfitSummary kpis={kpis} comparisonLabel={formatRange(comparison)} />
-      <ProfitMarginChart data={marginSeries} />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <PageHeader
+          title="Прибыль и убытки"
+          description={`Детализация по товарам и статьям расходов · ${formatRange(range)}`}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`/api/finance/xlsx?year=${year}`}
+            download
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+          >
+            <Download className="size-4" />
+            Шаблон CF_PL за {year}
+          </a>
+          <a
+            href={`/api/finance/xlsx?year=${year - 1}`}
+            download
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
+          >
+            <Download className="size-4" />
+            За {year - 1}
+          </a>
+        </div>
+      </div>
+
       <ExpenseBreakdown categories={breakdown.categories} totalRevenue={breakdown.revenue} />
+
+      <PnlSkuTable rows={skuRows} />
+
       <p className="text-xs text-muted-foreground">
-        · Данные из RPC `get_full_pnl_by_period` (разбивка по статьям) и `wb_reports_fact` (дневная маржа).
+        · Данные из RPC `get_full_pnl_by_period` (per-SKU разбивка) + шаблон `CF_PL_2026.xlsx` (выгрузка по неделям).
+        Период выбирается в топбаре — таблица и разбивка пересчитываются на сервере.
       </p>
     </div>
   );

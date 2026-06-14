@@ -294,6 +294,45 @@ export async function fetchPnlByCategory(range: PeriodRange): Promise<CategoryPn
   return out;
 }
 
+export async function fetchPnlSkuTable(range: PeriodRange) {
+  const rows = await fetchFullPnlRows(range);
+  if (rows.length === 0) return [];
+  const supabase = createAdminClient();
+  const skuIds = rows.map((r) => r.sku_id);
+  const { data: cat } = await supabase
+    .from('sku_catalog')
+    .select('id, title, my_article, wb_article, photo_url')
+    .in('id', skuIds);
+  const meta = new Map<number, { title: string; myArticle: string | null; wbArticle: number | null; photoUrl: string | null }>();
+  for (const c of (cat ?? []) as { id: number; title: string | null; my_article: string | null; wb_article: number | null; photo_url: string | null }[]) {
+    meta.set(c.id, {
+      title: c.title ?? c.my_article ?? `SKU ${c.id}`,
+      myArticle: c.my_article,
+      wbArticle: c.wb_article,
+      photoUrl: c.photo_url ?? wbPhotoUrl(c.wb_article),
+    });
+  }
+  return rows.map((r) => {
+    const m = meta.get(r.sku_id);
+    return {
+      skuId: r.sku_id,
+      title: m?.title ?? `SKU ${r.sku_id}`,
+      myArticle: m?.myArticle ?? r.my_article ?? null,
+      wbArticle: m?.wbArticle ?? r.wb_article ?? null,
+      photoUrl: m?.photoUrl ?? null,
+      unitsSold: Math.round(toNumber(r.units_sold)),
+      revenue: Math.round(toNumber(r.revenue_rub)),
+      commission: Math.round(toNumber(r.commission_rub)),
+      logistics: Math.round(toNumber(r.logistics_rub)),
+      cogs: Math.round(toNumber(r.cogs_rub)),
+      marketing: Math.round(toNumber(r.marketing_rub)),
+      tax: Math.round(toNumber(r.tax_rub)),
+      profit: Math.round(toNumber(r.net_profit_rub)),
+      marginPct: Math.round(toNumber(r.margin_pct) * 10) / 10,
+    };
+  });
+}
+
 export type TopProductRow = {
   skuId: number;
   title: string;

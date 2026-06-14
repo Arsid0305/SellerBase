@@ -24,7 +24,7 @@ export function AnomaliesBanner({ anomalies }: { anomalies: Anomaly[] }) {
           <TooltipIcon text={ZSCORE_TOOLTIP} />
         </span>
       </div>
-      <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-2">
         {anomalies.map((a) => {
           const Icon = a.direction === 'spike' ? TrendingUp : TrendingDown;
           const color = a.direction === 'spike' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
