@@ -18,18 +18,6 @@ function fmtRub(n: number): string {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(n);
 }
 
-function downloadBlob(filename: string, content: string, mime: string) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
 type EditCellProps = {
   row: CostRow;
   onSaved: () => void;
@@ -123,40 +111,50 @@ export function CostsExplorer({ rows }: Props) {
     }
   }, []);
 
-  const downloadTemplate = () => {
-    const header = 'barcode;cost;valid_from';
-    const example = `2000000000001;123,45;${todayIso()}`;
-    downloadBlob('costs-template.csv', `﻿${header}\n${example}\n`, 'text/csv;charset=utf-8');
-  };
-
   const handleImport = async (file: File) => {
     setImporting(true);
     setImportResult(null);
     try {
-      let text = await file.text();
-      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-      if (lines.length === 0) {
-        setImportResult('Пустой файл');
-        return;
+      const isXlsx = /\.xlsx$/i.test(file.name);
+      let entries: { barcode: string; cost_rub: number; valid_from: string; source: string }[] = [];
+
+      if (isXlsx) {
+        const form = new FormData();
+        form.append('file', file);
+        const parseRes = await fetch('/api/costs/parse-xlsx', { method: 'POST', body: form });
+        if (!parseRes.ok) {
+          const err = await parseRes.json().catch(() => ({}));
+          setImportResult('Ошибка чтения XLSX: ' + (err.error ?? parseRes.statusText));
+          return;
+        }
+        const parsed = await parseRes.json();
+        entries = parsed.entries ?? [];
+      } else {
+        let text = await file.text();
+        if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+        const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+        if (lines.length === 0) {
+          setImportResult('Пустой файл');
+          return;
+        }
+        const header = (lines[0] ?? '').split(';').map((s) => s.trim().toLowerCase());
+        const bcIdx = header.indexOf('barcode');
+        const costIdx = header.indexOf('cost');
+        const dateIdx = header.indexOf('valid_from');
+        if (bcIdx < 0 || costIdx < 0 || dateIdx < 0) {
+          setImportResult('Ожидаемые колонки: barcode;cost;valid_from');
+          return;
+        }
+        for (let i = 1; i < lines.length; i++) {
+          const parts = (lines[i] ?? '').split(';');
+          const barcode = (parts[bcIdx] ?? '').trim();
+          const cost = Number((parts[costIdx] ?? '').replace(',', '.').trim());
+          const date = (parts[dateIdx] ?? '').trim();
+          if (!barcode || !Number.isFinite(cost) || !date) continue;
+          entries.push({ barcode, cost_rub: cost, valid_from: date, source: 'csv' });
+        }
       }
-      const header = (lines[0] ?? '').split(';').map((s) => s.trim().toLowerCase());
-      const bcIdx = header.indexOf('barcode');
-      const costIdx = header.indexOf('cost');
-      const dateIdx = header.indexOf('valid_from');
-      if (bcIdx < 0 || costIdx < 0 || dateIdx < 0) {
-        setImportResult('Ожидаемые колонки: barcode;cost;valid_from');
-        return;
-      }
-      const entries: { barcode: string; cost_rub: number; valid_from: string; source: string }[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const parts = (lines[i] ?? '').split(';');
-        const barcode = (parts[bcIdx] ?? '').trim();
-        const cost = Number((parts[costIdx] ?? '').replace(',', '.').trim());
-        const date = (parts[dateIdx] ?? '').trim();
-        if (!barcode || !Number.isFinite(cost) || !date) continue;
-        entries.push({ barcode, cost_rub: cost, valid_from: date, source: 'csv' });
-      }
+
       if (entries.length === 0) {
         setImportResult('Не нашёл валидных строк');
         return;
@@ -228,13 +226,15 @@ export function CostsExplorer({ rows }: Props) {
         </div>
         <div className="flex items-center gap-2">
           {importResult && <span className="text-xs text-muted-foreground">{importResult}</span>}
-          <Button variant="ghost" size="sm" onClick={downloadTemplate}>
-            Шаблон CSV
+          <Button variant="ghost" size="sm" asChild>
+            <a href="/api/costs/template-xlsx" download>
+              Шаблон Excel
+            </a>
           </Button>
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -247,7 +247,7 @@ export function CostsExplorer({ rows }: Props) {
             onClick={() => fileRef.current?.click()}
             disabled={importing}
           >
-            {importing ? 'Импорт...' : 'Импорт CSV'}
+            {importing ? 'Импорт...' : 'Импорт Excel/CSV'}
           </Button>
         </div>
       </div>
@@ -255,8 +255,8 @@ export function CostsExplorer({ rows }: Props) {
       <DataTable data={rows} columns={columns} rowKey={(r) => String(r.sku_id)} />
 
       <p className="text-xs text-muted-foreground">
-        Формат CSV: <code>barcode;cost;valid_from</code> (разделитель «;», UTF-8). Дата YYYY-MM-DD.
-        Нажми «Шаблон CSV» чтобы скачать пример.
+        Шаблон Excel — со столбцами <code>barcode</code>, <code>cost</code>, <code>valid_from</code>.
+        Заполни и загрузи через «Импорт Excel/CSV». Принимаются и .xlsx, и .csv (с разделителем «;»).
       </p>
 
       {historyFor && (
