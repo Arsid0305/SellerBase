@@ -9,8 +9,19 @@ export type CriticalSkuBrief = {
 };
 
 export type DashboardBrief = {
-  yesterday: { revenue: number; profit: number; date: string };
-  dayBefore: { revenue: number; profit: number; date: string };
+  yesterday: {
+    revenue: number;
+    profit: number;
+    units: number;
+    date: string;
+    /** true → есть полный финотчёт (комиссия+логистика), profit достоверный. false → только продажи. */
+    hasFullReport: boolean;
+  };
+  dayBefore: { revenue: number; profit: number; units: number; date: string; hasFullReport: boolean };
+  /** Последняя дата с финотчётом (для подсказки "маржа доступна до N"). */
+  lastReportDate: string | null;
+  /** Последняя дата с продажами (для подсказки "свежие данные до N"). */
+  lastSalesDate: string | null;
   criticalCount: number;
   criticalTop: CriticalSkuBrief[];
   tasksTodayCount: number;
@@ -35,32 +46,54 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
   const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const todayIso = iso(todayUtc);
 
-  // WB report лагает 1-2 дня — берём последний день, где в БД есть факты.
-  // Окно: последние 7 дней. yesterday = последний день с выручкой; dayBefore = предыдущий.
-  const sevenAgo = new Date(todayUtc);
-  sevenAgo.setUTCDate(sevenAgo.getUTCDate() - 7);
-  const { data: recentDates } = await supabase
-    .from('wb_reports_fact')
-    .select('rr_dt')
-    .gte('rr_dt', iso(sevenAgo))
-    .order('rr_dt', { ascending: false })
-    .range(0, 5000);
+  // Окно: последние 14 дней. Собираем два независимых набора дат:
+  // 1) последние даты с финотчётом (wb_reports_fact) — для полной маржи
+  // 2) последние даты с продажами (wb_sales_fact) — для свежих KPI
+  // "Вчера" = последний день, где есть хотя бы один источник (sales > reports).
+  const fourteenAgo = new Date(todayUtc);
+  fourteenAgo.setUTCDate(fourteenAgo.getUTCDate() - 14);
 
-  const distinctDates: string[] = [];
-  const seen = new Set<string>();
-  for (const r of (recentDates ?? []) as { rr_dt: string | null }[]) {
-    if (!r.rr_dt || seen.has(r.rr_dt)) continue;
-    seen.add(r.rr_dt);
-    distinctDates.push(r.rr_dt);
-    if (distinctDates.length >= 2) break;
+  const [reportDatesRes, salesDatesRes] = await Promise.all([
+    supabase
+      .from('wb_reports_fact')
+      .select('rr_dt')
+      .gte('rr_dt', iso(fourteenAgo))
+      .order('rr_dt', { ascending: false })
+      .range(0, 5000),
+    supabase
+      .from('wb_sales_fact')
+      .select('sale_dt')
+      .gte('sale_dt', iso(fourteenAgo))
+      .order('sale_dt', { ascending: false })
+      .range(0, 5000),
+  ]);
+
+  const reportDates = new Set<string>();
+  for (const r of (reportDatesRes.data ?? []) as { rr_dt: string | null }[]) {
+    if (r.rr_dt) reportDates.add(r.rr_dt);
   }
+  const salesDates = new Set<string>();
+  for (const r of (salesDatesRes.data ?? []) as { sale_dt: string | null }[]) {
+    if (r.sale_dt) salesDates.add(r.sale_dt);
+  }
+  const allDates = [...new Set([...reportDates, ...salesDates])].sort((a, b) =>
+    a < b ? 1 : a > b ? -1 : 0,
+  );
+  const lastReportDate =
+    [...reportDates].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))[0] ?? null;
+  const lastSalesDate =
+    [...salesDates].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))[0] ?? null;
 
-  const yIso = distinctDates[0] ?? iso(new Date(todayUtc.getTime() - 86400000));
-  const dbIso = distinctDates[1] ?? iso(new Date(todayUtc.getTime() - 2 * 86400000));
+  const yIso = allDates[0] ?? iso(new Date(todayUtc.getTime() - 86400000));
+  const dbIso = allDates[1] ?? iso(new Date(todayUtc.getTime() - 2 * 86400000));
+  const yHasFull = reportDates.has(yIso);
+  const dbHasFull = reportDates.has(dbIso);
 
-  const [pnlY, pnlDb, lifecycleRes, criticalListRes, tasksRes, problemsRes] = await Promise.all([
+  const [pnlY, pnlDb, salesY, salesDb, lifecycleRes, criticalListRes, tasksRes, problemsRes] = await Promise.all([
     supabase.rpc('get_full_pnl_by_period', { p_from: yIso, p_to: yIso }),
     supabase.rpc('get_full_pnl_by_period', { p_from: dbIso, p_to: dbIso }),
+    supabase.from('v_daily_sales').select('sale_dt, units_sold, units_returned, revenue_rub').eq('sale_dt', yIso).maybeSingle(),
+    supabase.from('v_daily_sales').select('sale_dt, units_sold, units_returned, revenue_rub').eq('sale_dt', dbIso).maybeSingle(),
     supabase
       .from('v_sku_lifecycle')
       .select('sku_id, lifecycle')
@@ -96,12 +129,44 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
     return { revenue: Math.round(revenue), profit: Math.round(profit) };
   };
 
-  const yesterdayAgg = pnlY.error
-    ? { revenue: 0, profit: 0, date: yIso }
-    : { ...sumPnl(pnlY.data), date: yIso };
-  const dayBeforeAgg = pnlDb.error
-    ? { revenue: 0, profit: 0, date: dbIso }
-    : { ...sumPnl(pnlDb.data), date: dbIso };
+  type DailySalesDb = {
+    sale_dt: string;
+    units_sold: number | null;
+    units_returned: number | null;
+    revenue_rub: number | null;
+  };
+  const salesForDay = (
+    res: { data: DailySalesDb | null } | { data: null },
+  ): { revenue: number; units: number } => {
+    const r = res?.data ?? null;
+    if (!r) return { revenue: 0, units: 0 };
+    const units = toNumber(r.units_sold) - toNumber(r.units_returned);
+    return { revenue: Math.round(toNumber(r.revenue_rub)), units };
+  };
+
+  const buildAgg = (
+    iso: string,
+    hasFull: boolean,
+    pnlRes: typeof pnlY,
+    salesRes: typeof salesY,
+  ) => {
+    if (hasFull && !pnlRes.error) {
+      const p = sumPnl(pnlRes.data);
+      const s = salesForDay(salesRes);
+      return {
+        revenue: p.revenue || s.revenue,
+        profit: p.profit,
+        units: s.units,
+        date: iso,
+        hasFullReport: true,
+      };
+    }
+    const s = salesForDay(salesRes);
+    return { revenue: s.revenue, profit: 0, units: s.units, date: iso, hasFullReport: false };
+  };
+
+  const yesterdayAgg = buildAgg(yIso, yHasFull, pnlY, salesY);
+  const dayBeforeAgg = buildAgg(dbIso, dbHasFull, pnlDb, salesDb);
 
   const criticalCount = lifecycleRes.error
     ? 0
@@ -137,6 +202,8 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
   return {
     yesterday: yesterdayAgg,
     dayBefore: dayBeforeAgg,
+    lastReportDate,
+    lastSalesDate,
     criticalCount,
     criticalTop,
     tasksTodayCount,
