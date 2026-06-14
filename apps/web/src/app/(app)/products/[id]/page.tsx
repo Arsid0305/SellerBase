@@ -85,13 +85,6 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RevenueByDayChart data={product.revenueByDay} />
-        <StockByDayChart data={product.stockByDay} />
-      </div>
-
-      <ProductWarehousesCard product={product} />
-
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:grid-cols-4">
         <ProductMetaCard product={product} />
         <ProductSalesCard product={product} />
@@ -99,19 +92,28 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductPhotosCard imageUrl={product.photoUrl} />
       </div>
 
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <RevenueByDayChart data={product.revenueByDay} />
+        <StockByDayChart data={product.stockByDay} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ProductWarehousesCard product={product} />
+        <ProductLogisticsForecastCard warehouses={boxTariffs} />
+      </div>
+
       <ProductExpensesCard product={product} />
-
-      <ProductLogisticsForecastCard warehouses={boxTariffs} />
-
-      {Number.isFinite(skuId) ? <ProductScenariosCard skuId={skuId} /> : null}
-
-      {Number.isFinite(skuId) ? <SuppliersCard skuId={skuId} initial={suppliers} /> : null}
 
       {Number.isFinite(skuId) ? <ProductWeeklyCard skuId={skuId} /> : null}
 
-      <ProductEventsCard events={events} />
+      {Number.isFinite(skuId) ? <SuppliersCard skuId={skuId} initial={suppliers} /> : null}
 
-      <ProductHistoryCard diffs={diffs} />
+      {Number.isFinite(skuId) ? <ProductScenariosCard skuId={skuId} /> : null}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ProductEventsCard events={events} />
+        <ProductHistoryCard diffs={diffs} />
+      </div>
 
       <p className="text-xs text-muted-foreground">
         · Данные из `sku_catalog` + RPC `get_full_pnl_by_period` + `wb_reports_fact` (30 дней) + `wb_stocks` (текущие остатки). История остатков из `wb_stocks_history` подключится позже.
