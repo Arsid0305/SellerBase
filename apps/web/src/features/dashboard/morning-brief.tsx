@@ -51,15 +51,21 @@ export function MorningBrief({
         <span className="text-muted-foreground">· {fmtToday()}</span>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+      <div className="mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
         <span className="text-muted-foreground">
           {fmtDayLabel(brief.yesterday.date)}:
         </span>
         <Link href="/pnl" className="hover:underline">
           Выручка <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.revenue)}</span>
         </Link>
-        <span className="text-muted-foreground">· {brief.yesterday.units} шт</span>
-        <span className="text-muted-foreground">·</span>
+        <span className="text-muted-foreground">{brief.yesterday.units} шт</span>
+        <span className="flex items-baseline gap-1">
+          <span className="text-muted-foreground">Динамика выручки</span>
+          <span className={`font-medium tabular-nums ${deltaColor}`}>
+            {deltaSign}
+            {delta}%
+          </span>
+        </span>
         {brief.yesterday.hasFullReport ? (
           <Link href="/pnl" className="hover:underline">
             Прибыль <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.profit)}</span>
@@ -72,10 +78,6 @@ export function MorningBrief({
             Маржа доступна с {brief.lastReportDate ?? '—'}
           </span>
         )}
-        <span className={`font-medium tabular-nums ${deltaColor}`}>
-          {deltaSign}
-          {delta}%
-        </span>
       </div>
 
       <div className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
