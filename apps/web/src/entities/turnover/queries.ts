@@ -36,7 +36,6 @@ const SEGMENT_LABEL: Record<TurnoverSegmentKey, string> = {
 
 type TurnoverDb = {
   sku_id: number;
-  nm_id: number | null;
   my_article: string | null;
   wb_article: number | null;
   total_stock: number;
@@ -60,7 +59,7 @@ export async function fetchTurnoverData(): Promise<{
 
   const { data: turnover, error: e1 } = await supabase
     .from('v_turnover')
-    .select('sku_id, nm_id, my_article, wb_article, total_stock, units_per_day, days_to_oos_total')
+    .select('sku_id, my_article, wb_article, total_stock, units_per_day, days_to_oos_total')
     .range(0, 5000);
 
   if (e1) {
@@ -71,7 +70,7 @@ export async function fetchTurnoverData(): Promise<{
   if (rows.length === 0) return { segments: emptySegments(), products: [] };
 
   const skuIds = [...new Set(rows.map((r) => r.sku_id).filter((id): id is number => id != null))];
-  const nmIds = [...new Set(rows.map((r) => r.nm_id).filter((id): id is number => id != null))];
+  const nmIds = [...new Set(rows.map((r) => r.wb_article).filter((id): id is number => id != null))];
 
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
 
@@ -103,7 +102,7 @@ export async function fetchTurnoverData(): Promise<{
 
   const products: TurnoverProduct[] = rows.map((row) => {
     const cat = catalogMap.get(row.sku_id);
-    const sales = row.nm_id != null ? salesMap.get(row.nm_id) : undefined;
+    const sales = row.wb_article != null ? salesMap.get(row.wb_article) : undefined;
     const daysToOos = toNumber(row.days_to_oos_total);
     const unitsPerDay = toNumber(row.units_per_day);
     const segment = classify(daysToOos, unitsPerDay);
