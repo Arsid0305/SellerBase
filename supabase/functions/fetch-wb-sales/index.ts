@@ -97,8 +97,8 @@ async function fetchPage(token: string, dateFrom: string): Promise<WbSaleRow[]> 
 }
 
 async function run(supabase: SupabaseClient, jobId: number, dateFromStart: string) {
-  const token = Deno.env.get("WB_TOKEN");
-  if (!token) throw new Error("WB_TOKEN not set");
+  const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
+  if (!token) throw new Error("WB_TOKEN_READ / WB_API_TOKEN not set");
 
   let dateFrom = dateFromStart;
   let totalIn = 0;
