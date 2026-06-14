@@ -58,10 +58,20 @@ export function MorningBrief({
         <Link href="/pnl" className="hover:underline">
           Выручка <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.revenue)}</span>
         </Link>
+        <span className="text-muted-foreground">· {brief.yesterday.units} шт</span>
         <span className="text-muted-foreground">·</span>
-        <Link href="/pnl" className="hover:underline">
-          Прибыль <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.profit)}</span>
-        </Link>
+        {brief.yesterday.hasFullReport ? (
+          <Link href="/pnl" className="hover:underline">
+            Прибыль <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.profit)}</span>
+          </Link>
+        ) : (
+          <span
+            className="text-xs text-muted-foreground"
+            title="Полный финансовый отчёт WB закрывает за прошлую неделю в пн/вт. Сейчас доступны только продажи."
+          >
+            Маржа доступна с {brief.lastReportDate ?? '—'}
+          </span>
+        )}
         <span className={`font-medium tabular-nums ${deltaColor}`}>
           {deltaSign}
           {delta}%
