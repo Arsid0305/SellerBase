@@ -1,5 +1,5 @@
 // fetch-wb-report — еженедельный фетч отчёта о реализации (FBO).
-// /api/v5/supplier/reportDetailByPeriod → wb_reports_fact_raw + wb_reports_fact.
+// /api/v5/supplier/reportDetailByPeriod → wb_reports_fact.
 // UPSERT по srid. Дедупликация в батче (WB может вернуть дубли).
 // Пагинация через rrdid.
 // Диапазон: от последней rr_dt в БД минус 7 дней (для перезаливки последней недели), или
@@ -152,11 +152,9 @@ Deno.serve(async (req: Request) => {
       if (rows.length === 0) break;
       totalIn += rows.length;
 
-      const rawMap = new Map<number, { realizationreport_id: number; payload: WbReportRow }>();
       const factMap = new Map<number, Record<string, unknown>>();
       for (const r of rows) {
         if (!r.rrd_id) continue;
-        rawMap.set(r.rrd_id, { realizationreport_id: r.realizationreport_id, payload: r });
         factMap.set(r.rrd_id, {
           rrd_id: r.rrd_id,
           srid: r.srid ?? null,
@@ -193,7 +191,6 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      await upsertInBatches(supabase, "wb_reports_fact_raw", Array.from(rawMap.values()), "rrd_id");
       await upsertInBatches(supabase, "wb_reports_fact", Array.from(factMap.values()), "rrd_id");
       totalOut += factMap.size;
 
