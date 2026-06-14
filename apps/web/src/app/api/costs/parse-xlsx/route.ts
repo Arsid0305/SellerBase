@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.load(buf);
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: 'cannot parse xlsx' }, { status: 400 });
   }
   const ws = wb.worksheets[0];
