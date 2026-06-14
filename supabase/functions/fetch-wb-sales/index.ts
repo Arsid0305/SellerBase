@@ -110,10 +110,15 @@ async function run(supabase: SupabaseClient, jobId: number, dateFromStart: strin
     if (rows.length === 0) break;
     totalIn += rows.length;
 
-    const dbRows = rows
-      .filter((r) => r.srid && !seen.has(r.srid))
-      .map((r) => {
+    const uniqueRows: WbSaleRow[] = [];
+    for (const r of rows) {
+      if (r.srid && !seen.has(r.srid)) {
         seen.add(r.srid);
+        uniqueRows.push(r);
+      }
+    }
+    const dbRows = uniqueRows
+      .map((r) => {
         const saleId = r.saleID ?? null;
         const isStorno = typeof saleId === "string" && saleId.startsWith("R");
         return {
