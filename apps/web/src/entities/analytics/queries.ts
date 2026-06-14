@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type {
   AnalyticsRow,
   AnalyticsSummary,
@@ -197,7 +198,7 @@ export async function fetchAnalytics(): Promise<{
       id: String(e.catalog.id),
       name: e.catalog.title ?? e.catalog.my_article ?? 'Без названия',
       barcode: e.catalog.barcode ?? '',
-      photoUrl: e.catalog.photo_url,
+      photoUrl: e.catalog.photo_url ?? wbPhotoUrl(e.catalog.wb_article),
       channel: 'WB',
       tags,
       profit,

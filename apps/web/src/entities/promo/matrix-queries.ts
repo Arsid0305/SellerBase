@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 
 export type MatrixPromo = {
   promotionId: number;
@@ -186,7 +187,7 @@ export async function fetchPromoMatrix(): Promise<{
         title: c.title,
         brand: c.brand,
         subjectName: c.subject_name,
-        photoUrl: c.photo_url,
+        photoUrl: c.photo_url ?? wbPhotoUrl(nmId),
         stockUnits: stockMap.get(nmId) ?? 0,
         turnoverDays,
         currentPrice: currentPriceByNm.get(nmId) ?? null,

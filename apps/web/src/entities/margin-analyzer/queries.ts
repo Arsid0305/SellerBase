@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { ComponentKey, SkuMarginAnalysis, WeekBreakdown } from './types';
 
 function toNumber(v: unknown): number {
@@ -174,7 +175,7 @@ export async function fetchMarginAnalyzerData(): Promise<SkuMarginAnalysis[]> {
       myArticle: cat?.my_article ?? null,
       title: cat?.title ?? null,
       subjectName: cat?.subject_name ?? null,
-      photoUrl: cat?.photo_url ?? null,
+      photoUrl: cat?.photo_url ?? wbPhotoUrl(nmId),
       weeks,
       current,
       prevAvg,
