@@ -6,9 +6,13 @@ import { createAdminClient } from '@/shared/lib/supabase/admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
   const supabase = createAdminClient();
-  const year = 2026;
+  const url = new URL(req.url);
+  const yearParam = Number(url.searchParams.get('year'));
+  const year = Number.isFinite(yearParam) && yearParam >= 2020 && yearParam <= 2099
+    ? yearParam
+    : new Date().getUTCFullYear();
 
   const { data: facts } = await supabase
     .from('wb_reports_fact')
