@@ -6,7 +6,6 @@ import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
 import { LifecycleBadge } from '@/shared/ui/domain/lifecycle-badge';
 import { Sparkline } from '@/shared/ui/domain/sparkline';
 import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
-import { Badge } from '@/shared/ui/badge';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { formatRub, formatInt } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
