@@ -177,11 +177,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         <AnomaliesBanner anomalies={anomalies} />
         <TopProductsCard rows={topProducts} />
       </div>
-      <LogisticsPulseCard current={coefNow} previous={coefPrev} />
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
         Период выбирается в топбаре — цифры пересчитываются на сервере.
       </p>
+      <LogisticsPulseCard current={coefNow} previous={coefPrev} />
     </div>
   );
 }
