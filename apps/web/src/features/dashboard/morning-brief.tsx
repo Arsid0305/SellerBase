@@ -72,17 +72,10 @@ export function MorningBrief({
             {delta}%
           </span>
         </span>
-        {brief.yesterday.hasFullReport ? (
+        {brief.yesterday.hasFullReport && (
           <Link href="/pnl" className="hover:underline">
             Прибыль <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.profit)}</span>
           </Link>
-        ) : (
-          <span
-            className="text-xs text-muted-foreground"
-            title="Полный финансовый отчёт WB закрывает за прошлую неделю в пн/вт. Сейчас доступны только продажи."
-          >
-            Маржа доступна с {brief.lastReportDate ?? '—'}
-          </span>
         )}
       </div>
 
