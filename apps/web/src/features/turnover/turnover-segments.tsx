@@ -1,11 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, Activity, AlertTriangle, Boxes } from 'lucide-react';
+import { CheckCircle2, Activity, AlertTriangle, Boxes, Info } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/shared/ui/tooltip';
 import { formatRub, formatInt } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
 import type { TurnoverSegment, TurnoverSegmentKey } from './types';
+
+const SEGMENT_HINT: Record<TurnoverSegmentKey, string> = {
+  all: 'Все товары вне зависимости от сегмента оборачиваемости.',
+  stable: 'Стабильная: хватит 30–90 дней. Здоровый товарооборот, остатков и продаж в балансе.',
+  medium: 'Средняя: хватит 7–30 или 90–180 дней. На грани — стоит следить за поставками или распродажей.',
+  unstable:
+    'Нестабильная: хватит <7 дней (дефицит), >180 дней (избыток) или нет продаж. Требует решения по поставкам.',
+};
 
 const SEGMENT_STYLE: Record<
   TurnoverSegmentKey,
@@ -46,6 +60,7 @@ export function TurnoverSegments({
   };
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {segments.map((s) => {
         const style = SEGMENT_STYLE[s.key];
@@ -54,17 +69,41 @@ export function TurnoverSegments({
         return (
           <Card
             key={s.key}
+            role="button"
+            tabIndex={0}
+            aria-pressed={isActive}
             className={cn(
               'cursor-pointer transition-shadow hover:shadow-md',
               isActive && `ring-2 ring-offset-2 ring-offset-background ${style.activeRing}`,
             )}
             onClick={() => handle(s.key)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handle(s.key);
+              }
+            }}
           >
             <CardContent className="flex flex-col gap-3 p-5">
               <div className="flex items-center justify-between">
                 <span className={cn('inline-flex items-center gap-2 text-sm font-medium', style.tone)}>
                   <Icon className="size-4" />
                   {s.label}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                        aria-label={`Описание сегмента «${s.label}»`}
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs leading-snug">
+                      {SEGMENT_HINT[s.key]}
+                    </TooltipContent>
+                  </Tooltip>
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">{s.share.toFixed(s.share % 1 === 0 ? 0 : 2)}%</span>
               </div>
@@ -100,6 +139,7 @@ export function TurnoverSegments({
         );
       })}
     </div>
+    </TooltipProvider>
   );
 }
 
