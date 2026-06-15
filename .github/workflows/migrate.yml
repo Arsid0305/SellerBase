@@ -1,0 +1,53 @@
+# Apply Supabase migrations to the production database.
+#
+# Triggers:
+#   - push to main when files under supabase/migrations/ change
+#   - manual via workflow_dispatch
+#
+# Required GitHub secrets:
+#   - SBP_ACCESS_TOKEN       Supabase personal access token (already used by deploy.yml)
+#   - SUPABASE_PROJECT_REF   Supabase project ref / id (already used by deploy.yml)
+#   - SUPABASE_DB_PASSWORD   Database password for `supabase db push` (NEW — add if missing)
+#
+# Behavior:
+#   `supabase db push --include-all` applies every migration in
+#   supabase/migrations/ that has not yet been recorded in the remote
+#   `supabase_migrations.schema_migrations` table. Already-applied
+#   migrations are skipped automatically.
+
+name: Apply Supabase Migrations
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**/*.sql'
+      - '.github/workflows/migrate.yml'
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SBP_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: List local migrations
+        run: |
+          echo "Migrations present in repo:"
+          ls -1 supabase/migrations/*.sql || echo "(none)"
+
+      - name: Link Supabase project
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+
+      - name: Push migrations (apply unapplied only)
+        run: supabase db push --include-all --password "${SUPABASE_DB_PASSWORD}"

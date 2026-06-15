@@ -17,18 +17,6 @@ function fmtShortDate(isoDate: string): string {
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
-function fmtDayLabel(isoDate: string): string {
-  const today = new Date();
-  const day = new Date(`${isoDate}T00:00:00Z`);
-  const diffDays = Math.round(
-    (Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()) - day.getTime()) /
-      86_400_000,
-  );
-  if (diffDays === 1) return 'Вчера';
-  if (diffDays === 2) return 'Позавчера';
-  return day.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-}
-
 function calcDelta(curr: number, prev: number): number {
   if (prev === 0) return curr === 0 ? 0 : 100;
   return Math.round(((curr - prev) / Math.abs(prev)) * 100);
@@ -54,34 +42,38 @@ export function MorningBrief({
         <span className="text-muted-foreground">· {fmtDataDate(brief.yesterday.date)}</span>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
-        <span className="text-muted-foreground">
-          {fmtDayLabel(brief.yesterday.date)}:
-        </span>
-        <Link href="/pnl" className="hover:underline">
-          Выручка <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.revenue)}</span>
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <div className="rounded-md border border-border/60 p-3">
+          <div className="text-xs text-muted-foreground">Количество</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">
+            {brief.yesterday.units.toLocaleString('ru-RU')}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">шт</div>
+        </div>
+        <Link
+          href="/pnl"
+          className="block rounded-md border border-border/60 p-3 hover:bg-muted/40"
+        >
+          <div className="text-xs text-muted-foreground">Сумма</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">
+            {fmtMoney(brief.yesterday.revenue)}
+          </div>
+          <div className="mt-1 flex items-baseline gap-1 text-xs">
+            <span className="text-muted-foreground">vs {fmtShortDate(brief.dayBefore.date)}</span>
+            <span
+              className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${
+                delta > 0
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                  : delta < 0
+                    ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                    : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {deltaSign}
+              {delta}%
+            </span>
+          </div>
         </Link>
-        <span className="text-muted-foreground">{brief.yesterday.units} шт</span>
-        <span className="inline-flex items-baseline gap-1">
-          <span className="text-muted-foreground">vs {fmtShortDate(brief.dayBefore.date)}</span>
-          <span
-            className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${
-              delta > 0
-                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                : delta < 0
-                  ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
-                  : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            {deltaSign}
-            {delta}%
-          </span>
-        </span>
-        {brief.yesterday.hasFullReport && (
-          <Link href="/pnl" className="hover:underline">
-            Прибыль <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.profit)}</span>
-          </Link>
-        )}
       </div>
 
       <div className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
