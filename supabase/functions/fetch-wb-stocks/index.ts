@@ -1,7 +1,8 @@
-// fetch-wb-stocks — ежедневный фетч остатков с WB Analytics API.
-// Endpoint: POST /api/analytics/v1/stocks-report/wb-warehouses (заменяет /api/v1/supplier/stocks, отключённый 23.06.2026).
+// fetch-wb-stocks — ежедневный фетч остатков с WB Seller Analytics API.
+// Миграция 2026-06-15: старый /api/v1/supplier/stocks отключается WB 23.06.2026.
+// Новый endpoint: POST /api/v1/warehouse_remains (асинхронный отчёт, polling статуса).
 // Категория токена: Аналитика (WB_TOKEN_READ).
-// Лимит: 1 req / 20 c per seller, до 250 000 строк за ответ, offset-пагинация, sort by nmId ASC.
+// Лимит: 1 запрос на отчёт в минуту, готовится 5-30 мин, живёт 4 часа.
 // UPSERT в wb_stocks (текущий снапшот) + wb_stocks_history (снапшот дня). Идемпотентен.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -9,8 +10,8 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 
 const JOB_NAME = "fetch-wb-stocks";
 const WB_BASE = "https://seller-analytics-api.wildberries.ru";
-const PAGE_LIMIT = 250_000;
-const RATE_DELAY_MS = 21_000;
+const POLL_INTERVAL_MS = 10_000;
+const POLL_MAX_ATTEMPTS = 180; // 30 минут
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,19 +25,23 @@ function adminClient(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-interface WbStockRow {
+interface WbWarehouseEntry {
+  warehouseName: string;
+  quantity: number;
+}
+
+interface WbRemainsRow {
+  brand?: string;
+  subjectName?: string;
+  vendorCode?: string;
   nmId?: number;
-  nmID?: number;
-  chrtId?: number;
-  chrtID?: number;
   barcode?: string;
-  warehouseId?: number;
-  warehouseName?: string;
-  warehouseRegion?: string;
-  quantity?: number;
+  techSize?: string;
+  volume?: number;
   inWayToClient?: number;
   inWayFromClient?: number;
-  lastChangeDate?: string;
+  quantityWarehousesFull?: number;
+  warehouses?: WbWarehouseEntry[];
 }
 
 const num = (v: unknown): number => (typeof v === "number" ? v : 0);
@@ -45,31 +50,67 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchPage(token: string, offset: number): Promise<WbStockRow[]> {
-  const url = `${WB_BASE}/api/analytics/v1/stocks-report/wb-warehouses`;
-  const body = { limit: PAGE_LIMIT, offset };
+async function createReport(token: string): Promise<string> {
+  const url = `${WB_BASE}/api/v1/warehouse_remains`;
+  const body = {
+    locale: "ru",
+    groupByBrand: false,
+    groupBySubject: false,
+    groupBySa: false,
+    groupByNm: true,
+    groupByBarcode: true,
+    groupBySize: false,
+    filterPics: 0,
+    filterVolume: 0,
+  };
   const resp = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: token,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: token, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (resp.status === 429) {
-    await sleep(RATE_DELAY_MS);
-    return fetchPage(token, offset);
-  }
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(`WB API ${resp.status}: ${text.slice(0, 500)}`);
+    throw new Error(`WB create report ${resp.status}: ${text.slice(0, 500)}`);
   }
   const json = await resp.json();
-  const rows = Array.isArray(json) ? json : json?.data ?? json?.rows ?? json?.items ?? [];
-  if (!Array.isArray(rows)) {
-    throw new Error(`WB API returned non-array payload: ${JSON.stringify(json).slice(0, 300)}`);
+  const taskId = json?.data?.taskId;
+  if (!taskId) throw new Error(`WB create report: missing taskId in ${JSON.stringify(json).slice(0, 300)}`);
+  return String(taskId);
+}
+
+async function pollStatus(token: string, taskId: string): Promise<void> {
+  const url = `${WB_BASE}/api/v1/warehouse_remains/tasks/${taskId}/status`;
+  for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
+    await sleep(POLL_INTERVAL_MS);
+    const resp = await fetch(url, { headers: { Authorization: token } });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`WB status ${resp.status}: ${text.slice(0, 500)}`);
+    }
+    const json = await resp.json();
+    const status = json?.data?.status ?? json?.status;
+    if (status === "done") return;
+    if (status === "purged" || status === "canceled") {
+      throw new Error(`WB report ${taskId} terminated with status=${status}`);
+    }
+    // new / processing — continue polling
   }
-  return rows as WbStockRow[];
+  throw new Error(`WB report ${taskId} not ready after ${POLL_MAX_ATTEMPTS} attempts`);
+}
+
+async function downloadReport(token: string, taskId: string): Promise<WbRemainsRow[]> {
+  const url = `${WB_BASE}/api/v1/warehouse_remains/tasks/${taskId}/download`;
+  const resp = await fetch(url, { headers: { Authorization: token } });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`WB download ${resp.status}: ${text.slice(0, 500)}`);
+  }
+  const json = await resp.json();
+  const rows = Array.isArray(json) ? json : json?.data ?? [];
+  if (!Array.isArray(rows)) {
+    throw new Error(`WB download returned non-array payload: ${JSON.stringify(json).slice(0, 300)}`);
+  }
+  return rows as WbRemainsRow[];
 }
 
 Deno.serve(async (req: Request) => {
@@ -95,30 +136,41 @@ Deno.serve(async (req: Request) => {
     const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
     if (!token) throw new Error("WB_TOKEN_READ is not set in function secrets");
 
-    const all: WbStockRow[] = [];
-    let offset = 0;
-    let pages = 0;
-    while (true) {
-      const page = await fetchPage(token, offset);
-      pages++;
-      all.push(...page);
-      if (page.length < PAGE_LIMIT) break;
-      offset += PAGE_LIMIT;
-      await sleep(RATE_DELAY_MS);
-    }
+    const taskId = await createReport(token);
+    await pollStatus(token, taskId);
+    const report = await downloadReport(token, taskId);
 
-    const stocksRows = all
-      .filter((s) => s.barcode && (s.warehouseName || s.warehouseId !== undefined))
-      .map((s) => ({
-        barcode: String(s.barcode),
-        nm_id: s.nmId ?? s.nmID ?? null,
-        warehouse_name: s.warehouseName ?? String(s.warehouseId),
-        quantity: num(s.quantity),
-        in_way_to_client: num(s.inWayToClient),
-        in_way_from_client: num(s.inWayFromClient),
-        last_change_date: s.lastChangeDate ?? null,
-        fetched_at: new Date().toISOString(),
-      }));
+    const stocksRows: Array<{
+      barcode: string;
+      nm_id: number | null;
+      warehouse_name: string;
+      quantity: number;
+      in_way_to_client: number;
+      in_way_from_client: number;
+      last_change_date: null;
+      fetched_at: string;
+    }> = [];
+
+    const fetchedAt = new Date().toISOString();
+    for (const r of report) {
+      if (!r.barcode || !Array.isArray(r.warehouses)) continue;
+      const nmId = r.nmId ?? null;
+      const inWayToClient = num(r.inWayToClient);
+      const inWayFromClient = num(r.inWayFromClient);
+      for (const w of r.warehouses) {
+        if (!w?.warehouseName) continue;
+        stocksRows.push({
+          barcode: String(r.barcode),
+          nm_id: nmId,
+          warehouse_name: w.warehouseName,
+          quantity: num(w.quantity),
+          in_way_to_client: inWayToClient,
+          in_way_from_client: inWayFromClient,
+          last_change_date: null,
+          fetched_at: fetchedAt,
+        });
+      }
+    }
 
     if (stocksRows.length > 0) {
       const { error: upsertErr } = await supabase
@@ -147,9 +199,9 @@ Deno.serve(async (req: Request) => {
       .update({
         status: "ok",
         finished_at: new Date().toISOString(),
-        rows_in: all.length,
+        rows_in: report.length,
         rows_out: stocksRows.length,
-        meta: { snapshot_date: snapshotDate, pages, offset_final: offset },
+        meta: { snapshot_date: snapshotDate, task_id: taskId },
       })
       .eq("id", jobId);
 
@@ -157,7 +209,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         ok: true,
         rows: stocksRows.length,
-        pages,
+        task_id: taskId,
         snapshot_date: snapshotDate,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
