@@ -86,7 +86,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
         <span className="text-[11px] tabular-nums text-muted-foreground">{formatInt(row.original.sales30dUnits)} шт.</span>
       </div>
     ),
-    enableSorting: false,
+    enableSorting: true,
   },
   {
     id: 'sparkline',
@@ -120,7 +120,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
         </span>
       );
     },
-    enableSorting: false,
+    enableSorting: true,
   },
   {
     accessorKey: 'stock',
@@ -140,7 +140,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
         )}
       </div>
     ),
-    enableSorting: false,
+    enableSorting: true,
   },
   {
     accessorKey: 'daysOfStock',
@@ -164,7 +164,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
               : 'text-foreground';
       return <span className={cn('tabular-nums', tone)}>{d} д.</span>;
     },
-    enableSorting: false,
+    enableSorting: true,
   },
   {
     id: 'tvv',
