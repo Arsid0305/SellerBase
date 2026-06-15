@@ -210,6 +210,45 @@ export function CatalogExplorer({
             })}
           </div>
         )}
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={lifecycle}
+            onChange={(e) => setLifecycle(e.target.value as LifecycleFilter)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            {LIFECYCLE_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={margin}
+            onChange={(e) => setMargin(e.target.value as MarginFilter)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            {MARGIN_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={stockDays}
+            onChange={(e) => setStockDays(e.target.value as StockDaysFilter)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            {STOCK_DAYS_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+          {(lifecycle !== 'all' || margin !== 'all' || stockDays !== 'all') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setLifecycle('all'); setMargin('all'); setStockDays('all'); }}
+              className="text-xs text-muted-foreground"
+            >
+              Сбросить фильтры
+            </Button>
+          )}
+        </div>
       </div>
 
       <DataTable
