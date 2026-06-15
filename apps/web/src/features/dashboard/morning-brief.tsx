@@ -12,6 +12,11 @@ function fmtDataDate(isoDate: string): string {
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long', timeZone: 'UTC' });
 }
 
+function fmtShortDate(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
 function fmtDayLabel(isoDate: string): string {
   const today = new Date();
   const day = new Date(`${isoDate}T00:00:00Z`);
@@ -58,7 +63,7 @@ export function MorningBrief({
         </Link>
         <span className="text-muted-foreground">{brief.yesterday.units} шт</span>
         <span className="inline-flex items-baseline gap-1">
-          <span className="text-muted-foreground">vs позавчера</span>
+          <span className="text-muted-foreground">vs {fmtShortDate(brief.dayBefore.date)}</span>
           <span
             className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${
               delta > 0
