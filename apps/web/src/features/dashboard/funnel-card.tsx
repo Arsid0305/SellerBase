@@ -17,9 +17,8 @@ export function FunnelCard({ funnel }: FunnelProps) {
   return (
     <Card className="p-4">
       <CardHeader className="p-0 pb-3">
-        <CardTitle className="text-sm font-medium">
-          Аналитика продавца — Воронка продаж
-        </CardTitle>
+        <CardTitle className="text-sm font-medium">Аналитика продавца</CardTitle>
+        <p className="text-xs text-muted-foreground">за {funnel.periodDays} дней</p>
       </CardHeader>
       <CardContent className="p-0">
         <div className="grid grid-cols-3 gap-3">
@@ -30,7 +29,6 @@ export function FunnelCard({ funnel }: FunnelProps) {
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">за {funnel.periodDays} дней</p>
       </CardContent>
     </Card>
   );

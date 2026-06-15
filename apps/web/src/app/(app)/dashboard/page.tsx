@@ -149,11 +149,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
           </div>
         </Card>
       )}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2 [&>*]:h-full">
           <MorningBrief brief={brief} anomaliesCount={anomalies.length} />
         </div>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 [&>*]:flex-1">
           <FunnelCard funnel={sellerAnalytics.funnel} />
           <RatingCard rating={sellerAnalytics.rating} />
         </div>
