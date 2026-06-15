@@ -123,21 +123,12 @@ export async function fetchDailyMarginSeries(range: PeriodRange): Promise<Profit
   }
   type Row = {
     rr_dt: string;
-    revenue_rub: number | null;
-    commission_rub: number | null;
-    logistics_rub: number | null;
-    penalty_rub: number | null;
+    margin_pct: number | null;
   };
   const rows = (data ?? []) as Row[];
-  const map = new Map<string, { rev: number; exp: number }>();
+  const map = new Map<string, number>();
   for (const r of rows) {
-    map.set(r.rr_dt, {
-      rev: toNumber(r.revenue_rub),
-      exp:
-        toNumber(r.commission_rub) +
-        toNumber(r.logistics_rub) +
-        toNumber(r.penalty_rub),
-    });
+    map.set(r.rr_dt, toNumber(r.margin_pct));
   }
   return buildMarginFromMap(range, map);
 }
@@ -148,15 +139,14 @@ function buildEmptyMargin(range: PeriodRange): ProfitMarginPoint[] {
 
 function buildMarginFromMap(
   range: PeriodRange,
-  map: Map<string, { rev: number; exp: number }>,
+  map: Map<string, number>,
 ): ProfitMarginPoint[] {
   const out: ProfitMarginPoint[] = [];
   const start = new Date(`${range.from}T00:00:00Z`);
   const end = new Date(`${range.to}T00:00:00Z`);
   for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
     const day = d.toISOString().slice(0, 10);
-    const v = map.get(day) ?? { rev: 0, exp: 0 };
-    const margin = v.rev > 0 ? ((v.rev - v.exp) / v.rev) * 100 : 0;
+    const margin = map.get(day) ?? 0;
     out.push({ date: day, margin: Math.round(margin * 10) / 10 });
   }
   return out;
@@ -177,25 +167,52 @@ export async function fetchDailyRevenue(range: PeriodRange): Promise<DailyRevenu
     revenue_rub: number | null;
     commission_rub: number | null;
     logistics_rub: number | null;
+    storage_rub: number | null;
+    acquiring_rub: number | null;
+    deduction_rub: number | null;
     penalty_rub: number | null;
+    cogs_rub: number | null;
+    tax_rub: number | null;
+    margin_pct: number | null;
+    net_profit_rub: number | null;
   };
   const rows = (data ?? []) as Row[];
   const map = new Map<string, Parts>();
   for (const r of rows) {
     const commission = toNumber(r.commission_rub);
     const logistics = toNumber(r.logistics_rub);
+    const storage = toNumber(r.storage_rub);
+    const acquiring = toNumber(r.acquiring_rub);
+    const deduction = toNumber(r.deduction_rub);
     const penalty = toNumber(r.penalty_rub);
+    const cogs = toNumber(r.cogs_rub);
+    const tax = toNumber(r.tax_rub);
     map.set(r.rr_dt, {
       revenue: toNumber(r.revenue_rub),
-      expenses: commission + logistics + penalty,
+      expenses: commission + logistics + storage + acquiring + deduction + penalty + cogs + tax,
       commission,
       logistics,
+      storage,
+      acquiring,
+      cogs,
+      tax,
+      marginPct: toNumber(r.margin_pct),
     });
   }
   return buildSeriesFromMap(range, map);
 }
 
-type Parts = { revenue: number; expenses: number; commission: number; logistics: number };
+type Parts = {
+  revenue: number;
+  expenses: number;
+  commission: number;
+  logistics: number;
+  storage: number;
+  acquiring: number;
+  cogs: number;
+  tax: number;
+  marginPct: number;
+};
 
 function buildEmptyRevenueSeries(range: PeriodRange): DailyRevenuePoint[] {
   return buildSeriesFromMap(range, new Map());
@@ -229,7 +246,10 @@ function buildSeriesFromMap(range: PeriodRange, map: Map<string, Parts>): DailyR
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
   const g = pickGranularity(days);
 
-  const empty = (): Parts => ({ revenue: 0, expenses: 0, commission: 0, logistics: 0 });
+  const empty = (): Parts => ({
+    revenue: 0, expenses: 0, commission: 0, logistics: 0,
+    storage: 0, acquiring: 0, cogs: 0, tax: 0, marginPct: 0,
+  });
   const buckets = new Map<string, Parts>();
   for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
     const day = d.toISOString().slice(0, 10);
@@ -240,12 +260,27 @@ function buildSeriesFromMap(range: PeriodRange, map: Map<string, Parts>): DailyR
     cur.expenses += v.expenses;
     cur.commission += v.commission;
     cur.logistics += v.logistics;
+    cur.storage += v.storage;
+    cur.acquiring += v.acquiring;
+    cur.cogs += v.cogs;
+    cur.tax += v.tax;
     buckets.set(key, cur);
   }
 
   return [...buckets.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([date, v]) => ({ date, revenue: v.revenue, expenses: v.expenses, commission: v.commission, logistics: v.logistics }));
+    .map(([date, v]) => ({
+      date,
+      revenue: v.revenue,
+      expenses: v.expenses,
+      commission: v.commission,
+      logistics: v.logistics,
+      storage: v.storage,
+      acquiring: v.acquiring,
+      cogs: v.cogs,
+      tax: v.tax,
+      marginPct: v.revenue > 0 ? Math.round(((v.revenue - v.expenses) / v.revenue) * 1000) / 10 : 0,
+    }));
 }
 
 export type CategoryPnlRow = {

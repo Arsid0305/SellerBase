@@ -8,7 +8,7 @@ export function wbPhotoUrl(nmId: number | null | undefined): string | null {
   const vol = Math.floor(nmId / 100_000);
   const part = Math.floor(nmId / 1_000);
   const basket = pickBasket(vol);
-  return `https://basket-${basket}.wbbasket.ru/vol${vol}/part${part}/${nmId}/images/c246x328/1.webp`;
+  return `https://basket-${basket}.wbbasket.ru/vol${vol}/part${part}/${nmId}/images/tm/1.webp`;
 }
 
 function pickBasket(vol: number): string {
