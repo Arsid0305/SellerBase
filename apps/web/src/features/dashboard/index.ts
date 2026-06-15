@@ -6,4 +6,7 @@ export { LogisticsPulseCard } from './logistics-pulse-card';
 export { MorningBrief } from './morning-brief';
 export { CategoriesCard } from './categories-card';
 export { TopProductsCard } from './top-products-card';
+export { FunnelCard } from './funnel-card';
+export { RatingCard } from './rating-card';
+export { WbStyleChart } from './wb-style-chart';
 export type { DashboardSummary, DailyPoint, ChannelShare, DashboardKpi } from './types';

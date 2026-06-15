@@ -36,11 +36,13 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
         </div>
       </Link>
     ),
+    enableSorting: false,
   },
   {
     accessorKey: 'category',
     header: 'Категория',
     cell: ({ row }) => <span className="text-sm text-muted-foreground">{row.original.category}</span>,
+    enableSorting: false,
   },
   {
     id: 'lifecycle',
@@ -52,6 +54,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
       </span>
     ),
     cell: ({ row }) => <LifecycleBadge state={row.original.lifecycle ?? 'STABLE'} showDescription />,
+    enableSorting: false,
   },
   {
     id: 'tags',
@@ -83,6 +86,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
         <span className="text-[11px] tabular-nums text-muted-foreground">{formatInt(row.original.sales30dUnits)} шт.</span>
       </div>
     ),
+    enableSorting: false,
   },
   {
     id: 'sparkline',
@@ -116,6 +120,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
         </span>
       );
     },
+    enableSorting: false,
   },
   {
     accessorKey: 'stock',
@@ -135,6 +140,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
         )}
       </div>
     ),
+    enableSorting: false,
   },
   {
     accessorKey: 'daysOfStock',
@@ -158,6 +164,7 @@ export const catalogColumns: ColumnDef<CatalogProduct, unknown>[] = [
               : 'text-foreground';
       return <span className={cn('tabular-nums', tone)}>{d} д.</span>;
     },
+    enableSorting: false,
   },
   {
     id: 'tvv',

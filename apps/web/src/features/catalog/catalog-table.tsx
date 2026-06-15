@@ -21,6 +21,57 @@ const STATUS_CHIPS: { key: CatalogStatus | 'all'; label: string }[] = [
   { key: 'excess', label: 'Избыточные' },
 ];
 
+type LifecycleFilter = 'all' | 'NEW' | 'LEADER' | 'GROWING' | 'STABLE' | 'DECLINING' | 'CRITICAL' | 'ARCHIVED';
+type MarginFilter = 'all' | 'loss' | 'low' | 'mid' | 'high';
+type StockDaysFilter = 'all' | 'critical' | 'normal' | 'excess' | 'no-data';
+
+const LIFECYCLE_OPTIONS: { key: LifecycleFilter; label: string }[] = [
+  { key: 'all', label: 'Все состояния' },
+  { key: 'LEADER', label: 'Лидеры' },
+  { key: 'GROWING', label: 'Растущие' },
+  { key: 'STABLE', label: 'Стабильные' },
+  { key: 'DECLINING', label: 'Падающие' },
+  { key: 'CRITICAL', label: 'Критичные' },
+  { key: 'NEW', label: 'Новые' },
+  { key: 'ARCHIVED', label: 'Архив' },
+];
+
+const MARGIN_OPTIONS: { key: MarginFilter; label: string }[] = [
+  { key: 'all', label: 'Маржа: вся' },
+  { key: 'loss', label: 'Убыток (<0)' },
+  { key: 'low', label: 'Низкая 0–15%' },
+  { key: 'mid', label: 'Норма 15–30%' },
+  { key: 'high', label: 'Высокая >30%' },
+];
+
+const STOCK_DAYS_OPTIONS: { key: StockDaysFilter; label: string }[] = [
+  { key: 'all', label: 'Хватит: всё' },
+  { key: 'critical', label: 'Критично <7 дн' },
+  { key: 'normal', label: 'Норма 7–90 дн' },
+  { key: 'excess', label: 'Избыток >90 дн' },
+  { key: 'no-data', label: 'Нет данных' },
+];
+
+function matchesMargin(row: CatalogProduct, f: MarginFilter): boolean {
+  switch (f) {
+    case 'all': return true;
+    case 'loss': return row.margin < 0;
+    case 'low': return row.margin >= 0 && row.margin < 15;
+    case 'mid': return row.margin >= 15 && row.margin < 30;
+    case 'high': return row.margin >= 30;
+  }
+}
+
+function matchesStockDays(row: CatalogProduct, f: StockDaysFilter): boolean {
+  switch (f) {
+    case 'all': return true;
+    case 'critical': return row.daysOfStock > 0 && row.daysOfStock < 7;
+    case 'normal': return row.daysOfStock >= 7 && row.daysOfStock <= 90;
+    case 'excess': return row.daysOfStock > 90;
+    case 'no-data': return row.stock === 0 && row.daysOfStock === 0;
+  }
+}
+
 const CSV_COLUMNS: CsvColumn<CatalogProduct>[] = [
   { key: 'name', label: 'Товар' },
   { key: 'barcode', label: 'Штрихкод' },
@@ -75,6 +126,9 @@ export function CatalogExplorer({
   const [status, setStatus] = useState<CatalogStatus | 'all'>('all');
   const [category, setCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [lifecycle, setLifecycle] = useState<LifecycleFilter>('all');
+  const [margin, setMargin] = useState<MarginFilter>('all');
+  const [stockDays, setStockDays] = useState<StockDaysFilter>('all');
 
   const filtered = useMemo(
     () =>
@@ -82,8 +136,11 @@ export function CatalogExplorer({
         .filter((r) => marketplaces.includes(r.channel))
         .filter((r) => matchesStatus(r, status))
         .filter((r) => (category === 'all' ? true : r.category === category))
+        .filter((r) => (lifecycle === 'all' ? true : (r.lifecycle ?? 'STABLE') === lifecycle))
+        .filter((r) => matchesMargin(r, margin))
+        .filter((r) => matchesStockDays(r, stockDays))
         .filter((r) => matchesSearch(r, search)),
-    [rows, marketplaces, status, category, search],
+    [rows, marketplaces, status, category, lifecycle, margin, stockDays, search],
   );
 
   const summary = useMemo(() => buildCatalogSummary(filtered), [filtered]);
@@ -153,12 +210,50 @@ export function CatalogExplorer({
             })}
           </div>
         )}
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={lifecycle}
+            onChange={(e) => setLifecycle(e.target.value as LifecycleFilter)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            {LIFECYCLE_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={margin}
+            onChange={(e) => setMargin(e.target.value as MarginFilter)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            {MARGIN_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={stockDays}
+            onChange={(e) => setStockDays(e.target.value as StockDaysFilter)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            {STOCK_DAYS_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+          {(lifecycle !== 'all' || margin !== 'all' || stockDays !== 'all') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setLifecycle('all'); setMargin('all'); setStockDays('all'); }}
+              className="text-xs text-muted-foreground"
+            >
+              Сбросить фильтры
+            </Button>
+          )}
+        </div>
       </div>
 
       <DataTable
         data={filtered}
         columns={catalogColumns}
-        initialSort={[{ id: 'sales30dRub', desc: true }]}
         rowKey={(row) => row.id}
         empty="Ничего не найдено. Попробуйте изменить фильтры."
       />

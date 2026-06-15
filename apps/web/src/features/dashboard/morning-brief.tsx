@@ -7,9 +7,14 @@ function fmtMoney(v: number): string {
   return `₽${Math.round(v).toLocaleString('ru-RU')}`;
 }
 
-function fmtToday(): string {
-  const d = new Date();
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' });
+function fmtDataDate(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long', timeZone: 'UTC' });
+}
+
+function fmtShortDate(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
 function fmtDayLabel(isoDate: string): string {
@@ -46,7 +51,7 @@ export function MorningBrief({
       <div className="mb-3 flex items-center gap-2 text-sm font-medium">
         <Sun className="size-4 text-amber-500" />
         <span>Утренний бриф</span>
-        <span className="text-muted-foreground">· {fmtToday()}</span>
+        <span className="text-muted-foreground">· {fmtDataDate(brief.yesterday.date)}</span>
       </div>
 
       <div className="mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
@@ -58,7 +63,7 @@ export function MorningBrief({
         </Link>
         <span className="text-muted-foreground">{brief.yesterday.units} шт</span>
         <span className="inline-flex items-baseline gap-1">
-          <span className="text-muted-foreground">vs позавчера</span>
+          <span className="text-muted-foreground">vs {fmtShortDate(brief.dayBefore.date)}</span>
           <span
             className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${
               delta > 0
@@ -72,17 +77,10 @@ export function MorningBrief({
             {delta}%
           </span>
         </span>
-        {brief.yesterday.hasFullReport ? (
+        {brief.yesterday.hasFullReport && (
           <Link href="/pnl" className="hover:underline">
             Прибыль <span className="font-semibold tabular-nums">{fmtMoney(brief.yesterday.profit)}</span>
           </Link>
-        ) : (
-          <span
-            className="text-xs text-muted-foreground"
-            title="Полный финансовый отчёт WB закрывает за прошлую неделю в пн/вт. Сейчас доступны только продажи."
-          >
-            Маржа доступна с {brief.lastReportDate ?? '—'}
-          </span>
         )}
       </div>
 
