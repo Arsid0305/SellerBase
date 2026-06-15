@@ -7,9 +7,9 @@ function fmtMoney(v: number): string {
   return `₽${Math.round(v).toLocaleString('ru-RU')}`;
 }
 
-function fmtToday(): string {
-  const d = new Date();
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' });
+function fmtDataDate(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long', timeZone: 'UTC' });
 }
 
 function fmtDayLabel(isoDate: string): string {
@@ -46,7 +46,7 @@ export function MorningBrief({
       <div className="mb-3 flex items-center gap-2 text-sm font-medium">
         <Sun className="size-4 text-amber-500" />
         <span>Утренний бриф</span>
-        <span className="text-muted-foreground">· {fmtToday()}</span>
+        <span className="text-muted-foreground">· {fmtDataDate(brief.yesterday.date)}</span>
       </div>
 
       <div className="mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
