@@ -143,6 +143,11 @@ export function PnLChart({ data, title = 'Динамика P&L' }: { data: Daily
         </div>
       </CardHeader>
       <CardContent>
+        {activeMoney.length === 0 && activeMargin.length === 0 ? (
+          <div className="flex h-[320px] w-full items-center justify-center text-sm text-muted-foreground">
+            Выберите линии в легенде
+          </div>
+        ) : (
         <div className="relative">
         <svg
           ref={svgRef}
@@ -248,6 +253,7 @@ export function PnLChart({ data, title = 'Динамика P&L' }: { data: Daily
           );
         })()}
         </div>
+        )}
         {(activeMoney.length > 0 || activeMargin.length > 0) && (
           <p className="mt-2 text-[10px] text-muted-foreground">
             Левая ось — ₽, правая ось — Маржа %. Маржа рисуется штрихом.
