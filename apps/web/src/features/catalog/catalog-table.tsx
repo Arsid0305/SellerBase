@@ -254,7 +254,6 @@ export function CatalogExplorer({
       <DataTable
         data={filtered}
         columns={catalogColumns}
-        initialSort={[{ id: 'sales30dRub', desc: true }]}
         rowKey={(row) => row.id}
         empty="Ничего не найдено. Попробуйте изменить фильтры."
       />

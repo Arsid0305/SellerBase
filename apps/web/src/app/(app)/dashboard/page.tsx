@@ -1,7 +1,7 @@
 import { Download, Info } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { KpiGrid, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard } from '@/features/dashboard';
+import { KpiGrid, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard, FunnelCard, RatingCard } from '@/features/dashboard';
 import { PnLChart } from '@/features/pnl';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
 import {
@@ -19,6 +19,7 @@ import {
   fetchAverageWarehouseCoefAtOrBefore,
 } from '@/entities/wb-tariffs';
 import { fetchDashboardBrief } from '@/entities/dashboard-brief';
+import { fetchSellerAnalytics } from '@/entities/seller-analytics';
 
 export const metadata = { title: 'Сводка' };
 export const dynamic = 'force-dynamic';
@@ -60,7 +61,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   const weekAgoIso = weekAgo.toISOString().slice(0, 10);
 
-  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts] = await Promise.all([
+  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
@@ -70,6 +71,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     fetchDashboardBrief(),
     fetchPnlByCategory(lastNDaysRange(30)),
     fetchTopProductsByRevenue(range, 5),
+    fetchSellerAnalytics(),
   ]);
 
   const revenueKpi: DashboardKpi = {
@@ -159,7 +161,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         <div className="xl:col-span-2">
           <MorningBrief brief={brief} anomaliesCount={anomalies.length} />
         </div>
-        <ChannelsDonut channels={channels} />
+        <div className="flex flex-col gap-4">
+          <FunnelCard funnel={sellerAnalytics.funnel} />
+          <RatingCard rating={sellerAnalytics.rating} />
+        </div>
       </div>
       <KpiGrid
         kpis={{
