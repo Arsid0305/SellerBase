@@ -1,8 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Card, CardContent, CardHeader } from '@/shared/ui/card';
 import { cn } from '@/shared/lib/utils';
 import { formatRub } from '@/shared/lib/format';
 import type { SalesHourlyBucket } from '@/entities/sales-hourly';
@@ -25,15 +24,6 @@ const TABS: { key: TabKey; label: string; available: boolean }[] = [
 ];
 
 type Buckets = { today: SalesHourlyBucket; yesterday: SalesHourlyBucket; weekAgo: SalesHourlyBucket };
-
-function fillHours(bucket: SalesHourlyBucket): number[] {
-  const arr = Array(24).fill(0);
-  for (const p of bucket.points) {
-    const h = new Date(p.hour).getUTCHours();
-    arr[h] = bucket === undefined ? 0 : 0;
-  }
-  return arr;
-}
 
 function bucketByHour(bucket: SalesHourlyBucket, metric: Metric): number[] {
   const arr = Array(24).fill(0);
@@ -64,18 +54,6 @@ function pctDelta(a: number, b: number): number {
   return Math.round(((a - b) / Math.abs(b)) * 100);
 }
 
-function DeltaPill({ value, label }: { value: number; label: string }) {
-  const Icon = value > 0 ? ArrowUp : value < 0 ? ArrowDown : Minus;
-  const cls = value > 0 ? 'text-emerald-600 dark:text-emerald-400' : value < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground';
-  const sign = value > 0 ? '+' : '';
-  return (
-    <span className={cn('inline-flex items-center gap-0.5 text-xs', cls)}>
-      <Icon className="size-3" />
-      {sign}{value}% {label}
-    </span>
-  );
-}
-
 export function WbStyleChart({ buckets }: { buckets: Buckets }) {
   const [tab, setTab] = useState<TabKey>('sales');
   const [metric, setMetric] = useState<Metric>('sum');
@@ -93,14 +71,6 @@ export function WbStyleChart({ buckets }: { buckets: Buckets }) {
   const yesterday = buildPath(yesterdayHours, max, innerW, innerH);
   const weekAgo = buildPath(weekAgoHours, max, innerW, innerH);
 
-  const todayTotal = metric === 'count' ? buckets.today.totalCount : buckets.today.totalSum;
-  const yesterdayTotal = metric === 'count' ? buckets.yesterday.totalCount : buckets.yesterday.totalSum;
-  const weekAgoTotal = metric === 'count' ? buckets.weekAgo.totalCount : buckets.weekAgo.totalSum;
-
-  const deltaYesterday = pctDelta(todayTotal, yesterdayTotal);
-  const deltaWeek = pctDelta(todayTotal, weekAgoTotal);
-
-  const fmt = (v: number) => metric === 'count' ? v.toLocaleString('ru-RU') : formatRub(Math.round(v));
 
   const activeTab = TABS.find((t) => t.key === tab)!;
 

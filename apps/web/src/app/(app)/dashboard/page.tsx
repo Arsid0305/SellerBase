@@ -1,9 +1,9 @@
 import { Download, Info } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { KpiGrid, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard, FunnelCard, RatingCard } from '@/features/dashboard';
+import { KpiGrid, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard, FunnelCard, RatingCard } from '@/features/dashboard';
 import { PnLChart } from '@/features/pnl';
-import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
+import type { DashboardKpi } from '@/features/dashboard/types';
 import {
   fetchPnlAggregate,
   fetchDailyRevenue,
@@ -108,16 +108,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     series: [],
     hint: 'п.п. к прошлому периоду',
   };
-
-  const channels: ChannelShare[] = [
-    {
-      channel: 'WB',
-      label: 'Wildberries',
-      share: current.revenue > 0 ? 100 : 0,
-      delta: 0,
-      amount: current.revenue,
-    },
-  ];
 
   return (
     <div className="flex flex-col gap-6">
