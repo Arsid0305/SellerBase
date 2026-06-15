@@ -195,7 +195,59 @@ export function PnLChart({ data, title = 'Динамика P&L' }: { data: Daily
               {formatDate(x.raw.date)}
             </text>
           ))}
+          {hoverIdx !== null && data[hoverIdx] && (() => {
+            const stepLocal = data.length > 1 ? innerW / (data.length - 1) : innerW;
+            const hx = PAD_LEFT + hoverIdx * stepLocal;
+            return (
+              <g>
+                <line x1={hx} x2={hx} y1={PAD_TOP} y2={HEIGHT - PAD_BOTTOM} className="stroke-muted-foreground/40" strokeWidth={1} />
+                {activeMoney.map(({ key, pick, dot }) => {
+                  const v = pick(data[hoverIdx]!);
+                  const y = PAD_TOP + innerH - (v / moneyMax) * innerH;
+                  return <circle key={key} cx={hx} cy={y} r={3} className={dot.replace('bg-', 'fill-')} />;
+                })}
+                {activeMargin.map(({ key, pick, dot }) => {
+                  const v = pick(data[hoverIdx]!);
+                  const y = PAD_TOP + innerH - ((v - marginRange.min) / (marginRange.max - marginRange.min)) * innerH;
+                  return <circle key={key} cx={hx} cy={y} r={3} className={dot.replace('bg-', 'fill-')} />;
+                })}
+              </g>
+            );
+          })()}
         </svg>
+        {hoverIdx !== null && data[hoverIdx] && (() => {
+          const stepLocal = data.length > 1 ? innerW / (data.length - 1) : innerW;
+          const hxPct = ((PAD_LEFT + hoverIdx * stepLocal) / WIDTH) * 100;
+          const placeRight = hxPct < 70;
+          return (
+            <div
+              className="pointer-events-none absolute z-10 min-w-[180px] rounded-md border border-border bg-background p-2 text-xs shadow-lg"
+              style={{
+                top: '8px',
+                left: placeRight ? `calc(${hxPct}% + 8px)` : undefined,
+                right: !placeRight ? `calc(${100 - hxPct}% + 8px)` : undefined,
+              }}
+            >
+              <div className="mb-1 font-medium tabular-nums">{formatDate(data[hoverIdx]!.date)}</div>
+              <ul className="space-y-0.5">
+                {[...activeMoney, ...activeMargin].map(({ key, label, pick, dot, axis }) => {
+                  const v = pick(data[hoverIdx]!);
+                  const shown = axis === 'percent' ? `${v.toFixed(1)}%` : formatRub(Math.round(v));
+                  return (
+                    <li key={key} className="flex items-center justify-between gap-3">
+                      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                        <span className={`inline-block size-2 rounded-full ${dot}`} />
+                        {label}
+                      </span>
+                      <span className="tabular-nums">{shown}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })()}
+        </div>
         {(activeMoney.length > 0 || activeMargin.length > 0) && (
           <p className="mt-2 text-[10px] text-muted-foreground">
             Левая ось — ₽, правая ось — Маржа %. Маржа рисуется штрихом.
