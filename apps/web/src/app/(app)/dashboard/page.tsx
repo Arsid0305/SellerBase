@@ -1,13 +1,12 @@
 import { Download, Info } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { KpiGrid, RevenueExpensesChart, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard } from '@/features/dashboard';
-import { ProfitMarginChart } from '@/features/pnl';
+import { KpiGrid, ChannelsDonut, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard } from '@/features/dashboard';
+import { PnLChart } from '@/features/pnl';
 import type { ChannelShare, DashboardKpi } from '@/features/dashboard/types';
 import {
   fetchPnlAggregate,
   fetchDailyRevenue,
-  fetchDailyMarginSeries,
   fetchPnlByCategory,
   fetchTopProductsByRevenue,
   shiftRangeBack,
@@ -61,11 +60,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   const weekAgoIso = weekAgo.toISOString().slice(0, 10);
 
-  const [current, previous, series, marginSeries, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts] = await Promise.all([
+  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
-    fetchDailyMarginSeries(range),
     fetchAnomalies(),
     fetchAverageWarehouseCoef(),
     fetchAverageWarehouseCoefAtOrBefore(weekAgoIso),
@@ -173,8 +171,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         }}
         comparison={{ from: comparison.from, to: comparison.to, label: formatRange(comparison) }}
       />
-      <RevenueExpensesChart data={series} />
-      <ProfitMarginChart data={marginSeries} />
+      <PnLChart data={series} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <CategoriesCard rows={categoryPnl} />
         <AnomaliesBanner anomalies={anomalies} />
