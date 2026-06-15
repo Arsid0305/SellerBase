@@ -58,7 +58,14 @@ export function PnlSkuTable({ rows }: { rows: PnlSkuTableRow[] }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let r = rows;
-    if (q) r = r.filter((x) => x.title.toLowerCase().includes(q) || (x.myArticle ?? '').toLowerCase().includes(q));
+    if (q) {
+      r = r.filter(
+        (x) =>
+          x.title.toLowerCase().includes(q) ||
+          (x.myArticle ?? '').toLowerCase().includes(q) ||
+          String(x.wbArticle ?? '').includes(q),
+      );
+    }
     if (onlyLoss) r = r.filter((x) => x.profit < 0);
     return [...r].sort((a, b) => {
       const va = a[sortKey];
@@ -116,9 +123,9 @@ export function PnlSkuTable({ rows }: { rows: PnlSkuTableRow[] }) {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[640px]">
           <table className="w-full text-sm">
-            <thead className="text-xs uppercase text-muted-foreground">
+            <thead className="text-xs uppercase text-muted-foreground sticky top-0 z-10 bg-background">
               <tr className="border-b border-border">
                 {COLS.map((c) => (
                   <th
@@ -136,7 +143,14 @@ export function PnlSkuTable({ rows }: { rows: PnlSkuTableRow[] }) {
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.skuId} className="border-b border-border/60 hover:bg-muted/30">
+                <tr
+                  key={r.skuId}
+                  className={cn(
+                    'border-b border-border/60 hover:bg-muted/30',
+                    r.profit < 0 && 'bg-rose-500/5 hover:bg-rose-500/10',
+                    r.profit >= 0 && r.marginPct > 30 && 'bg-emerald-500/5 hover:bg-emerald-500/10',
+                  )}
+                >
                   <td className="px-2 py-1.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <SkuThumb src={r.photoUrl} alt={r.title} />
@@ -154,7 +168,7 @@ export function PnlSkuTable({ rows }: { rows: PnlSkuTableRow[] }) {
                   <td className="px-2 py-1.5 text-right tabular-nums">{formatRub(r.marketing)}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{formatRub(r.tax)}</td>
                   <td className={cn('px-2 py-1.5 text-right tabular-nums font-medium', r.profit < 0 && 'text-rose-600 dark:text-rose-400')}>{formatRub(r.profit)}</td>
-                  <td className={cn('px-2 py-1.5 text-right tabular-nums font-medium', r.marginPct < 0 ? 'text-rose-600 dark:text-rose-400' : r.marginPct >= 25 ? 'text-emerald-600 dark:text-emerald-400' : '')}>
+                  <td className={cn('px-2 py-1.5 text-right tabular-nums font-medium', r.marginPct < 0 ? 'text-rose-600 dark:text-rose-400' : r.marginPct > 30 ? 'text-emerald-600 dark:text-emerald-400' : '')}>
                     {r.marginPct.toFixed(1)}%
                   </td>
                 </tr>
@@ -168,7 +182,7 @@ export function PnlSkuTable({ rows }: { rows: PnlSkuTableRow[] }) {
               )}
             </tbody>
             {filtered.length > 0 && (
-              <tfoot className="text-sm font-medium">
+              <tfoot className="text-sm font-medium sticky bottom-0 bg-background">
                 <tr className="border-t-2 border-border">
                   <td className="px-2 py-2">Итого</td>
                   <td className="px-2 py-2 text-right tabular-nums">{totals.unitsSold.toLocaleString('ru-RU')}</td>
@@ -179,7 +193,7 @@ export function PnlSkuTable({ rows }: { rows: PnlSkuTableRow[] }) {
                   <td className="px-2 py-2 text-right tabular-nums">{formatRub(totals.marketing)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{formatRub(totals.tax)}</td>
                   <td className={cn('px-2 py-2 text-right tabular-nums', totals.profit < 0 && 'text-rose-600 dark:text-rose-400')}>{formatRub(totals.profit)}</td>
-                  <td className={cn('px-2 py-2 text-right tabular-nums', totals.marginPct < 0 ? 'text-rose-600 dark:text-rose-400' : totals.marginPct >= 25 ? 'text-emerald-600 dark:text-emerald-400' : '')}>
+                  <td className={cn('px-2 py-2 text-right tabular-nums', totals.marginPct < 0 ? 'text-rose-600 dark:text-rose-400' : totals.marginPct > 30 ? 'text-emerald-600 dark:text-emerald-400' : '')}>
                     {totals.marginPct.toFixed(1)}%
                   </td>
                 </tr>
