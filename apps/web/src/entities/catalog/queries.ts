@@ -2,6 +2,23 @@ import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { CatalogProduct } from '@/features/catalog/types';
 import type { ProductLifecycleState } from '@/entities/product-state/types';
+import type { ProductTagKind } from '@/shared/ui/domain/product-tag-badge';
+
+function buildTags(lifecycle: ProductLifecycleState, margin: number, hasSales: boolean): ProductTagKind[] {
+  const tags: ProductTagKind[] = [];
+  if (hasSales) {
+    if (lifecycle === 'LEADER' || lifecycle === 'GROWING') tags.push('A');
+    else if (lifecycle === 'STABLE') tags.push('B');
+    else if (lifecycle === 'DECLINING' || lifecycle === 'CRITICAL') tags.push('C');
+  }
+  if (hasSales || margin !== 0) {
+    if (margin >= 30) tags.push('PPP');
+    else if (margin >= 15) tags.push('PP');
+    else if (margin >= 0) tags.push('P');
+    else tags.push('-P');
+  }
+  return tags;
+}
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
@@ -255,15 +272,19 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
     const trust = Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
     const value = Math.max(0, Math.min(100, Math.round(margin * 2)));
 
+    const lifecycle = lifecycleMap.get(c.id) ?? 'STABLE';
+    const hasSales = (sales?.units ?? 0) > 0 || revenue > 0;
     return {
       id: String(c.id),
       name: c.title ?? c.my_article ?? 'Без названия',
       barcode: c.barcode ?? '',
+      myArticle: c.my_article,
+      wbArticle: c.wb_article,
       photoUrl: c.photo_url ?? wbPhotoUrl(c.wb_article),
       channel: 'WB',
       brand: c.brand ?? '—',
       category: c.subject_name ?? c.category ?? '—',
-      tags: [],
+      tags: buildTags(lifecycle, margin, hasSales),
       stock: stock?.totalStock ?? 0,
       inTransit: stock?.inTransit ?? 0,
       warehousesCount: stock?.warehousesCount ?? 0,
@@ -278,7 +299,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
       visibility,
       trust,
       value,
-      lifecycle: lifecycleMap.get(c.id) ?? 'STABLE',
+      lifecycle,
     };
   });
 

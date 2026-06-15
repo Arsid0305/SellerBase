@@ -7,6 +7,8 @@ export type CatalogProduct = {
   id: string;
   name: string;
   barcode: string;
+  myArticle?: string | null;
+  wbArticle?: number | null;
   photoUrl?: string | null;
   channel: 'WB' | 'OZON';
   brand: string;

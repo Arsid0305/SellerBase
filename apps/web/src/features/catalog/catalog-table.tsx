@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { DataTable } from '@/shared/ui/domain/data-table';
@@ -98,7 +98,7 @@ function matchesStatus(row: CatalogProduct, status: CatalogStatus | 'all'): bool
     case 'out-of-stock':
       return row.stock === 0;
     case 'no-sales':
-      return row.sales30dUnits === 0 || row.lastSaleDaysAgo > 14;
+      return row.sales30dUnits === 0 || row.lastSaleDaysAgo > 30;
     case 'excess':
       return row.daysOfStock > 90;
   }
@@ -111,7 +111,9 @@ function matchesSearch(row: CatalogProduct, q: string): boolean {
     row.name.toLowerCase().includes(needle) ||
     row.barcode.toLowerCase().includes(needle) ||
     row.brand.toLowerCase().includes(needle) ||
-    row.category.toLowerCase().includes(needle)
+    row.category.toLowerCase().includes(needle) ||
+    (row.myArticle ?? '').toLowerCase().includes(needle) ||
+    (row.wbArticle ?? '').toString().includes(needle)
   );
 }
 
@@ -126,6 +128,11 @@ export function CatalogExplorer({
   const [status, setStatus] = useState<CatalogStatus | 'all'>('all');
   const [category, setCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
   const [lifecycle, setLifecycle] = useState<LifecycleFilter>('all');
   const [margin, setMargin] = useState<MarginFilter>('all');
   const [stockDays, setStockDays] = useState<StockDaysFilter>('all');
@@ -139,8 +146,8 @@ export function CatalogExplorer({
         .filter((r) => (lifecycle === 'all' ? true : (r.lifecycle ?? 'STABLE') === lifecycle))
         .filter((r) => matchesMargin(r, margin))
         .filter((r) => matchesStockDays(r, stockDays))
-        .filter((r) => matchesSearch(r, search)),
-    [rows, marketplaces, status, category, lifecycle, margin, stockDays, search],
+        .filter((r) => matchesSearch(r, debouncedSearch)),
+    [rows, marketplaces, status, category, lifecycle, margin, stockDays, debouncedSearch],
   );
 
   const summary = useMemo(() => buildCatalogSummary(filtered), [filtered]);
