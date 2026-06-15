@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
-import { formatCompact, formatDate } from '@/shared/lib/format';
+import { formatCompact, formatDate, formatRub } from '@/shared/lib/format';
 import type { DailyPoint } from '@/features/dashboard/types';
 
 const WIDTH = 1200;
@@ -68,6 +68,8 @@ export function PnLChart({ data, title = 'Динамика P&L' }: { data: Daily
   const [on, setOn] = useState<Record<LineKey, boolean>>(() =>
     Object.fromEntries(LINES.map((s) => [s.key, s.defaultOn])) as Record<LineKey, boolean>,
   );
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const activeMoney = useMemo(() => LINES.filter((l) => on[l.key] && l.axis === 'money'), [on]);
   const activeMargin = useMemo(() => LINES.filter((l) => on[l.key] && l.axis === 'percent'), [on]);
@@ -141,7 +143,24 @@ export function PnLChart({ data, title = 'Динамика P&L' }: { data: Daily
         </div>
       </CardHeader>
       <CardContent>
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="h-[320px] w-full" preserveAspectRatio="none">
+        <div className="relative">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          className="h-[320px] w-full"
+          preserveAspectRatio="none"
+          onMouseMove={(e) => {
+            if (!svgRef.current || data.length === 0) return;
+            const rect = svgRef.current.getBoundingClientRect();
+            const xSvg = ((e.clientX - rect.left) / rect.width) * WIDTH;
+            const innerXSvg = xSvg - PAD_LEFT;
+            const stepLocal = data.length > 1 ? innerW / (data.length - 1) : innerW;
+            const idx = Math.round(innerXSvg / stepLocal);
+            if (idx >= 0 && idx < data.length) setHoverIdx(idx);
+            else setHoverIdx(null);
+          }}
+          onMouseLeave={() => setHoverIdx(null)}
+        >
           {gridLines.map((g) => {
             const y = PAD_TOP + innerH * g;
             const moneyLabel = (moneyMax * (1 - g)).toFixed(0);
