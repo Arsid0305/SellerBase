@@ -1,7 +1,7 @@
 import { Download, Info } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { KpiGrid, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard, FunnelCard, RatingCard } from '@/features/dashboard';
+import { KpiGrid, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard, FunnelCard, RatingCard, WbStyleChart } from '@/features/dashboard';
 import { PnLChart } from '@/features/pnl';
 import type { DashboardKpi } from '@/features/dashboard/types';
 import {
@@ -20,6 +20,7 @@ import {
 } from '@/entities/wb-tariffs';
 import { fetchDashboardBrief } from '@/entities/dashboard-brief';
 import { fetchSellerAnalytics } from '@/entities/seller-analytics';
+import { fetchSalesComparison } from '@/entities/sales-hourly';
 
 export const metadata = { title: 'Сводка' };
 export const dynamic = 'force-dynamic';
@@ -61,7 +62,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   const weekAgoIso = weekAgo.toISOString().slice(0, 10);
 
-  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics] = await Promise.all([
+  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics, salesComparison] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
@@ -72,6 +73,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     fetchPnlByCategory(lastNDaysRange(30)),
     fetchTopProductsByRevenue(range, 5),
     fetchSellerAnalytics(),
+    fetchSalesComparison(),
   ]);
 
   const revenueKpi: DashboardKpi = {
@@ -166,6 +168,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         }}
         comparison={{ from: comparison.from, to: comparison.to, label: formatRange(comparison) }}
       />
+      <WbStyleChart buckets={salesComparison} />
       <PnLChart data={series} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <CategoriesCard rows={categoryPnl} />
