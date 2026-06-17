@@ -17,6 +17,8 @@ const CSV_COLUMNS: CsvColumn<Review>[] = [
   { key: 'date', label: 'Дата' },
   { key: 'productName', label: 'Товар' },
   { key: 'productBarcode', label: 'Штрихкод' },
+  { key: 'myArticle', label: 'Мой артикул' },
+  { key: 'wbArticle', label: 'Артикул WB' },
   { key: 'channel', label: 'Канал' },
   { key: 'rating', label: 'Оценка' },
   { key: 'author', label: 'Автор' },
@@ -40,24 +42,39 @@ const CHIPS: Chip[] = [
   { id: 'unanswered', label: 'Без ответа' },
 ];
 
+function matchesSearch(row: Review, q: string): boolean {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return (
+    row.text.toLowerCase().includes(needle) ||
+    row.author.toLowerCase().includes(needle) ||
+    row.productName.toLowerCase().includes(needle) ||
+    row.productBarcode.toLowerCase().includes(needle) ||
+    (row.myArticle ?? '').toLowerCase().includes(needle) ||
+    (row.wbArticle ?? '').toString().includes(needle)
+  );
+}
+
 export function ReviewsExplorer({ rows }: { rows: Review[] }) {
   const marketplaces = useFiltersStore((s) => s.marketplaces);
   const [chip, setChip] = useState<Chip['id']>('all');
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 250);
+    return () => clearTimeout(t);
+  }, [query]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (!marketplaces.includes(r.channel)) return false;
       if (chip === 'unanswered' && r.responseStatus === 'answered') return false;
       if (chip !== 'all' && chip !== 'unanswered' && r.rating !== Number(chip)) return false;
-      if (q) {
-        const hay = `${r.text} ${r.author} ${r.productName}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
+      if (!matchesSearch(r, debouncedQuery)) return false;
       return true;
     });
-  }, [rows, marketplaces, chip, query]);
+  }, [rows, marketplaces, chip, debouncedQuery]);
 
   const summary = useMemo(() => buildReviewsSummary(filtered), [filtered]);
 
@@ -86,7 +103,7 @@ export function ReviewsExplorer({ rows }: { rows: Review[] }) {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Поиск по тексту, автору, товару"
+            placeholder="Поиск по тексту, автору, товару, артикулу, штрихкоду"
             className={cn(
               'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm transition-colors',
               'placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:max-w-sm',

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
 import {
   LEVEL_LABEL,
@@ -97,6 +98,7 @@ export function PersonaScenariosCard({ persona, allScenarios }: Props) {
           <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 text-xs text-neutral-600">
               Вес (0–1):
+              <TooltipIcon text="Доля релевантности сценария для этой персоны — влияет на ранжирование в подборках" />
               <input
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
@@ -145,7 +147,7 @@ export function PersonaScenariosCard({ persona, allScenarios }: Props) {
                 </span>
               </Link>
               <div className="flex shrink-0 items-center gap-2">
-                <span className="text-xs text-neutral-500">{s.weight.toFixed(2)}</span>
+                <span className="text-xs tabular-nums text-neutral-500">{s.weight.toFixed(2)}</span>
                 <Progress value={s.weight} />
                 <Button
                   size="sm"

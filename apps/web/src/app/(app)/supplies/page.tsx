@@ -4,6 +4,7 @@ import { PageHeader } from '@/widgets/app-shell/page-header';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { fetchSupplyPlans, SUPPLY_PLAN_STATUS_LABEL, type SupplyPlanStatus } from '@/entities/supplies';
+import { formatInt } from '@/shared/lib/format';
 
 export const metadata = { title: 'Поставки' };
 export const dynamic = 'force-dynamic';
@@ -67,7 +68,7 @@ export default async function SuppliesPage() {
               </div>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{new Date(p.createdAt).toLocaleDateString('ru-RU')}</span>
-                <span>{p.itemsCount ?? 0} позиций</span>
+                <span className="tabular-nums">{formatInt(p.itemsCount ?? 0)} позиций</span>
               </div>
             </Link>
           ))}

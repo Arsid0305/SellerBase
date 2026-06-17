@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Trash2, Plus } from 'lucide-react';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
 import type { Persona, ScenarioWithRelations } from '@/entities/customer';
 
@@ -142,6 +143,7 @@ export function ScenarioDetailCard({ scenario, allPersonas, allSkus }: Props) {
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-xs text-neutral-600">
                 Вес (0–1):
+                <TooltipIcon text="Доля релевантности сценария для этой персоны — влияет на ранжирование в подборках" />
                 <input
                   value={personaWeight}
                   onChange={(e) => setPersonaWeight(e.target.value)}
@@ -184,7 +186,7 @@ export function ScenarioDetailCard({ scenario, allPersonas, allSkus }: Props) {
                   {p.name}
                 </Link>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-500">{p.weight.toFixed(2)}</span>
+                  <span className="text-xs tabular-nums text-neutral-500">{p.weight.toFixed(2)}</span>
                   <Progress value={p.weight} />
                   <Button
                     size="sm"
@@ -247,6 +249,7 @@ export function ScenarioDetailCard({ scenario, allPersonas, allSkus }: Props) {
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-xs text-neutral-600">
                 Fit score (0–1):
+                <TooltipIcon text="Насколько товар закрывает сценарий покупки — выше значение, точнее совпадение" />
                 <input
                   value={skuFit}
                   onChange={(e) => setSkuFit(e.target.value)}
@@ -298,7 +301,7 @@ export function ScenarioDetailCard({ scenario, allPersonas, allSkus }: Props) {
                   ) : null}
                 </Link>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 tabular-nums">
                     {s.fitScore.toFixed(2)}
                   </Badge>
                   <Progress value={s.fitScore} />
