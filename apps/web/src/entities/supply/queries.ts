@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { DeficitRow, DeficitSummary } from '@/features/deficit/types';
 import type { SupplyRecommendationRowDb, SkuCatalogRowDb } from './types';
 
@@ -78,6 +79,9 @@ export async function fetchSupplyRecommendation(): Promise<DeficitRow[]> {
       id: String(row.sku_id),
       name: cat?.title ?? row.my_article ?? 'Без названия',
       barcode: row.barcode ?? '',
+      myArticle: row.my_article ?? null,
+      wbArticle: row.wb_article ?? null,
+      photoUrl: wbPhotoUrl(row.wb_article),
       channel: 'WB',
       warehouse: '',
       tags: [],
