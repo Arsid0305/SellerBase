@@ -37,10 +37,10 @@
 - ✅ **Анализатор маржи «почему падает»** — `/margin-analyzer` (главный виновник + рекомендация)
 - ✅ **Точка безубыточности** — карточка в `/products/[id]`
 - ✅ **Симулятор цены** — `/price-simulator` (слайдер + KPI маржи/прибыли)
-- ⏳ **Telegram алерты** — в полёте, edge function `telegram-alerts`
+- ✅ **Telegram алерты** — edge function `telegram-alerts` + cron 11:00 МСК (5 проверок). Требует deploy + секреты `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`
 - ✅ **Data Quality view** — `/data-quality` (10 метрик)
 - ✅ **Smoke-тесты Playwright** — `apps/web/tests/e2e/smoke.spec.ts` (19 страниц)
-- **Юнит-тесты SQL-формул** P&L, оборачиваемость, ABC/XYZ
+- ✅ **Юнит-тесты SQL-формул** — `supabase/tests/*.sql` (P&L 14 тестов, оборачиваемость 8, ABC skip). Запуск: `pg_prove -d $DATABASE_URL supabase/tests/*.sql`
 
 ---
 
