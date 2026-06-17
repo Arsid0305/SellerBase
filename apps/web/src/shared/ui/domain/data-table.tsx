@@ -43,7 +43,7 @@ export function DataTable<T>({ data, columns, initialSort = [], empty, className
   return (
     <div className={cn('overflow-x-auto rounded-lg border border-border bg-card', className)}>
       <table className="w-full text-sm">
-        <thead className="border-b border-border bg-muted/40">
+        <thead className="sticky top-0 z-10 border-b border-border bg-muted/40">
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((header) => {

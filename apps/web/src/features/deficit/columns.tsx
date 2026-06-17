@@ -4,15 +4,23 @@ import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ProductTagBadge } from '@/shared/ui/domain/product-tag-badge';
 import { Badge } from '@/shared/ui/badge';
+import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { formatRub, formatInt } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
 import type { DeficitRow } from './types';
+
+const DAYS_LEFT_TOOLTIP =
+  'На сколько дней хватит текущего остатка при среднем темпе продаж. 0 — остаток закончился, <3 — критично, 3–7 — риск, >7 — норма.';
+
+const TO_SUPPLY_TOOLTIP =
+  'Дефицит в штуках: сколько нужно заказать, чтобы покрыть спрос на срок поставки + страховой запас.';
 
 function daysLeftClass(value: number): string {
   if (value === 0) return 'text-rose-600 dark:text-rose-400 font-semibold';
   if (value < 3) return 'text-rose-600 dark:text-rose-400 font-medium';
   if (value <= 7) return 'text-amber-600 dark:text-amber-400 font-medium';
-  return 'text-muted-foreground';
+  return 'text-emerald-600 dark:text-emerald-400';
 }
 
 function daysLeftLabel(value: number): string {
@@ -29,10 +37,13 @@ export const deficitColumns: ColumnDef<DeficitRow, unknown>[] = [
     cell: ({ row }) => (
       <Link
         href={`/products/${encodeURIComponent(row.original.barcode)}`}
-        className="flex min-w-[240px] flex-col gap-0.5 hover:underline"
+        className="flex min-w-[240px] items-center gap-2 hover:underline"
       >
-        <span className="font-medium leading-tight">{row.original.name}</span>
-        <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
+        <SkuThumb src={row.original.photoUrl} alt={row.original.name} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="font-medium leading-tight">{row.original.name}</span>
+          <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode}</span>
+        </div>
       </Link>
     ),
   },
@@ -87,7 +98,12 @@ export const deficitColumns: ColumnDef<DeficitRow, unknown>[] = [
   },
   {
     accessorKey: 'daysLeft',
-    header: 'Остаток дней',
+    header: () => (
+      <span className="inline-flex items-center gap-1">
+        Хватит дней
+        <TooltipIcon text={DAYS_LEFT_TOOLTIP} />
+      </span>
+    ),
     cell: ({ row }) => (
       <span className={cn('tabular-nums', daysLeftClass(row.original.daysLeft))}>
         {daysLeftLabel(row.original.daysLeft)}
@@ -96,7 +112,12 @@ export const deficitColumns: ColumnDef<DeficitRow, unknown>[] = [
   },
   {
     accessorKey: 'toSupply',
-    header: 'К поставке',
+    header: () => (
+      <span className="inline-flex items-center gap-1">
+        Дефицит шт
+        <TooltipIcon text={TO_SUPPLY_TOOLTIP} />
+      </span>
+    ),
     cell: ({ row }) => (
       <span className="font-medium tabular-nums">{formatInt(row.original.toSupply)} шт.</span>
     ),

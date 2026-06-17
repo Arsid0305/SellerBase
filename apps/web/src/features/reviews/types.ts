@@ -7,6 +7,9 @@ export interface Review {
   id: string;
   productName: string;
   productBarcode: string;
+  myArticle?: string | null;
+  wbArticle?: number | null;
+  photoUrl?: string | null;
   channel: 'WB' | 'OZON';
   rating: ReviewRating;
   text: string;

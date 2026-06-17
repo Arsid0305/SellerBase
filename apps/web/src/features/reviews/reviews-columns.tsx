@@ -4,24 +4,37 @@ import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Star } from 'lucide-react';
 import { Badge } from '@/shared/ui/badge';
+import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { formatDate } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
 import type { Review } from './types';
 
+const SENTIMENT_TOOLTIP =
+  'Тональность определяется автоматически по тексту отзыва: позитив, нейтрально или негатив.';
+
+function ratingTone(rating: number): string {
+  if (rating >= 4.5) return 'text-emerald-600 dark:text-emerald-400';
+  if (rating < 3.5) return 'text-rose-600 dark:text-rose-400';
+  return 'text-amber-600 dark:text-amber-400';
+}
+
 function RatingStars({ rating }: { rating: number }) {
+  const tone = ratingTone(rating);
   return (
-    <div className="flex items-center gap-0.5" title={`${rating}/5`}>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          className={cn(
-            'size-3.5',
-            i < rating
-              ? 'fill-amber-500 text-amber-500'
-              : 'fill-transparent text-muted-foreground/30',
-          )}
-        />
-      ))}
+    <div className="flex items-center gap-1" title={`${rating}/5`}>
+      <div className="flex items-center gap-0.5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Star
+            key={i}
+            className={cn(
+              'size-3.5',
+              i < rating ? cn('fill-current', tone) : 'fill-transparent text-muted-foreground/30',
+            )}
+          />
+        ))}
+      </div>
+      <span className={cn('text-xs font-medium tabular-nums', tone)}>{rating}</span>
     </div>
   );
 }
@@ -53,12 +66,16 @@ export const reviewsColumns: ColumnDef<Review, unknown>[] = [
     cell: ({ row }) => (
       <Link
         href={`/products/${encodeURIComponent(row.original.productBarcode)}`}
-        className="flex min-w-[200px] flex-col gap-0.5 hover:underline"
+        className="flex min-w-[200px] items-center gap-2 hover:underline"
       >
-        <span className="text-sm font-medium leading-tight">{row.original.productName}</span>
-        <span className="font-mono text-[11px] text-muted-foreground">{row.original.productBarcode}</span>
+        <SkuThumb src={row.original.photoUrl} alt={row.original.productName} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-sm font-medium leading-tight">{row.original.productName}</span>
+          <span className="font-mono text-[11px] text-muted-foreground">{row.original.productBarcode}</span>
+        </div>
       </Link>
     ),
+    enableSorting: false,
   },
   {
     accessorKey: 'channel',
@@ -78,7 +95,12 @@ export const reviewsColumns: ColumnDef<Review, unknown>[] = [
   },
   {
     accessorKey: 'sentiment',
-    header: 'Тональность',
+    header: () => (
+      <span className="inline-flex items-center gap-1">
+        Тональность
+        <TooltipIcon text={SENTIMENT_TOOLTIP} />
+      </span>
+    ),
     cell: ({ row }) => {
       const s = row.original.sentiment;
       const label = s === 'positive' ? 'Позитив' : s === 'negative' ? 'Негатив' : 'Нейтрально';

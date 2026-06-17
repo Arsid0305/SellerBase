@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Download } from 'lucide-react';
 import { formatInt, formatRub } from '@/shared/lib/format';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import type { WeeklySummaryPoint } from '@/entities/sku-weekly';
 
 export function WeeklyTable({ rows, year }: { rows: WeeklySummaryPoint[]; year: number }) {
@@ -50,21 +51,31 @@ export function WeeklyTable({ rows, year }: { rows: WeeklySummaryPoint[]; year: 
                   <th className="px-2 py-2 text-right">Единиц продано</th>
                   <th className="px-2 py-2 text-right">Выручка</th>
                   <th className="px-2 py-2 text-right">Прибыль</th>
-                  <th className="px-2 py-2 text-right">Маржа</th>
-                  <th className="px-2 py-2 text-right">Оборачиваемость, дн</th>
+                  <th className="px-2 py-2 text-right">
+                    <span className="inline-flex items-center gap-1">
+                      Маржа
+                      <TooltipIcon text="Прибыль за неделю, делённая на выручку за неделю." />
+                    </span>
+                  </th>
+                  <th className="px-2 py-2 text-right">
+                    <span className="inline-flex items-center gap-1">
+                      Оборачиваемость, дн
+                      <TooltipIcon text="Среднее число дней, на которое хватит текущего остатка товара при текущей скорости продаж." />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.week_num} className="border-b last:border-0">
-                    <td className="px-2 py-2 font-mono">№{r.week_num}</td>
-                    <td className="px-2 py-2 text-right">{formatInt(r.units_sold)}</td>
-                    <td className="px-2 py-2 text-right">{formatRub(r.revenue)}</td>
-                    <td className={`px-2 py-2 text-right ${r.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    <td className="px-2 py-2 font-mono tabular-nums">№{r.week_num}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{formatInt(r.units_sold)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{formatRub(r.revenue)}</td>
+                    <td className={`px-2 py-2 text-right tabular-nums ${r.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                       {formatRub(r.profit)}
                     </td>
-                    <td className="px-2 py-2 text-right">{r.margin_pct.toFixed(1)}%</td>
-                    <td className="px-2 py-2 text-right">{r.turnover_days_avg.toFixed(1)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{r.margin_pct.toFixed(1)}%</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{r.turnover_days_avg.toFixed(1)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -4,6 +4,8 @@ import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 export type CostRow = {
   sku_id: number;
   barcode: string;
+  myArticle: string | null;
+  wbArticle: number | null;
   title: string;
   photo_url: string | null;
   current_cost: number;
@@ -23,6 +25,7 @@ export type CostHistoryEntry = {
 type SkuRow = {
   id: number;
   wb_article: number | null;
+  my_article: string | null;
   barcode: string | null;
   title: string | null;
   cost_price_rub: number | null;
@@ -41,7 +44,7 @@ export async function fetchCostRows(): Promise<CostRow[]> {
 
   const { data: skus, error: skuErr } = await supabase
     .from('sku_catalog')
-    .select('id, wb_article, barcode, title, cost_price_rub, photo_url')
+    .select('id, wb_article, my_article, barcode, title, cost_price_rub, photo_url')
     .eq('is_active', true)
     .order('id', { ascending: true })
     .range(0, 5000);
@@ -76,6 +79,8 @@ export async function fetchCostRows(): Promise<CostRow[]> {
     return {
       sku_id: s.id,
       barcode: s.barcode ?? '',
+      myArticle: s.my_article ?? null,
+      wbArticle: s.wb_article ?? null,
       title: s.title ?? '—',
       photo_url: s.photo_url ?? wbPhotoUrl(s.wb_article),
       current_cost: h ? Number(h.cost_rub) : Number(s.cost_price_rub ?? 0),

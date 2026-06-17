@@ -1,16 +1,15 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Check, X, Download, Loader2, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Check, X, Download, Loader2, ExternalLink, AlertTriangle, Search } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { formatRub, formatInt } from '@/shared/lib/format';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import type { MatrixPromo, MatrixSku } from '@/entities/promo/matrix-queries';
 import { setParticipationAction, bulkSetParticipationAction } from './actions';
 
-const fmtRub = (n: number | null) =>
-  n == null
-    ? '—'
-    : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(n) + ' ₽';
+const fmtRub = (n: number | null) => (n == null ? '—' : formatRub(n));
 
 const fmtPct = (p: number | null) =>
   p == null ? '—' : (p * 100).toFixed(1).replace('.', ',') + '%';
@@ -20,10 +19,20 @@ const fmtDate = (iso: string) =>
 
 function marginColor(pct: number | null) {
   if (pct == null) return 'text-muted-foreground';
-  if (pct >= 0.2) return 'text-emerald-600';
-  if (pct >= 0.15) return 'text-amber-600';
-  if (pct >= 0) return 'text-orange-600';
-  return 'text-red-600';
+  if (pct < 0.15) return 'text-rose-600';
+  if (pct < 0.25) return 'text-muted-foreground';
+  return 'text-emerald-600';
+}
+
+function matchesSearch(sku: MatrixSku, q: string): boolean {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return (
+    (sku.title ?? '').toLowerCase().includes(needle) ||
+    (sku.myArticle ?? '').toLowerCase().includes(needle) ||
+    (sku.barcode ?? '').toLowerCase().includes(needle) ||
+    String(sku.nmId).includes(needle)
+  );
 }
 
 function turnoverColor(days: number | null) {
@@ -45,17 +54,27 @@ export function PromoMatrixClient({
   const [filter, setFilter] = useState<Filter>('all');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const filtered = useMemo(() => {
-    switch (filter) {
-      case 'in-any':
-        return skus.filter((s) => Object.values(s.cells).some((c) => c.inPromo));
-      case 'recommended-any':
-        return skus.filter((s) => Object.values(s.cells).some((c) => c.recommended));
-      default:
-        return skus;
-    }
-  }, [filter, skus]);
+    const byFilter = (() => {
+      switch (filter) {
+        case 'in-any':
+          return skus.filter((s) => Object.values(s.cells).some((c) => c.inPromo));
+        case 'recommended-any':
+          return skus.filter((s) => Object.values(s.cells).some((c) => c.recommended));
+        default:
+          return skus;
+      }
+    })();
+    return byFilter.filter((s) => matchesSearch(s, debouncedSearch));
+  }, [filter, skus, debouncedSearch]);
 
   const FILTERS: { key: Filter; label: string; count: number }[] = [
     { key: 'all', label: 'Все товары', count: skus.length },
@@ -97,22 +116,34 @@ export function PromoMatrixClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => setFilter(f.key)}
-            className={cn(
-              'rounded-full border px-3 py-1 text-xs transition',
-              filter === f.key
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-card text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {f.label} · {f.count}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilter(f.key)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs transition',
+                filter === f.key
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-card text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {f.label} · {f.count}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full max-w-xs sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск: артикул, штрихкод, nm, название…"
+            className="w-full rounded-md border border-border bg-card py-1.5 pl-8 pr-3 text-xs outline-none focus:border-primary"
+          />
+        </div>
       </div>
 
       {promos.length === 0 ? (
@@ -140,7 +171,10 @@ export function PromoMatrixClient({
                   className="sticky top-0 z-20 min-w-[110px] border-r border-border bg-muted/40 px-3 py-2 text-right"
                   rowSpan={2}
                 >
-                  Оборачив.
+                  <span className="inline-flex items-center gap-1 justify-end">
+                    Оборачив.
+                    <TooltipIcon text="Дней до распродажи остатка при текущем темпе продаж. >90 дн — красный, 60–90 дн — жёлтый." />
+                  </span>
                 </th>
                 <th
                   className="sticky top-0 z-20 min-w-[100px] border-r border-border bg-muted/40 px-3 py-2 text-right"
@@ -152,7 +186,10 @@ export function PromoMatrixClient({
                   className="sticky top-0 z-20 min-w-[110px] border-r-2 border-border bg-muted/40 px-3 py-2 text-right"
                   rowSpan={2}
                 >
-                  Маржа сейчас
+                  <span className="inline-flex items-center gap-1 justify-end">
+                    Маржа сейчас
+                    <TooltipIcon text="Маржа по текущей цене: <15% — внимание, 15–25% — норма, ≥25% — хорошо." />
+                  </span>
                 </th>
                 {promos.map((p) => (
                   <th
@@ -206,7 +243,7 @@ export function PromoMatrixClient({
                     colSpan={5 + promos.length}
                     className="px-3 py-8 text-center text-xs text-muted-foreground"
                   >
-                    Нет товаров под этот фильтр
+                    Нет данных — ничего не найдено под текущий фильтр и поиск
                   </td>
                 </tr>
               ) : (
@@ -280,7 +317,7 @@ function SkuMatrixRow({
         </div>
       </td>
       <td className="border-r border-border px-3 py-2 text-right tabular-nums">
-        {sku.stockUnits}
+        {formatInt(sku.stockUnits)}
       </td>
       <td
         className={cn(

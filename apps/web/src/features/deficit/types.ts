@@ -4,6 +4,9 @@ export type DeficitRow = {
   id: string;
   name: string;
   barcode: string;
+  myArticle: string | null;
+  wbArticle: number | null;
+  photoUrl: string | null;
   channel: 'WB' | 'OZON';
   warehouse: string;
   tags: ProductTagKind[];

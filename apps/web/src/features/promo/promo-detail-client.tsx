@@ -3,13 +3,14 @@
 import { useMemo, useState, useTransition } from 'react';
 import { Download, Check, X, Sparkles, Loader2, AlertTriangle } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { formatRub } from '@/shared/lib/format';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import type { PromoSkuRow, PromoSummary } from '@/entities/promo';
 import { setParticipationAction, bulkSetParticipationAction } from './actions';
 
 type Filter = 'all' | 'recommended' | 'participate' | 'pending' | 'declined';
 
-const fmtRub = (n: number | null) =>
-  n == null ? '—' : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(n) + ' ₽';
+const fmtRub = (n: number | null) => (n == null ? '—' : formatRub(n));
 
 const fmtPct = (p: number | null) =>
   p == null ? '—' : (p * 100).toFixed(1).replace('.', ',') + '%';
@@ -18,10 +19,9 @@ const fmtTurnover = (d: number | null) => (d == null ? '—' : `${d} д`);
 
 function marginColor(pct: number | null) {
   if (pct == null) return 'text-muted-foreground';
-  if (pct >= 0.2) return 'text-emerald-600';
-  if (pct >= 0.15) return 'text-amber-600';
-  if (pct >= 0) return 'text-orange-600';
-  return 'text-red-600';
+  if (pct < 0.15) return 'text-rose-600';
+  if (pct < 0.25) return 'text-muted-foreground';
+  return 'text-emerald-600';
 }
 
 function turnoverColor(days: number | null) {
@@ -186,11 +186,26 @@ export function PromoDetailClient({
             <tr>
               <th className="px-3 py-2 text-left">Товар</th>
               <th className="px-3 py-2 text-right">Остаток</th>
-              <th className="px-3 py-2 text-right">Оборачиваемость</th>
+              <th className="px-3 py-2 text-right">
+                <span className="inline-flex items-center gap-1 justify-end">
+                  Оборачиваемость
+                  <TooltipIcon text="Дней до распродажи остатка при текущем темпе продаж. >90 дн — красный, 60–90 дн — жёлтый." />
+                </span>
+              </th>
               <th className="px-3 py-2 text-right">Цена сейчас</th>
-              <th className="px-3 py-2 text-right">Маржа сейчас</th>
+              <th className="px-3 py-2 text-right">
+                <span className="inline-flex items-center gap-1 justify-end">
+                  Маржа сейчас
+                  <TooltipIcon text="Маржа по текущей цене: <15% — внимание, 15–25% — норма, ≥25% — хорошо." />
+                </span>
+              </th>
               <th className="px-3 py-2 text-right">Цена при акции</th>
-              <th className="px-3 py-2 text-right">Маржа при акции</th>
+              <th className="px-3 py-2 text-right">
+                <span className="inline-flex items-center gap-1 justify-end">
+                  Маржа при акции
+                  <TooltipIcon text="Маржа по плановой цене акции: <15% — внимание, 15–25% — норма, ≥25% — хорошо." />
+                </span>
+              </th>
               <th className="px-3 py-2 text-right">Δ маржа</th>
               <th className="px-3 py-2 text-center">Участвую</th>
             </tr>

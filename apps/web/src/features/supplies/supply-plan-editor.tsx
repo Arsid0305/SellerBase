@@ -1,16 +1,23 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, Download, Trash2, ChevronDown } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
+import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { cn } from '@/shared/lib/utils';
+import { formatInt } from '@/shared/lib/format';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import {
   SUPPLY_PLAN_STATUSES,
   SUPPLY_PLAN_STATUS_LABEL,
   type SupplyPlanStatus,
 } from '@/entities/supplies';
+
+const RECOMMEND_TOOLTIP =
+  'Рекомендация: продажи за 60 дней / 60 × 30 дней − остаток на складе WB − доля от (дом + ФФ).';
 
 export type SupplyEditorSupplier = {
   id: number;
@@ -86,13 +93,19 @@ export function SupplyPlanEditor({
   const [notes, setNotes] = useState(initialNotes);
   const [rows, setRows] = useState<SupplyEditorRow[]>(initialRows);
   const [filter, setFilter] = useState('');
+  const [debouncedFilter, setDebouncedFilter] = useState('');
   const [hideZero, setHideZero] = useState(false);
   const [saving, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [openSupplierFor, setOpenSupplierFor] = useState<number | null>(null);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFilter(filter), 250);
+    return () => clearTimeout(t);
+  }, [filter]);
+
   const visibleRows = useMemo(() => {
-    const q = filter.trim().toLowerCase();
+    const q = debouncedFilter.trim().toLowerCase();
     return rows.filter((r) => {
       if (hideZero) {
         const sum = Object.values(r.qtyByWarehouse).reduce((a, b) => a + b, 0);
@@ -106,7 +119,7 @@ export function SupplyPlanEditor({
         String(r.wbArticle ?? '').includes(q)
       );
     });
-  }, [rows, filter, hideZero]);
+  }, [rows, debouncedFilter, hideZero]);
 
   function patchRow(skuId: number, fn: (r: SupplyEditorRow) => SupplyEditorRow) {
     setRows((prev) => prev.map((r) => (r.skuId === skuId ? fn(r) : r)));
@@ -326,7 +339,10 @@ export function SupplyPlanEditor({
                 Остатки
               </th>
               <th colSpan={warehouses.length} className="border-l px-2 py-2 text-center font-medium text-fuchsia-700 dark:text-fuchsia-400">
-                Везти
+                <span className="inline-flex items-center gap-1">
+                  Везти
+                  <TooltipIcon text={RECOMMEND_TOOLTIP} />
+                </span>
               </th>
               <th rowSpan={2} className="border-l px-2 py-2 text-center font-medium">Итого</th>
               <th rowSpan={2} className="border-l px-2 py-2 font-medium">Поставщик 1688</th>
@@ -347,15 +363,29 @@ export function SupplyPlanEditor({
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((r) => {
+            {visibleRows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={8 + warehouses.length * 3}
+                  className="px-2 py-10 text-center text-muted-foreground"
+                >
+                  Нет данных
+                </td>
+              </tr>
+            ) : (
+            visibleRows.map((r) => {
               const total = warehouses.reduce((a, w) => a + (r.qtyByWarehouse[w] ?? 0), 0);
               const selected = r.suppliers.find((s) => s.id === r.selectedSupplierId);
               const defaultSup = r.suppliers.find((s) => s.isDefault) ?? r.suppliers[0];
               const sup = selected ?? defaultSup;
+              const photoUrl = wbPhotoUrl(r.wbArticle);
               return (
                 <tr key={r.skuId} className="border-b text-xs hover:bg-accent/30">
                   <td className="sticky left-0 z-10 bg-card px-2 py-1 font-mono text-[11px]">
-                    {r.myArticle ?? '—'}
+                    <div className="flex items-center gap-2">
+                      <SkuThumb src={photoUrl} alt={r.title ?? ''} />
+                      <span>{r.myArticle ?? '—'}</span>
+                    </div>
                   </td>
                   <td className="px-2 py-1 font-mono text-[11px] text-muted-foreground">{r.barcode ?? '—'}</td>
                   <td className="max-w-[260px] truncate px-2 py-1" title={r.title ?? ''}>
@@ -367,18 +397,26 @@ export function SupplyPlanEditor({
                       key={`s-${r.skuId}-${w}`}
                       className="border-l bg-blue-500/5 px-2 py-1 text-right tabular-nums text-muted-foreground"
                     >
-                      {r.salesByWarehouse[w] ?? 0}
+                      {formatInt(r.salesByWarehouse[w] ?? 0)}
                     </td>
                   ))}
                   {/* блок 2: остатки */}
-                  {warehouses.map((w) => (
-                    <td
-                      key={`st-${r.skuId}-${w}`}
-                      className="border-l bg-emerald-500/5 px-2 py-1 text-right tabular-nums text-muted-foreground"
-                    >
-                      {r.stocksByWarehouse[w] ?? 0}
-                    </td>
-                  ))}
+                  {warehouses.map((w) => {
+                    const st = r.stocksByWarehouse[w] ?? 0;
+                    return (
+                      <td
+                        key={`st-${r.skuId}-${w}`}
+                        className={cn(
+                          'border-l px-2 py-1 text-right tabular-nums',
+                          st === 0
+                            ? 'bg-rose-500/5 text-rose-600 dark:text-rose-400'
+                            : 'bg-emerald-500/5 text-muted-foreground',
+                        )}
+                      >
+                        {formatInt(st)}
+                      </td>
+                    );
+                  })}
                   <td className="border-l bg-emerald-500/10 px-1 py-1">
                     <input
                       type="number"
@@ -416,7 +454,11 @@ export function SupplyPlanEditor({
                     );
                   })}
                   <td className="border-l px-2 py-1 text-right font-mono tabular-nums">
-                    {total > 0 ? <span className="font-medium">{total}</span> : <span className="text-muted-foreground">0</span>}
+                    {total > 0 ? (
+                      <span className="font-medium">{formatInt(total)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">{formatInt(0)}</span>
+                    )}
                   </td>
                   {/* поставщик */}
                   <td className="relative border-l px-2 py-1">
@@ -466,7 +508,8 @@ export function SupplyPlanEditor({
                   </td>
                 </tr>
               );
-            })}
+            })
+            )}
           </tbody>
         </table>
       </div>

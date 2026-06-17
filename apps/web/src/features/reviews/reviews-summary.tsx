@@ -4,9 +4,16 @@ import { formatInt, formatDelta } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/utils';
 import type { ReviewsSummary } from './types';
 
+function ratingTone(rating: number): string {
+  if (rating >= 4.5) return 'text-emerald-600 dark:text-emerald-400';
+  if (rating < 3.5) return 'text-rose-600 dark:text-rose-400';
+  return 'text-amber-600 dark:text-amber-400';
+}
+
 export function ReviewsSummaryCards({ summary }: { summary: ReviewsSummary }) {
   const responseHigh = summary.responseRate >= 80;
   const deltaPositive = summary.avgRatingDelta >= 0;
+  const avgTone = ratingTone(summary.avgRating);
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <Card>
@@ -16,8 +23,8 @@ export function ReviewsSummaryCards({ summary }: { summary: ReviewsSummary }) {
           </div>
           <div className="flex flex-col gap-0.5">
             <span className="text-sm text-muted-foreground">Средний рейтинг</span>
-            <span className="text-2xl font-semibold tracking-tight tabular-nums">
-              {summary.avgRating.toFixed(2)} <span className="text-amber-500">★</span>
+            <span className={cn('text-2xl font-semibold tracking-tight tabular-nums', avgTone)}>
+              {summary.avgRating.toFixed(2)} <span>★</span>
             </span>
             <span
               className={cn(

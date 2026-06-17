@@ -7,6 +7,7 @@ import { Card } from '@/shared/ui/card';
 import { Button } from '@/shared/ui/button';
 import { Badge } from '@/shared/ui/badge';
 import { cn } from '@/shared/lib/utils';
+import { formatInt, formatRub } from '@/shared/lib/format';
 import type { Goal, GoalMetric, GoalStatus } from '@/entities/goals';
 import { GoalForm } from './goal-form';
 
@@ -37,13 +38,18 @@ function formatDeadline(iso: string | null): string {
   return `${d}.${m}.${y?.slice(2)}`;
 }
 
+function isOverdue(iso: string | null, status: GoalStatus): boolean {
+  if (!iso || status !== 'active') return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(`${iso}T00:00:00`).getTime() < today.getTime();
+}
+
 function formatValue(metric: GoalMetric, v: number | null): string {
   if (v == null) return '—';
-  if (metric === 'units') return new Intl.NumberFormat('ru-RU').format(v) + ' шт';
-  if (metric === 'revenue' || metric === 'margin') {
-    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(v);
-  }
-  return new Intl.NumberFormat('ru-RU').format(v);
+  if (metric === 'units') return `${formatInt(v)} шт`;
+  if (metric === 'revenue' || metric === 'margin') return formatRub(v);
+  return formatInt(v);
 }
 
 function progressColor(ratio: number): string {
@@ -126,7 +132,9 @@ export function GoalsList({ goals }: { goals: Goal[] }) {
                   </div>
                   <div className="mt-1 flex justify-between text-xs text-muted-foreground tabular-nums">
                     <span>{target > 0 ? `${Math.round(ratio * 100)}%` : '—'}</span>
-                    <span>до {formatDeadline(g.deadline)}</span>
+                    <span className={cn(isOverdue(g.deadline, g.status) && 'font-medium text-rose-600')}>
+                      до {formatDeadline(g.deadline)}
+                    </span>
                   </div>
                 </div>
 

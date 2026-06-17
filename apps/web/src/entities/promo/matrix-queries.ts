@@ -24,6 +24,7 @@ export type MatrixSku = {
   title: string | null;
   brand: string | null;
   subjectName: string | null;
+  barcode: string | null;
   photoUrl: string | null;
   stockUnits: number;
   turnoverDays: number | null;
@@ -55,6 +56,7 @@ type CatalogDb = {
   title: string | null;
   brand: string | null;
   subject_name: string | null;
+  barcode: string | null;
   photo_url: string | null;
 };
 
@@ -107,7 +109,7 @@ export async function fetchPromoMatrix(): Promise<{
 
   const { data: catalog } = await supabase
     .from('sku_catalog')
-    .select('wb_article, my_article, title, brand, subject_name, photo_url')
+    .select('wb_article, my_article, title, brand, subject_name, barcode, photo_url')
     .not('wb_article', 'is', null)
     .order('my_article', { ascending: true });
 
@@ -187,6 +189,7 @@ export async function fetchPromoMatrix(): Promise<{
         title: c.title,
         brand: c.brand,
         subjectName: c.subject_name,
+        barcode: c.barcode,
         photoUrl: c.photo_url ?? wbPhotoUrl(nmId),
         stockUnits: stockMap.get(nmId) ?? 0,
         turnoverDays,

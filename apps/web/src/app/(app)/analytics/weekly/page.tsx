@@ -46,19 +46,19 @@ export default async function WeeklyAnalyticsPage({ searchParams }: { searchPara
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Единиц продано</p>
-            <p className="mt-1 text-2xl font-semibold">{formatInt(totals.units)}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{formatInt(totals.units)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Выручка</p>
-            <p className="mt-1 text-2xl font-semibold">{formatRub(totals.revenue)}</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{formatRub(totals.revenue)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Прибыль</p>
-            <p className={`mt-1 text-2xl font-semibold ${totals.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            <p className={`mt-1 text-2xl font-semibold tabular-nums ${totals.profit < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
               {formatRub(totals.profit)}
             </p>
           </CardContent>
@@ -66,7 +66,7 @@ export default async function WeeklyAnalyticsPage({ searchParams }: { searchPara
         <Card>
           <CardContent className="pt-6">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Маржа</p>
-            <p className="mt-1 text-2xl font-semibold">{margin.toFixed(1)}%</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{margin.toFixed(1)}%</p>
           </CardContent>
         </Card>
       </div>

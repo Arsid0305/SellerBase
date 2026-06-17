@@ -52,7 +52,7 @@ export async function ProductScenariosCard({ skuId }: { skuId: number }) {
                 </span>
               </Link>
               <div className="flex shrink-0 items-center gap-2">
-                <span className="text-xs text-neutral-500">{s.fitScore.toFixed(2)}</span>
+                <span className="text-xs tabular-nums text-neutral-500">{s.fitScore.toFixed(2)}</span>
                 <div className="h-1.5 w-20 overflow-hidden rounded-full bg-neutral-100">
                   <div
                     className="h-full rounded-full bg-emerald-500 transition-all"
