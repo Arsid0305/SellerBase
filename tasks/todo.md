@@ -13,7 +13,7 @@
 
 ## 🔴 Дальше после дашборда (по приоритету)
 
-1. **migrate.yml workflow** — миграции из `supabase/migrations/` сейчас не доходят до БД через CI. Нужен workflow с `supabase db push` или `supabase-cli action`. Сейчас применяю руками через MCP — рискованно для среды.
+1. ~~migrate.yml workflow~~ ✅ уже есть — `.github/workflows/migrate.yml` с `supabase db push --include-all` на push в main с изменениями в `supabase/migrations/**/*.sql`. Требует секреты `SBP_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`.
 2. **Документация cron'ов** в одном месте (есть 5 cron, нет общей доки)
 
 ### UAT — сделано в эту сессию (17 июня 2026)
@@ -33,13 +33,13 @@
 
 ## 🟡 Можно делать в фоне без согласования
 
-- **Granularity picker** во всех отчётах с диапазоном — день/неделя/месяц/квартал/год
-- **Анализатор маржи «почему падает»** view + UI (комиссия выросла / хранение съело / возвраты)
-- **Точка безубыточности** — для каждого SKU при какой цене маржа = 0
-- **Симулятор цены** — «при цене X маржа Y%»
-- **Telegram алерты** при падении маржи/выкупа
-- **Data Quality view** — единое окно «что не в порядке с данными»
-- **Smoke-тесты Playwright** — все страницы открываются без ошибок
+- ✅ **Granularity picker** — `shared/ui/domain/granularity-picker.tsx` + `shared/lib/granularity.ts` (компонент готов, интеграцию в страницы — точечно по запросу)
+- ✅ **Анализатор маржи «почему падает»** — `/margin-analyzer` (главный виновник + рекомендация)
+- ✅ **Точка безубыточности** — карточка в `/products/[id]`
+- ✅ **Симулятор цены** — `/price-simulator` (слайдер + KPI маржи/прибыли)
+- ⏳ **Telegram алерты** — в полёте, edge function `telegram-alerts`
+- ✅ **Data Quality view** — `/data-quality` (10 метрик)
+- ✅ **Smoke-тесты Playwright** — `apps/web/tests/e2e/smoke.spec.ts` (19 страниц)
 - **Юнит-тесты SQL-формул** P&L, оборачиваемость, ABC/XYZ
 
 ---
