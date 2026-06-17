@@ -36,6 +36,8 @@ interface WbCard {
   brand?: string;
   description?: string;
   subjectName?: string;
+  rating?: number;
+  reviewsCount?: number;
   photos?: WbPhoto[];
   updatedAt?: string;
 }
@@ -98,7 +100,10 @@ Deno.serve(async (req: Request) => {
             {
               title: card.title || null,
               brand: card.brand || null,
-              category: card.subjectName || null,
+              category: card.subjectName || null, // legacy-поле, оставлено для обратной совместимости
+              subject_name: card.subjectName || null,
+              rating: card.rating ?? null, // Content API обычно не отдаёт — останется null
+              reviews_count: card.reviewsCount ?? null, // аналогично, обычно null без Feedbacks API
               photo_url: photoUrl,
               last_content_sync_at: nowIso,
             },
