@@ -215,7 +215,6 @@ export async function fetchPromoDetail(
     const turnoverDays = turnoverMap.get(m.nm_id) ?? null;
     const cur = num(m.current_price);
     const pl = num(m.plan_price);
-    const cost = num(m.cost_to_wb);
     const marginCurrentPct = num(m.margin_current_pct);
     const marginPromoPct = num(m.margin_at_promo_pct);
     const marginCurrentRub =
@@ -244,7 +243,6 @@ export async function fetchPromoDetail(
       userParticipate: item?.user_participate ?? m.user_participate ?? null,
       userNote: item?.user_note ?? null,
     };
-    void cost;
   });
 
   const participate = rows.filter((r) => r.userParticipate === true).length;
