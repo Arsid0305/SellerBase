@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { wbPhotoUrl } from '@/shared/lib/wb-photo';
+import { TAX_PCT } from '@/shared/lib/business-rules';
 import type { ComponentKey, SkuMarginAnalysis, WeekBreakdown } from './types';
 
 function toNumber(v: unknown): number {
@@ -39,7 +40,8 @@ type CatalogDb = {
 function rowToWeek(row: BreakdownDb): WeekBreakdown {
   const byCard = toNumber(row.by_card_rub);
   const net = toNumber(row.net_profit_rub);
-  const taxRate = 0.07;
+  // УСН 6% — единая ставка из shared/lib/business-rules.ts (раньше тут было 7%).
+  const taxRate = TAX_PCT;
   const components: Record<ComponentKey, number> = {
     commission: toNumber(row.commission_full_rub),
     logistics: toNumber(row.logistics_rub),

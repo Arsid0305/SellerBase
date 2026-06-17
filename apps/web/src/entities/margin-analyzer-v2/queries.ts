@@ -230,7 +230,7 @@ export async function fetchMarginAnalysis(): Promise<MarginAnalysisRow[]> {
       }
     }
 
-    if (mainCulprit === 'none' && marginDeltaPp < -0.5 && now30Final.revenue === 0 && prev30Final.revenue > 0) {
+    if (mainCulprit === 'none' && marginDeltaPp < -0.5 && now30Final.revenue <= 0 && prev30Final.revenue > 0) {
       mainCulprit = 'revenue_down';
     }
 
