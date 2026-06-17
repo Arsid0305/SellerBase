@@ -1,5 +1,6 @@
 import { AlertTriangle, AlertCircle, ShoppingBag, Wallet } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { formatRub, formatInt } from '@/shared/lib/format';
 import type { DeficitSummary } from './types';
 
@@ -12,9 +13,12 @@ export function DeficitSummaryCards({ summary }: { summary: DeficitSummary }) {
             <Wallet className="size-5" />
           </div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm text-muted-foreground">Упущенная выручка</span>
+            <span className="flex items-center gap-1 text-sm text-muted-foreground">
+              Упущенная выручка
+              <TooltipIcon text="Оцениваем сколько денег теряем из-за нехватки остатка. Берём средние продажи и среднюю цену за последние 90 дней, умножаем на 14 дней горизонта." />
+            </span>
             <span className="text-2xl font-semibold tracking-tight">{formatRub(summary.totalLostRevenue)}</span>
-            <span className="text-xs text-muted-foreground">за последние 30 дней</span>
+            <span className="text-xs text-muted-foreground">оценка за 14 дней, окно 90 дней</span>
           </div>
         </CardContent>
       </Card>
