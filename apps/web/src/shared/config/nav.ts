@@ -24,6 +24,7 @@ import {
   CalendarRange,
   Bell,
   TrendingDown,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -70,4 +71,5 @@ export const navItems: NavItem[] = [
   { title: 'Тарифы и коэффициенты', href: '/tariffs', icon: Percent, group: 'data' },
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
   { title: 'Уведомления', href: '/settings/notifications', icon: Bell, group: 'data' },
+  { title: 'Качество данных', href: '/data-quality', icon: ShieldCheck, group: 'data' },
 ];
