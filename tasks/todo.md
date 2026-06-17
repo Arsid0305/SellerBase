@@ -14,7 +14,7 @@
 ## 🔴 Дальше после дашборда (по приоритету)
 
 1. ~~migrate.yml workflow~~ ✅ уже есть — `.github/workflows/migrate.yml` с `supabase db push --include-all` на push в main с изменениями в `supabase/migrations/**/*.sql`. Требует секреты `SBP_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`.
-2. **Документация cron'ов** в одном месте (есть 5 cron, нет общей доки)
+2. ~~Документация cron'ов~~ ✅ `docs/CRONS.md` — таблица 5 активных cron + 9 функций без cron + команды управления + секреты.
 
 ### UAT — сделано в эту сессию (17 июня 2026)
 
