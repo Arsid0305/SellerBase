@@ -25,6 +25,7 @@ import {
   Bell,
   TrendingDown,
   ShieldCheck,
+  Calculator,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -72,4 +73,5 @@ export const navItems: NavItem[] = [
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
   { title: 'Уведомления', href: '/settings/notifications', icon: Bell, group: 'data' },
   { title: 'Качество данных', href: '/data-quality', icon: ShieldCheck, group: 'data' },
+  { title: 'Симулятор цены', href: '/price-simulator', icon: Calculator, group: 'data' },
 ];
