@@ -8,6 +8,5 @@ export { ProductLogisticsForecastCard } from './product-logistics-forecast-card'
 export { ProductPhotosCard } from './product-photos-card';
 export { ProductEventsCard } from './product-events-card';
 export { ProductHistoryCard } from './product-history-card';
-export { ProductTabs } from './product-tabs';
 export { RevenueByDayChart, StockByDayChart } from './product-charts';
 export type { ProductDetail } from './types';
