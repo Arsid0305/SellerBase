@@ -14,8 +14,20 @@
 ## 🔴 Дальше после дашборда (по приоритету)
 
 1. **migrate.yml workflow** — миграции из `supabase/migrations/` сейчас не доходят до БД через CI. Нужен workflow с `supabase db push` или `supabase-cli action`. Сейчас применяю руками через MCP — рискованно для среды.
-2. **UAT остальных страниц** в порядке: `/products` → `/products/[id]` → `/products/costs` → `/pnl` → `/turnover` → `/analytics/*` → `/promo` → `/deficit` → `/supplies` → `/reviews` → `/customers` → `/tasks` → `/goals` → `/settings`
-3. **Документация cron'ов** в одном месте (есть 5 cron, нет общей доки)
+2. **Документация cron'ов** в одном месте (есть 5 cron, нет общей доки)
+
+### UAT — сделано в эту сессию (17 июня 2026)
+
+- ✅ `/pnl` — поиск по артикулу, sticky шапка/итоги, подсветка убыток/маржа, плейсхолдер графика
+- ✅ `/turnover` — фото, поиск, подсветка, tooltip сегментов, sort
+- ✅ `/products/[id]` — tone по знаку прибыли/маржи, hint-tooltip, onError фото, цвет канала
+- ✅ `/products/costs` — поиск по артикулу, sticky шапка, tooltip, пустое состояние
+- ✅ `/analytics/*` (4 страницы) — tooltip-ы метрик, tabular-nums, единый formatRub
+- ✅ `/promo` — поиск, пороги маржи 15/25%, tooltip-ы, мёртвый код убран
+- ✅ `/deficit` — фото, поиск, tooltip, emerald для OK
+- ✅ `/supplies` — formatInt, tooltip формулы «Везти», debounce поиска, sticky шапка
+- ✅ `/reviews` — фото товаров, поиск по артикулу, ratingTone (≥4.5 emerald, <3.5 rose)
+- ✅ `/customers`, `/tasks`, `/goals`, `/settings/notifications` — tabular-nums, tooltip-ы, overdue rose, единый formatRub
 
 ---
 
