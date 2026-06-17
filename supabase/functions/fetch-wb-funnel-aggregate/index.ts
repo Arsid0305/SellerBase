@@ -1,7 +1,7 @@
 // fetch-wb-funnel-aggregate — воронка за длительный период (агрегат).
 // WB: POST /api/analytics/v3/sales-funnel/products
 // UPSERT в wb_sales_funnel_period.
-// По умолчанию: last 60 days.
+// По умолчанию: last 30 days (совпадает с окном WB-кабинета, % выкупа ~83%).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -40,8 +40,8 @@ Deno.serve(async (req: Request) => {
   const qTo = url.searchParams.get("to");
 
   const today = new Date().toISOString().slice(0, 10);
-  const monthsAgo = new Date(Date.now() - 60 * 86400 * 1000).toISOString().slice(0, 10);
-  const dateFrom = qFrom ?? monthsAgo;
+  const monthAgo = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10);
+  const dateFrom = qFrom ?? monthAgo;
   const dateTo = qTo ?? today;
 
   const { data: logRow } = await supabase.from("ingestion_log")

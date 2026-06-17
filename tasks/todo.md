@@ -14,7 +14,7 @@
 ## 🔴 Дальше после дашборда (по приоритету)
 
 1. ~~migrate.yml workflow~~ ✅ уже есть — `.github/workflows/migrate.yml` с `supabase db push --include-all` на push в main с изменениями в `supabase/migrations/**/*.sql`. Требует секреты `SBP_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`.
-2. **Документация cron'ов** в одном месте (есть 5 cron, нет общей доки)
+2. ~~Документация cron'ов~~ ✅ `docs/CRONS.md` — таблица 5 активных cron + 9 функций без cron + команды управления + секреты.
 
 ### UAT — сделано в эту сессию (17 июня 2026)
 
@@ -48,8 +48,8 @@
 
 - **`fetch-wb-orders`** → вкладка «Заказы» в WB-style chart (Statistics API `/api/v1/supplier/orders`, таблица `wb_orders_fact`, cron 30 мин)
 - **`fetch-wb-ads`** → вкладка «Продвижение» + Маркетинг как реальная статья P&L (`/adv/v1/...`, таблица `wb_ads_fact`, daily)
-- **`fetch-wb-content`** заполнит `sku_catalog.rating` + reviews_count + subject_name для новых SKU
-- **Окно `fetch-wb-funnel-aggregate` 60 → 30 дней** → % выкупа совпадёт с WB-кабинетом (~83% вместо 76.5%)
+- ✅ **`fetch-wb-content`** — UPSERT rating + reviews_count + subject_name + last_content_sync_at; cron weekly вторник 09:00 МСК
+- ✅ **Окно `fetch-wb-funnel-aggregate` 60 → 30 дней** — выкуп ~83% совпадёт с WB-кабинетом
 - **Автоматический себес** roadmap: `china_order_items` + `supplies_transport` + `fulfillment_costs` + `delivery_to_wb` → view `v_sku_cost_breakdown`
 - **Лайфсайклы товаров** (Events / Anomaly / Trust-Visibility-Value / Goals)
 - **Excel-экспорт** в шаблон владелицы (`templates/CF_PL_template_wb_only.xlsx`)
