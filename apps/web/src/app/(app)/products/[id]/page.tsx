@@ -74,7 +74,14 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
             >
               {product.meta.inStock ? '• В стоке' : '• Нет в стоке'}
             </Badge>
-            <Badge variant="outline" className="border-fuchsia-500/40 bg-fuchsia-500/10 font-mono text-[10px] text-fuchsia-700 dark:text-fuchsia-400">
+            <Badge
+              variant="outline"
+              className={
+                product.channel === 'WB'
+                  ? 'border-fuchsia-500/40 bg-fuchsia-500/10 font-mono text-[10px] text-fuchsia-700 dark:text-fuchsia-400'
+                  : 'border-sky-500/40 bg-sky-500/10 font-mono text-[10px] text-sky-700 dark:text-sky-400'
+              }
+            >
               {product.channel}
             </Badge>
             {product.tags.map((t) => (
