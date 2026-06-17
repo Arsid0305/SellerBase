@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type {
   TurnoverProduct,
   TurnoverSegment,
@@ -47,6 +48,7 @@ type CatalogDb = {
   id: number;
   title: string | null;
   barcode: string | null;
+  photo_url: string | null;
 };
 
 type SalesDb = { nm_id: number | null; retail_amount: number | null; quantity: number | null };
@@ -75,7 +77,7 @@ export async function fetchTurnoverData(): Promise<{
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
 
   const [catalogResult, salesResult] = await Promise.all([
-    supabase.from('sku_catalog').select('id, title, barcode').in('id', skuIds),
+    supabase.from('sku_catalog').select('id, title, barcode, photo_url').in('id', skuIds),
     nmIds.length > 0
       ? supabase
           .from('wb_reports_fact')
@@ -110,6 +112,9 @@ export async function fetchTurnoverData(): Promise<{
       id: String(row.sku_id),
       name: cat?.title ?? row.my_article ?? 'Без названия',
       barcode: cat?.barcode ?? '',
+      myArticle: row.my_article,
+      wbArticle: row.wb_article,
+      photoUrl: cat?.photo_url ?? wbPhotoUrl(row.wb_article),
       channel: 'WB',
       tags: [],
       segment,

@@ -19,13 +19,14 @@ export type DataTableProps<T> = {
   empty?: ReactNode;
   className?: string;
   rowKey?: (row: T) => string;
+  rowClassName?: (row: T) => string | undefined;
 };
 
 /**
  * Минимальный DataTable поверх @tanstack/react-table.
  * Сейчас: сортировка. Дальше поверх этого: виртуализация, resize, presets, export.
  */
-export function DataTable<T>({ data, columns, initialSort = [], empty, className, rowKey }: DataTableProps<T>) {
+export function DataTable<T>({ data, columns, initialSort = [], empty, className, rowKey, rowClassName }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSort);
 
   const table = useReactTable({
@@ -80,7 +81,10 @@ export function DataTable<T>({ data, columns, initialSort = [], empty, className
           {rows.map((row) => (
             <tr
               key={rowKey ? rowKey(row.original) : row.id}
-              className="border-b border-border last:border-b-0 hover:bg-accent/30"
+              className={cn(
+                'border-b border-border last:border-b-0 hover:bg-accent/30',
+                rowClassName?.(row.original),
+              )}
             >
               {row.getVisibleCells().map((cell) => (
                 <td key={cell.id} className="px-4 py-3 align-middle">
