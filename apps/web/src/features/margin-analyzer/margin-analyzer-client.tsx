@@ -4,14 +4,15 @@ import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
+import { formatRub } from '@/shared/lib/format';
 import {
   COMPONENT_LABEL,
   type ComponentKey,
   type SkuMarginAnalysis,
 } from '@/entities/margin-analyzer';
 
-const fmtRub = (n: number | null | undefined) =>
-  n == null ? '—' : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(n) + ' ₽';
+const fmtRub = (n: number | null | undefined) => (n == null ? '—' : formatRub(n));
 
 const fmtPct = (p: number | null | undefined, signed = false) => {
   if (p == null) return '—';
@@ -104,10 +105,30 @@ export function MarginAnalyzerClient({ rows }: { rows: SkuMarginAnalysis[] }) {
           <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
             <tr>
               <th className="px-3 py-2 text-left">Товар</th>
-              <th className="px-3 py-2 text-right">Выручка по карточке</th>
-              <th className="px-3 py-2 text-right">Маржа сейчас</th>
-              <th className="px-3 py-2 text-right">Δ vs ср. 4 нед</th>
-              <th className="px-3 py-2 text-left">Главный виновник</th>
+              <th className="px-3 py-2 text-right">
+                <span className="inline-flex items-center gap-1">
+                  Выручка по карточке
+                  <TooltipIcon text="Сумма продаж по цене на карточке товара, без учёта скидок и возвратов." />
+                </span>
+              </th>
+              <th className="px-3 py-2 text-right">
+                <span className="inline-flex items-center gap-1">
+                  Маржа сейчас
+                  <TooltipIcon text="Чистая прибыль за последнюю неделю, делённая на выручку по карточке." />
+                </span>
+              </th>
+              <th className="px-3 py-2 text-right">
+                <span className="inline-flex items-center gap-1">
+                  Δ vs ср. 4 нед
+                  <TooltipIcon text="Изменение маржи за последнюю неделю относительно среднего значения за 4 предыдущие недели." />
+                </span>
+              </th>
+              <th className="px-3 py-2 text-left">
+                <span className="inline-flex items-center gap-1">
+                  Главный виновник
+                  <TooltipIcon text="Статья расходов, доля которой от выручки выросла сильнее всего по сравнению со средним за 4 предыдущие недели." />
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
