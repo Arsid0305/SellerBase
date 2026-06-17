@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useRouter } from 'next/navigation';
+import { Search } from 'lucide-react';
 import { DataTable } from '@/shared/ui/domain/data-table';
 import { Button } from '@/shared/ui/button';
 import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
+import { cn } from '@/shared/lib/utils';
 import type { CostRow, CostHistoryEntry } from '@/entities/costs';
 
 type Props = { rows: CostRow[] };
@@ -14,8 +17,21 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+const costFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });
+
 function fmtRub(n: number): string {
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(n);
+  return costFormatter.format(n);
+}
+
+function matchesSearch(row: CostRow, q: string): boolean {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  return (
+    row.title.toLowerCase().includes(needle) ||
+    row.barcode.toLowerCase().includes(needle) ||
+    (row.myArticle ?? '').toLowerCase().includes(needle) ||
+    (row.wbArticle != null ? String(row.wbArticle) : '').includes(needle)
+  );
 }
 
 type EditCellProps = {
@@ -64,7 +80,7 @@ function EditCell({ row, onSaved }: EditCellProps) {
       <input
         type="text"
         inputMode="decimal"
-        placeholder="0.00"
+        placeholder="0,00"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         className="h-8 w-20 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -91,6 +107,18 @@ export function CostsExplorer({ rows }: Props) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const filtered = useMemo(
+    () => rows.filter((r) => matchesSearch(r, debouncedSearch)),
+    [rows, debouncedSearch],
+  );
 
   const onSaved = useCallback(() => {
     startTransition(() => router.refresh());
@@ -186,19 +214,35 @@ export function CostsExplorer({ rows }: Props) {
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <SkuThumb src={row.original.photo_url} alt={row.original.title} />
-            <span className="line-clamp-2">{row.original.title}</span>
+            <div className="flex flex-col">
+              <span className="line-clamp-2">{row.original.title}</span>
+              <span className="text-xs text-muted-foreground">
+                {row.original.myArticle ?? (row.original.wbArticle != null ? String(row.original.wbArticle) : '—')}
+              </span>
+            </div>
           </div>
         ),
       },
       {
         accessorKey: 'current_cost',
-        header: 'Текущая cost (₽)',
-        cell: (info) => <span className="tabular-nums">{fmtRub(info.getValue<number>())}</span>,
+        header: () => (
+          <span className="inline-flex items-center gap-1">
+            Текущая cost (₽)
+            <TooltipIcon text="Себестоимость товара, действующая на сегодняшний день. Берётся из последней актуальной записи истории, либо из карточки SKU, если истории ещё нет." />
+          </span>
+        ),
+        cell: (info) => {
+          const value = info.getValue<number>();
+          if (!value) {
+            return <span className="text-xs text-muted-foreground">нет данных</span>;
+          }
+          return <span className="tabular-nums">{fmtRub(value)}</span>;
+        },
       },
       {
         accessorKey: 'valid_from',
         header: 'Действует с',
-        cell: (info) => <span className="text-muted-foreground">{info.getValue<string | null>() ?? '—'}</span>,
+        cell: (info) => <span className="text-muted-foreground tabular-nums">{info.getValue<string | null>() ?? '—'}</span>,
       },
       {
         id: 'history',
@@ -220,9 +264,22 @@ export function CostsExplorer({ rows }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs text-muted-foreground">
-          Всего SKU: <span className="font-medium text-foreground">{rows.length}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-1 items-center gap-3">
+          <div className="relative w-full min-w-[220px] max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск по артикулу, штрихкоду, названию…"
+              className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Показано: <span className="font-medium text-foreground tabular-nums">{filtered.length}</span> из{' '}
+            <span className="font-medium text-foreground tabular-nums">{rows.length}</span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {importResult && <span className="text-xs text-muted-foreground">{importResult}</span>}
@@ -252,7 +309,14 @@ export function CostsExplorer({ rows }: Props) {
         </div>
       </div>
 
-      <DataTable data={rows} columns={columns} rowKey={(r) => String(r.sku_id)} />
+      <DataTable
+        data={filtered}
+        columns={columns}
+        rowKey={(r) => String(r.sku_id)}
+        rowClassName={(r) => (!r.current_cost ? 'bg-muted/20' : undefined)}
+        className="max-h-[70vh] overflow-auto"
+        empty="Нет данных"
+      />
 
       <p className="text-xs text-muted-foreground">
         Шаблон Excel — со столбцами <code>barcode</code>, <code>cost</code>, <code>valid_from</code>.
@@ -281,10 +345,10 @@ export function CostsExplorer({ rows }: Props) {
               {historyLoading ? (
                 <div className="p-6 text-center text-sm text-muted-foreground">Загрузка...</div>
               ) : history.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">Записей нет</div>
+                <div className="p-6 text-center text-sm text-muted-foreground">Нет данных</div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
+                  <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
                     <tr>
                       <th className="px-4 py-2 text-left">Cost (₽)</th>
                       <th className="px-4 py-2 text-left">С</th>
@@ -296,8 +360,8 @@ export function CostsExplorer({ rows }: Props) {
                     {history.map((h) => (
                       <tr key={h.id} className="border-b border-border last:border-b-0">
                         <td className="px-4 py-2 tabular-nums">{fmtRub(Number(h.cost_rub))}</td>
-                        <td className="px-4 py-2">{h.valid_from}</td>
-                        <td className="px-4 py-2 text-muted-foreground">{h.valid_to ?? 'актуальна'}</td>
+                        <td className={cn('px-4 py-2 tabular-nums', !h.valid_to && 'font-medium text-foreground')}>{h.valid_from}</td>
+                        <td className="px-4 py-2 text-muted-foreground tabular-nums">{h.valid_to ?? 'актуальна'}</td>
                         <td className="px-4 py-2 text-muted-foreground">{h.source}</td>
                       </tr>
                     ))}
