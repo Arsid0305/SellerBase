@@ -1,6 +1,32 @@
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { Review, ReviewsSummary, ReviewRating } from './types';
 
-export const mockReviews: Review[] = [
+const PRODUCT_ARTICLES: Record<string, { myArticle: string; wbArticle: number }> = {
+  ACRM1MS501WH: { myArticle: 'MS-501-WH', wbArticle: 187654321 },
+  ACRF1BN201GR: { myArticle: 'BN-201-GR', wbArticle: 145632178 },
+  ACRA7TB301GR: { myArticle: 'TB-301-GR', wbArticle: 203145698 },
+  ACRF1MS301WH: { myArticle: 'MS-301-WH', wbArticle: 178452369 },
+  ACRM2MS302BL: { myArticle: 'MS-302-BL', wbArticle: 196327845 },
+  ACRP1RG301GR: { myArticle: 'RG-301-GR', wbArticle: 154789632 },
+  AHMA3BW202WH: { myArticle: 'BW-202-WH', wbArticle: 212456789 },
+  ACRB1MS106WH: { myArticle: 'MS-106-WH', wbArticle: 168954213 },
+  ACRF1BN202CL: { myArticle: 'BN-202-CL', wbArticle: 149632587 },
+  AHMA1OR501TR: { myArticle: 'OR-501-TR', wbArticle: 221478963 },
+  ACRA7TB301BL: { myArticle: 'TB-301-BL', wbArticle: 203987456 },
+  ACRA1ST201BL: { myArticle: 'ST-201-BL', wbArticle: 174852369 },
+};
+
+function withArticles(row: Omit<Review, 'myArticle' | 'wbArticle' | 'photoUrl'>): Review {
+  const articles = PRODUCT_ARTICLES[row.productBarcode];
+  return {
+    ...row,
+    myArticle: articles?.myArticle ?? null,
+    wbArticle: articles?.wbArticle ?? null,
+    photoUrl: articles ? wbPhotoUrl(articles.wbArticle) : null,
+  };
+}
+
+const rawReviews: Omit<Review, 'myArticle' | 'wbArticle' | 'photoUrl'>[] = [
   {
     id: 'r1',
     productName: 'Мяч массажный для стоп с шипами',
@@ -266,6 +292,8 @@ export const mockReviews: Review[] = [
     responseDate: '2026-05-13T14:00:00Z',
   },
 ];
+
+export const mockReviews: Review[] = rawReviews.map(withArticles);
 
 export function buildReviewsSummary(rows: Review[]): ReviewsSummary {
   const total = rows.length;

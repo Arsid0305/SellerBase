@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/shared/ui/domain/data-table';
 import { ExportCsvButton } from '@/shared/ui/domain/export-button';
 import { Button } from '@/shared/ui/button';
