@@ -1,6 +1,7 @@
 export { ProductMetaCard } from './product-meta-card';
 export { ProductSalesCard } from './product-sales-card';
 export { ProductFinanceCard } from './product-finance-card';
+export { BreakEvenCard } from './break-even-card';
 export { ProductExpensesCard } from './product-expenses-card';
 export { ProductWarehousesCard } from './product-warehouses-card';
 export { ProductLogisticsForecastCard } from './product-logistics-forecast-card';

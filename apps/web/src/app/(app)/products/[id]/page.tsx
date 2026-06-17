@@ -7,6 +7,7 @@ import {
   ProductMetaCard,
   ProductSalesCard,
   ProductFinanceCard,
+  BreakEvenCard,
   ProductExpensesCard,
   ProductWarehousesCard,
   ProductLogisticsForecastCard,
@@ -98,6 +99,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductFinanceCard product={product} />
         <ProductPhotosCard imageUrl={product.photoUrl} />
       </div>
+
+      <BreakEvenCard product={product} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <RevenueByDayChart data={product.revenueByDay} />
