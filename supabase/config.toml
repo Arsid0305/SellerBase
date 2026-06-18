@@ -35,3 +35,23 @@ verify_jwt = false
 [functions.fetch-wb-report]
 # pg_cron daily/manual — JWT не нужен.
 verify_jwt = false
+
+[functions.telegram-alerts]
+# pg_cron daily — JWT не нужен (вызывается изнутри Supabase).
+verify_jwt = false
+
+[functions.fetch-wb-content]
+# pg_cron weekly — JWT не нужен.
+verify_jwt = false
+
+[functions.fetch-wb-sales]
+# pg_cron every 30 min — JWT не нужен.
+verify_jwt = false
+
+[functions.fetch-wb-goods-returns]
+# pg_cron daily — JWT не нужен.
+verify_jwt = false
+
+[functions.fetch-wb-commissions]
+# pg_cron weekly — JWT не нужен.
+verify_jwt = false

@@ -6,6 +6,8 @@ SELECT cron.schedule(
   '0 6 * * 2',
   $$SELECT net.http_post(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-content',
-    headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.settings.service_role_key'))
+    headers := '{"Content-Type":"application/json"}'::jsonb,
+    body := '{}'::jsonb,
+    timeout_milliseconds := 180000
   );$$
 );
