@@ -51,22 +51,23 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function createReport(token: string): Promise<string> {
-  const url = `${WB_BASE}/api/v1/warehouse_remains`;
-  const body = {
+  // WB обновил API: вместо POST с телом теперь GET с query-параметрами.
+  // Allow: GET, HEAD (старый POST возвращает 405 Method Not Allowed).
+  const params = new URLSearchParams({
     locale: "ru",
-    groupByBrand: false,
-    groupBySubject: false,
-    groupBySa: false,
-    groupByNm: true,
-    groupByBarcode: true,
-    groupBySize: false,
-    filterPics: 0,
-    filterVolume: 0,
-  };
+    groupByBrand: "false",
+    groupBySubject: "false",
+    groupBySa: "false",
+    groupByNm: "true",
+    groupByBarcode: "true",
+    groupBySize: "false",
+    filterPics: "0",
+    filterVolume: "0",
+  });
+  const url = `${WB_BASE}/api/v1/warehouse_remains?${params.toString()}`;
   const resp = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: token, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    method: "GET",
+    headers: { Authorization: token },
   });
   if (!resp.ok) {
     const text = await resp.text();
