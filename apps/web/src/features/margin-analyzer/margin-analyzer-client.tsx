@@ -16,7 +16,7 @@ const fmtRub = (n: number | null | undefined) => (n == null ? '—' : formatRub(
 
 const fmtPct = (p: number | null | undefined, signed = false) => {
   if (p == null) return '—';
-  const v = p * 100;
+  const v = p;
   const s = v.toFixed(1).replace('.', ',');
   return signed && v > 0 ? `+${s}%` : `${s}%`;
 };
@@ -38,8 +38,8 @@ const COMPONENT_KEYS: ComponentKey[] = [
 
 function marginColor(pct: number | null) {
   if (pct == null) return 'text-muted-foreground';
-  if (pct >= 0.2) return 'text-emerald-600';
-  if (pct >= 0.15) return 'text-amber-600';
+  if (pct >= 20) return 'text-emerald-600';
+  if (pct >= 15) return 'text-amber-600';
   if (pct >= 0) return 'text-orange-600';
   return 'text-red-600';
 }
@@ -47,7 +47,7 @@ function marginColor(pct: number | null) {
 function deltaColor(delta: number | null) {
   if (delta == null) return 'text-muted-foreground';
   if (delta >= 0) return 'text-emerald-600';
-  if (delta >= -0.05) return 'text-amber-600';
+  if (delta >= -5) return 'text-amber-600';
   return 'text-red-600';
 }
 
@@ -58,7 +58,7 @@ export function MarginAnalyzerClient({ rows }: { rows: SkuMarginAnalysis[] }) {
   const filtered = useMemo(() => {
     switch (filter) {
       case 'falling':
-        return rows.filter((r) => (r.deltaPct ?? 0) < -0.02);
+        return rows.filter((r) => (r.deltaPct ?? 0) < -2);
       case 'losing':
         return rows.filter((r) => r.current.marginPct != null && r.current.marginPct < 0);
       default:
@@ -70,7 +70,7 @@ export function MarginAnalyzerClient({ rows }: { rows: SkuMarginAnalysis[] }) {
     {
       key: 'falling',
       label: 'Падает',
-      count: rows.filter((r) => (r.deltaPct ?? 0) < -0.02).length,
+      count: rows.filter((r) => (r.deltaPct ?? 0) < -2).length,
     },
     {
       key: 'losing',
