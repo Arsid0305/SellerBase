@@ -158,6 +158,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
           <RatingCard rating={sellerAnalytics.rating} />
         </div>
       </div>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          Период: <span className="font-medium text-foreground">{formatRange(range)}</span>
+        </span>
+        <span>
+          Сравнение: <span className="font-medium text-foreground">{formatRange(comparison)}</span>
+        </span>
+      </div>
       <KpiGrid
         kpis={{
           revenue: revenueKpi,
