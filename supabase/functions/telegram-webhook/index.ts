@@ -43,6 +43,7 @@ Deno.serve(async (req: Request) => {
   // Whitelist: разрешённые chat_id из env (через запятую) — только они могут подписаться.
   // Любой посторонний получит «Доступ ограничен».
   const allow = (
+    Deno.env.get("TELEGRAM_CHAT_ID") ??
     Deno.env.get("TELEGRAM_ALLOWED_CHAT_IDS") ??
     Deno.env.get("TELEGRAM_ALLOWED_CHAT_ID") ??
     ""
