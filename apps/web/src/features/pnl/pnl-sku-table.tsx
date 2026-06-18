@@ -127,18 +127,35 @@ export function PnlSkuTable({ rows }: { rows: PnlSkuTableRow[] }) {
           <table className="w-full text-sm">
             <thead className="text-xs uppercase text-muted-foreground sticky top-0 z-10 bg-background">
               <tr className="border-b border-border">
-                {COLS.map((c) => (
-                  <th
-                    key={c.key}
-                    className={cn('px-2 py-2 font-medium', c.align === 'right' ? 'text-right' : 'text-left', 'cursor-pointer select-none')}
-                    onClick={() => handleSort(c.key)}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {c.label}
-                      <ArrowUpDown className={cn('size-3', sortKey === c.key ? 'text-foreground' : 'opacity-40')} />
-                    </span>
-                  </th>
-                ))}
+                {COLS.map((c) => {
+                  const isActive = sortKey === c.key;
+                  const ariaSort = isActive ? (sortDesc ? 'descending' : 'ascending') : 'none';
+                  return (
+                    <th
+                      key={c.key}
+                      scope="col"
+                      aria-sort={ariaSort}
+                      tabIndex={0}
+                      className={cn(
+                        'px-2 py-2 font-medium',
+                        c.align === 'right' ? 'text-right' : 'text-left',
+                        'cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                      )}
+                      onClick={() => handleSort(c.key)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSort(c.key);
+                        }
+                      }}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {c.label}
+                        <ArrowUpDown className={cn('size-3', isActive ? 'text-foreground' : 'opacity-40')} />
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
