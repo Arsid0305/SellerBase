@@ -172,32 +172,50 @@ export function MarginAnalyzerTable({ rows }: { rows: MarginAnalysisRow[] }) {
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 text-xs text-muted-foreground">
             <tr>
-              <th className="px-3 py-2 text-left">Товар</th>
+              <th scope="col" className="px-3 py-2 text-left">Товар</th>
               <th
-                className="cursor-pointer select-none px-3 py-2 text-right hover:text-foreground"
+                scope="col"
+                aria-sort={sortKey === 'marginNowPct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}
+                tabIndex={0}
+                className="cursor-pointer select-none px-3 py-2 text-right hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={() => toggleSort('marginNowPct')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSort('marginNowPct'); }
+                }}
               >
                 Маржа сейчас
               </th>
-              <th className="px-3 py-2 text-right">Маржа было</th>
+              <th scope="col" className="px-3 py-2 text-right">Маржа было</th>
               <th
-                className="cursor-pointer select-none px-3 py-2 text-right hover:text-foreground"
+                scope="col"
+                aria-sort={sortKey === 'marginDeltaPp' ? (sortAsc ? 'ascending' : 'descending') : 'none'}
+                tabIndex={0}
+                className="cursor-pointer select-none px-3 py-2 text-right hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={() => toggleSort('marginDeltaPp')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSort('marginDeltaPp'); }
+                }}
               >
                 <span className="inline-flex items-center gap-1">
                   Δ маржи
                   <TooltipIcon text="pp = процентные пункты. Разница маржи сейчас и маржи в предыдущем 30-дневном периоде." />
                 </span>
               </th>
-              <th className="px-3 py-2 text-left">
+              <th scope="col" className="px-3 py-2 text-left">
                 <span className="inline-flex items-center gap-1">
                   Главный виновник
                   <TooltipIcon text="Статья расходов или выручки, которая сильнее всего повлияла на падение маржи относительно предыдущего периода." />
                 </span>
               </th>
               <th
-                className="cursor-pointer select-none px-3 py-2 text-right hover:text-foreground"
+                scope="col"
+                aria-sort={sortKey === 'revenueDeltaPct' ? (sortAsc ? 'ascending' : 'descending') : 'none'}
+                tabIndex={0}
+                className="cursor-pointer select-none px-3 py-2 text-right hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 onClick={() => toggleSort('revenueDeltaPct')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSort('revenueDeltaPct'); }
+                }}
               >
                 Δ выручки
               </th>

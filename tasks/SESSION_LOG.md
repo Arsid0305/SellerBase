@@ -1,3 +1,82 @@
+## 2026-06-17/18 — Большая сессия: UAT 10 страниц, 6 новых страниц/компонентов, аудит и фиксы
+
+### Контекст
+Длинная автономная сессия. Владелица передала полный мандат «закрой что можешь сам». Сделан UAT всех страниц, добавлены недостающие фичи из 🟡-backlog, проведён глубокий аудит (security/business/CI/performance/тесты) с применением критических фиксов.
+
+### Что сделано
+
+**UAT 10 страниц** (фото, поиск по артикулу, sticky-шапка, tooltip метрик, подсветка проблем, единый `formatRub`):
+- `/pnl`, `/turnover`, `/products/[id]`, `/products/costs`, `/analytics/*` (4 страницы), `/promo`, `/deficit`, `/supplies`, `/reviews`, `/customers·tasks·goals·settings`
+
+**Новые страницы и компоненты:**
+- `/data-quality` — 10 метрик качества данных
+- `/margin-analyzer` — анализатор «почему падает маржа» (главный виновник + рекомендация)
+- `/price-simulator` — слайдер цены + KPI маржи/прибыли в реальном времени
+- Карточка «Точка безубыточности» на `/products/[id]`
+- `GranularityPicker` — переиспользуемый компонент
+- Промо-светофор 🟢🟡🔴 на `/promo`
+- Pareto-фото колонка
+
+**Edge functions и cron:**
+- `telegram-alerts` — 5 проверок, cron 11:00 МСК (задеплоен, но не отправляет — секреты не видны функции, требуется проверка имён)
+- `fetch-wb-content` — добавлены `rating`, `reviews_count`, `subject_name`, cron вторник 09:00 МСК
+- `fetch-wb-funnel-aggregate` — окно 60→30 дней
+
+**Тесты и инфраструктура:**
+- Smoke-тесты Playwright (19 страниц) — `apps/web/tests/e2e/smoke.spec.ts`
+- pgTAP юнит-тесты SQL — P&L 14, оборачиваемость 8, ABC skip
+- `docs/CRONS.md` — единая дока 11 cron + edge functions + секреты
+- `docs/AUDIT_2026-06-17.md` — полный отчёт аудита
+
+**Аудит — критические фиксы применены:**
+- **RLS на `wb_sales_fact`** (таблица была открыта во внешний доступ)
+- `close_previous_cost` — `search_path` зафиксирован
+- `migrate.yml` — `supabase/setup-cli` пин 2.20.5 + password в env (не argv) + `migration repair` шаг
+- Удалён мёртвый код: `ProductTabs`, `PromoListClient`, `drilldown-sheet`, `abc-xyz-matrix`, старый ручной cron `fetch-wb-content-daily`
+- Унифицирован налог 6% через `shared/lib/business-rules.ts`
+- `breakEven = ∞` при недостижимости (раньше ложно-валидное значение)
+- `supply.daysLeft = 0` для пустых SKU (раньше маскировало дефицит как 999)
+- `margin-v2.revenue <= 0` (раньше `=== 0` упускал near-zero)
+- `DataTable` + `pnl-sku-table` + `margin-analyzer-v2-table` — клавиатурная сортировка (aria-sort, Enter/Space)
+- `aria-label` на switch уведомлений, `aria-labelledby` у select-ов «тихих часов»
+- Колонки `ingestion_log` в data-quality: `rows_processed`→`rows_out`, `error_message`→`error_text`, статус `'success'`→`'ok'`
+- 5 миграций применены в прод напрямую через MCP (после падения CLI)
+
+**Бизнес-правила:**
+- Промо-светофор: 🟢 маржа ≥25% И остаток ≥14 дней; 🟡 на грани; 🔴 маржа <15% ИЛИ остаток <7 дней
+- `business-rules.ts` — единый источник: TAX_PCT, ACQUIRING_PCT, MARGIN_THRESHOLDS, STOCK_DAYS_THRESHOLDS, WINDOWS, ABC_THRESHOLDS, TURNOVER_PROMO, SUPPLY_PLAN
+- Лейбл «Упущенная выручка» в /deficit выровнен с реальным окном 90д
+
+### PR merged в эту сессию
+~10 PR (#117-#132): UAT, новые страницы, тесты, аудит, security миграции
+
+### Открытые задачи (не закрыто)
+
+**🔴 Критическое:**
+- **Telegram алерты не приходят** — `telegram_sent: false`. Debug-endpoint `?debug=env` запушен — после деплоя вызвать, посмотреть какие имена секретов реально доступны
+- Auth для API routes (`/api/costs`, `/api/demo/clear` и др. — без авторизации)
+- 4 SECURITY DEFINER views (`v_sku_lifecycle`, `v_supply_recommendation`, `v_sku_snapshot_diffs`, `v_daily_sales`) — переписать с `security_invoker = true`
+- Approval gate на `migrate.yml` / `deploy.yml` — нужны GitHub Environments с required reviewer в Settings
+- Zombie функция `fetch-wb-turnover` в проде (кода нет в репо)
+
+**🟡 Серьёзное:**
+- `marginPct` шкала 0-1 в `margin-analyzer/queries.ts` vs 0-100 в `margin-analyzer-v2/queries.ts` — унифицировать
+- `.range(0, 200_000)` × 12 мест → агрегация в БД (RPC/materialized view)
+- Vitest + unit-тесты финансовых формул (полностью отсутствуют)
+- `web-ci.yml` не запускает `test:e2e` — smoke автоматически не гоняется
+- WB-токен на `fetch-wb-stocks` / `fetch-wb-report` возвращает 401 с 13.06 (отозван — зона ответственности владелицы по правилу §6)
+
+**🔵 Фоновое:**
+- `@tanstack/react-virtual` мёртвая зависимость (нужен lockfile update)
+- Магические пороги в коде → подключить к `business-rules.ts` (константы заведены, миграция точечная)
+- 4 edge functions с `verify_jwt: false` (`fetch-wb-stocks`, `fetch-wb-report`, `fetch-wb-tariffs`, `fetch-wb-promotions`, `sync-sheets`) — изменить требует добавить webhook secret внутрь функций
+
+### Следующие шаги
+1. Дождаться деплоя — проверить `?debug=env` Telegram функции, починить имена секретов
+2. Закрыть оставшиеся пункты из аудита по приоритету
+
+---
+
 ## 2026-06-14 — UAT + ежедневные продажи + чистка БД
 
 ### Контекст

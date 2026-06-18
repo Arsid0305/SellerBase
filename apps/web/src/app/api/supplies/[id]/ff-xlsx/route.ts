@@ -4,7 +4,7 @@ import { createAdminClient } from '@/shared/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
-// TODO(supplies): заменить CSV на полноценный XLSX через exceljs (пакет не подключён в apps/web).
+// TODO(supplies): заменить CSV на полноценный XLSX через уже подключённый exceljs.
 // Сейчас отдаём CSV (разделитель `;`, UTF-8 BOM) — Excel открывает корректно в RU-локали.
 
 function escapeCell(v: unknown): string {
