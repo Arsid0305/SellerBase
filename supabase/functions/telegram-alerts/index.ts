@@ -235,6 +235,19 @@ async function checkDeficit(supabase: SupabaseClient): Promise<CheckResult> {
 // 4. Cron не работает — last_success > 24ч для любого ingestion_log job
 // ============================================================
 async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
+  // Мониторим только cron-задачи у которых есть свой порог.
+  // Не мониторим ручные вызовы из UI (fetch-wb-promotions) и WB-токеновые ошибки 401
+  // (зона ответственности владелицы по §6).
+  const MONITORED: { job: string; staleHours: number }[] = [
+    { job: "fetch-wb-sales", staleHours: 2 },       // cron 30 мин → должен быть свежий
+    { job: "fetch-wb-funnel", staleHours: 30 },     // daily
+    { job: "fetch-wb-funnel-aggregate", staleHours: 30 }, // daily
+    { job: "fetch-wb-tariffs", staleHours: 30 },    // daily
+    { job: "fetch-wb-content", staleHours: 24 * 8 }, // weekly + слабина
+    { job: "fetch-wb-commissions", staleHours: 24 * 8 }, // weekly + слабина
+    { job: "telegram-alerts", staleHours: 30 },     // daily
+  ];
+
   const { data, error } = await supabase
     .from("ingestion_log")
     .select("job_name, status, finished_at, started_at")
@@ -249,22 +262,20 @@ async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
     };
   }
 
-  const lastSuccessByJob = new Map<string, string>(); // job_name -> finished_at ISO
+  const lastSuccessByJob = new Map<string, string>();
   for (const r of (data ?? []) as Array<{ job_name: string; status: string; finished_at: string | null }>) {
     if (r.status === "ok" && r.finished_at && !lastSuccessByJob.has(r.job_name)) {
       lastSuccessByJob.set(r.job_name, r.finished_at);
     }
   }
-  const allJobs = new Set<string>();
-  for (const r of (data ?? []) as Array<{ job_name: string }>) allJobs.add(r.job_name);
 
   const now = Date.now();
   const stale: { job: string; hoursAgo: number | null }[] = [];
-  for (const job of allJobs) {
-    const lastSuccess = lastSuccessByJob.get(job);
+  for (const m of MONITORED) {
+    const lastSuccess = lastSuccessByJob.get(m.job);
     const hoursAgo = lastSuccess ? (now - new Date(lastSuccess).getTime()) / 3_600_000 : null;
-    if (hoursAgo == null || hoursAgo > 24) {
-      stale.push({ job, hoursAgo });
+    if (hoursAgo == null || hoursAgo > m.staleHours) {
+      stale.push({ job: m.job, hoursAgo });
     }
   }
 
@@ -281,7 +292,7 @@ async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
     ok: false,
     severity: "red",
     message:
-      `🔴 *Cron не работает: ${stale.length} задач(а) без успешного запуска >24ч*\n` +
+      `🔴 *Cron не работает: ${stale.length} задач(а)*\n` +
       `${listStr}\n` +
       `→ Открыть ${BASE_URL}/data-quality`,
   };
