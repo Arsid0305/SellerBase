@@ -40,6 +40,17 @@ Deno.serve(async (req: Request) => {
   const chatId = String(msg.chat.id);
   const text = msg.text.trim();
 
+  // Whitelist: разрешённые chat_id из env (через запятую) — только они могут подписаться.
+  // Любой посторонний получит «Доступ ограничен».
+  const allow = (Deno.env.get("TELEGRAM_ALLOWED_CHAT_IDS") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (allow.length > 0 && !allow.includes(chatId)) {
+    await tgSend(chatId, "⛔ Доступ ограничен.");
+    return new Response("ok");
+  }
+
   try {
     if (text === "/start") {
       await supabase

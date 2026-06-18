@@ -385,12 +385,19 @@ Deno.serve(async (req: Request) => {
     const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
 
     // Берём всех активных подписчиков из notification_subscribers
-    // (заполняется через @SellerBase_bot командой /start).
-    const { data: subs } = await supabase
+    // (заполняется через @SellerBase_bot командой /start), фильтруем по whitelist.
+    const allow = (Deno.env.get("TELEGRAM_ALLOWED_CHAT_IDS") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const { data: subsRaw } = await supabase
       .from("notification_subscribers")
       .select("telegram_chat_id")
       .eq("channel", "telegram")
       .eq("is_active", true);
+    const subs = ((subsRaw ?? []) as { telegram_chat_id: string }[]).filter(
+      (s) => allow.length === 0 || allow.includes(s.telegram_chat_id),
+    );
 
     let sentCount = 0;
     if (token && subs && subs.length > 0) {
