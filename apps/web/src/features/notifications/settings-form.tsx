@@ -31,6 +31,7 @@ function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label}
         onClick={() => onChange(!checked)}
         className={cn(
           'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
@@ -122,8 +123,9 @@ export function NotificationSettingsForm({
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-muted-foreground">С</span>
+            <span className="text-muted-foreground" id="quiet-from-label">С</span>
             <select
+              aria-labelledby="quiet-from-label"
               value={settings.quietFrom}
               onChange={(e) => patch({ quietFrom: Number(e.target.value) })}
               className="h-9 rounded-md border border-input bg-background px-3"
@@ -134,8 +136,9 @@ export function NotificationSettingsForm({
                 </option>
               ))}
             </select>
-            <span className="text-muted-foreground">до</span>
+            <span className="text-muted-foreground" id="quiet-to-label">до</span>
             <select
+              aria-labelledby="quiet-to-label"
               value={settings.quietTo}
               onChange={(e) => patch({ quietTo: Number(e.target.value) })}
               className="h-9 rounded-md border border-input bg-background px-3"
