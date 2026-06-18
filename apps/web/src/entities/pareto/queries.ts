@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import type { PnlSkuRow, PeriodRange } from '@/entities/pnl/types';
+import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 
 export type ParetoZone = 'A' | 'B' | 'C';
 
@@ -8,6 +9,7 @@ export type ParetoItem = {
   skuId: number;
   name: string;
   barcode: string;
+  photoUrl: string | null;
   revenue: number;
   sharePct: number;
   cumPct: number;
@@ -34,7 +36,14 @@ function toNumber(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-type CatalogLite = { id: number; barcode: string | null; title: string | null; my_article: string | null };
+type CatalogLite = {
+  id: number;
+  barcode: string | null;
+  title: string | null;
+  my_article: string | null;
+  wb_article: number | null;
+  photo_url: string | null;
+};
 
 export async function fetchParetoData(period: PeriodRange): Promise<ParetoData> {
   const supabase = createAdminClient();
@@ -63,7 +72,7 @@ export async function fetchParetoData(period: PeriodRange): Promise<ParetoData> 
     const slice = skuIds.slice(i, i + CHUNK);
     const { data: cat, error: catErr } = await supabase
       .from('sku_catalog')
-      .select('id, barcode, title, my_article')
+      .select('id, barcode, title, my_article, wb_article, photo_url')
       .in('id', slice);
     if (catErr) {
       console.error('[fetchParetoData] sku_catalog error', catErr);
@@ -83,11 +92,13 @@ export async function fetchParetoData(period: PeriodRange): Promise<ParetoData> 
     const cat = catalogMap.get(r.skuId);
     const barcode = cat?.barcode ?? r.barcodeRpc ?? '';
     const name = cat?.title ?? cat?.my_article ?? 'Без названия';
+    const photoUrl = cat?.photo_url ?? wbPhotoUrl(cat?.wb_article ?? null);
     return {
       rank: idx + 1,
       skuId: r.skuId,
       name,
       barcode,
+      photoUrl,
       revenue: Math.round(r.revenue),
       sharePct: Math.round(sharePct * 10) / 10,
       cumPct: Math.round(cumPct * 10) / 10,

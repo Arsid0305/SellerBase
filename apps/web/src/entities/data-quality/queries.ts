@@ -99,7 +99,7 @@ export async function fetchDataQuality(): Promise<DataQualityReport> {
       supabase
         .from('ingestion_log')
         .select('job_name, started_at, finished_at, status')
-        .eq('status', 'success')
+        .eq('status', 'ok')
         .order('started_at', { ascending: false })
         .range(0, 2000),
       supabase

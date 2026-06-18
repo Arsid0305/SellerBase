@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { wbPhotoUrl } from '@/shared/lib/wb-photo';
+import { ACQUIRING_PCT, TAX_PCT } from '@/shared/lib/business-rules';
 
 export type PriceSimulatorRow = {
   skuId: number;
@@ -13,9 +14,6 @@ export type PriceSimulatorRow = {
   unitsSold30d: number;
   breakEven: number;
 };
-
-const ACQUIRING_PCT = 0.015;
-const TAX_PCT = 0.06;
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
@@ -147,7 +145,9 @@ export async function fetchPriceSimulatorRows(): Promise<PriceSimulatorRow[]> {
     const variableShare = commissionPct + ACQUIRING_PCT + TAX_PCT + returnsPct;
     const denom = 1 - variableShare;
 
-    const breakEven = denom > 0 ? fixedPerUnit / denom : fixedPerUnit;
+    // Если переменные затраты ≥ 100% выручки — точка безубыточности недостижима.
+    // Помечаем через Number.POSITIVE_INFINITY, UI рисует «—» и не вводит в заблуждение.
+    const breakEven = denom > 0 ? fixedPerUnit / denom : Number.POSITIVE_INFINITY;
     const totalCostPerUnit = fixedPerUnit + currentPrice * variableShare;
 
     rows.push({

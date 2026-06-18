@@ -24,6 +24,26 @@ function marginColor(pct: number | null) {
   return 'text-emerald-600';
 }
 
+type Light = 'green' | 'yellow' | 'red' | 'unknown';
+
+function promoLight(marginCurrentPct: number | null, turnoverDays: number | null): Light {
+  if (marginCurrentPct == null && turnoverDays == null) return 'unknown';
+  const marginBad = marginCurrentPct != null && marginCurrentPct < 0.15;
+  const stockBad = turnoverDays != null && turnoverDays < 7;
+  if (marginBad || stockBad) return 'red';
+  const marginOk = marginCurrentPct != null && marginCurrentPct >= 0.25;
+  const stockOk = turnoverDays != null && turnoverDays >= 14;
+  if (marginOk && stockOk) return 'green';
+  return 'yellow';
+}
+
+const LIGHT_META: Record<Light, { dot: string; label: string }> = {
+  green: { dot: 'bg-emerald-500', label: 'Можно в акцию: маржа ≥25% и остаток ≥14 дней' },
+  yellow: { dot: 'bg-amber-500', label: 'На грани: маржа 15–25% или остаток 7–14 дней' },
+  red: { dot: 'bg-rose-500', label: 'Не выгодно: маржа <15% или остаток <7 дней' },
+  unknown: { dot: 'bg-muted-foreground/40', label: 'Недостаточно данных' },
+};
+
 function matchesSearch(sku: MatrixSku, q: string): boolean {
   if (!q) return true;
   const needle = q.toLowerCase();
@@ -288,6 +308,17 @@ function SkuMatrixRow({
     <tr className="border-t border-border">
       <td className="sticky left-0 z-10 min-w-[280px] border-r border-border bg-card px-3 py-2">
         <div className="flex items-center gap-2">
+          {(() => {
+            const light = promoLight(sku.marginCurrentPct, sku.turnoverDays);
+            const m = LIGHT_META[light];
+            return (
+              <span
+                className={cn('h-2.5 w-2.5 shrink-0 rounded-full', m.dot)}
+                title={m.label}
+                aria-label={m.label}
+              />
+            );
+          })()}
           {sku.photoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img

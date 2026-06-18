@@ -39,7 +39,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.20.5
 
       - name: List local migrations
         run: |
@@ -47,7 +47,10 @@ jobs:
           ls -1 supabase/migrations/*.sql || echo "(none)"
 
       - name: Link Supabase project
-        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Push migrations (apply unapplied only)
-        run: supabase db push --include-all --password "${SUPABASE_DB_PASSWORD}"
+        # Password передаётся через env SUPABASE_DB_PASSWORD (job-level) — supabase CLI читает её сам, без флага в argv.
+        run: supabase db push --include-all

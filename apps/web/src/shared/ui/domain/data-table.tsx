@@ -49,14 +49,30 @@ export function DataTable<T>({ data, columns, initialSort = [], empty, className
               {hg.headers.map((header) => {
                 const canSort = header.column.getCanSort();
                 const sortDir = header.column.getIsSorted();
+                const toggleSort = header.column.getToggleSortingHandler();
+                const ariaSort = sortDir === 'asc' ? 'ascending' : sortDir === 'desc' ? 'descending' : 'none';
                 return (
                   <th
                     key={header.id}
+                    scope="col"
+                    aria-sort={canSort ? ariaSort : undefined}
                     className={cn(
                       'px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground',
-                      canSort && 'cursor-pointer select-none hover:text-foreground',
+                      canSort && 'cursor-pointer select-none hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                     )}
-                    onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                    tabIndex={canSort ? 0 : undefined}
+                    role={canSort ? 'columnheader button' : undefined}
+                    onClick={canSort ? toggleSort : undefined}
+                    onKeyDown={
+                      canSort
+                        ? (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggleSort?.(e);
+                            }
+                          }
+                        : undefined
+                    }
                   >
                     <span className="inline-flex items-center gap-1">
                       {flexRender(header.column.columnDef.header, header.getContext())}

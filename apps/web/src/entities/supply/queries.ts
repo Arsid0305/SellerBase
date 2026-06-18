@@ -68,7 +68,14 @@ export async function fetchSupplyRecommendation(): Promise<DeficitRow[]> {
 
     const unitsPerDay = toNumber(row.units_per_day);
     const totalStock = toNumber(row.total_stock);
-    const daysLeft = unitsPerDay > 0 ? Math.floor(totalStock / unitsPerDay) : 999;
+    // Если нет ни продаж, ни остатка — SKU фактически outOfStock, daysLeft = 0 (не 999, чтобы не ломать классификацию дефицита).
+    // 999 оставляем только когда нет продаж, но остаток есть (товар «лежит» — не критично).
+    const daysLeft =
+      unitsPerDay > 0
+        ? Math.floor(totalStock / unitsPerDay)
+        : totalStock > 0
+          ? 999
+          : 0;
     const forecastDemand = unitsPerDay * 30 * avgPrice;
     // Упущенная выручка: сколько мы потеряли за срок восполнения (lead_time + safety) при нулевом остатке
     const recoveryDays = toNumber(row.lead_time_days) + toNumber(row.safety_stock_days);

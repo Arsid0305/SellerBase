@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/shared/ui/domain/data-table';
 import { ExportCsvButton } from '@/shared/ui/domain/export-button';
+import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { formatRub } from '@/shared/lib/format';
 import type { CsvColumn } from '@/shared/lib/csv';
 import type { ParetoItem } from '@/entities/pareto';
@@ -25,10 +26,13 @@ const columns: ColumnDef<ParetoItem, unknown>[] = [
     cell: ({ row }) => (
       <Link
         href={`/products/${encodeURIComponent(row.original.barcode)}`}
-        className="flex min-w-[240px] flex-col gap-0.5 hover:underline"
+        className="flex min-w-[240px] items-center gap-2 hover:underline"
       >
-        <span className="font-medium leading-tight">{row.original.name}</span>
-        <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode || '—'}</span>
+        <SkuThumb src={row.original.photoUrl} alt={row.original.name} size="md" />
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium leading-tight">{row.original.name}</span>
+          <span className="font-mono text-[11px] text-muted-foreground">{row.original.barcode || '—'}</span>
+        </div>
       </Link>
     ),
   },
