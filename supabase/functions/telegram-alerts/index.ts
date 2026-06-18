@@ -366,8 +366,16 @@ Deno.serve(async (req: Request) => {
     const body = alerts.map((a) => a.message).join("\n\n");
     const text = `${header}\n${body}`;
 
-    const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
-    const chatId = Deno.env.get("TELEGRAM_CHAT_ID");
+    const token =
+      Deno.env.get("TELEGRAM_BOT_TOKEN") ??
+      Deno.env.get("TG_BOT_TOKEN") ??
+      Deno.env.get("BOT_TOKEN") ??
+      Deno.env.get("TELEGRAM_TOKEN");
+    const chatId =
+      Deno.env.get("TELEGRAM_CHAT_ID") ??
+      Deno.env.get("TG_CHAT_ID") ??
+      Deno.env.get("CHAT_ID") ??
+      Deno.env.get("TELEGRAM_ID");
     let sent = false;
     if (token && chatId) {
       sent = await sendTelegram(token, chatId, text);
