@@ -344,6 +344,22 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
+  // Debug: /functions/v1/telegram-alerts?debug=env — отдаёт имена env-переменных
+  // содержащих TELEGRAM/TG/BOT/CHAT (без значений). Помогает понять под каким именем
+  // владелица добавила секреты.
+  const url = new URL(req.url);
+  if (url.searchParams.get("debug") === "env") {
+    const keys: string[] = [];
+    // deno-lint-ignore no-explicit-any
+    const env: any = Deno.env;
+    if (typeof env.toObject === "function") {
+      for (const k of Object.keys(env.toObject() as Record<string, string>)) {
+        if (/TELEGRAM|TG|BOT|CHAT/i.test(k)) keys.push(k);
+      }
+    }
+    return json({ env_keys_matching: keys.sort() });
+  }
+
   try {
     const supabase = adminClient();
 
