@@ -382,26 +382,42 @@ Deno.serve(async (req: Request) => {
     const body = alerts.map((a) => a.message).join("\n\n");
     const text = `${header}\n${body}`;
 
-    const token =
-      Deno.env.get("TELEGRAM_BOT_TOKEN") ??
-      Deno.env.get("TG_BOT_TOKEN") ??
-      Deno.env.get("BOT_TOKEN") ??
-      Deno.env.get("TELEGRAM_TOKEN");
-    const chatId =
+    const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
+
+    // Берём всех активных подписчиков из notification_subscribers
+    // (заполняется через @SellerBase_bot командой /start), фильтруем по whitelist.
+    const allow = (
       Deno.env.get("TELEGRAM_CHAT_ID") ??
-      Deno.env.get("TG_CHAT_ID") ??
-      Deno.env.get("CHAT_ID") ??
-      Deno.env.get("TELEGRAM_ID");
-    let sent = false;
-    if (token && chatId) {
-      sent = await sendTelegram(token, chatId, text);
+      Deno.env.get("TELEGRAM_ALLOWED_CHAT_IDS") ??
+      Deno.env.get("TELEGRAM_ALLOWED_CHAT_ID") ??
+      ""
+    )
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const { data: subsRaw } = await supabase
+      .from("notification_subscribers")
+      .select("telegram_chat_id")
+      .eq("channel", "telegram")
+      .eq("is_active", true);
+    const subs = ((subsRaw ?? []) as { telegram_chat_id: string }[]).filter(
+      (s) => allow.length === 0 || allow.includes(s.telegram_chat_id),
+    );
+
+    let sentCount = 0;
+    if (token && subs && subs.length > 0) {
+      for (const s of subs as { telegram_chat_id: string }[]) {
+        const ok = await sendTelegram(token, s.telegram_chat_id, text);
+        if (ok) sentCount += 1;
+      }
     }
 
     return json({
       ok: true,
-      alerts_sent: sent ? alerts.length : 0,
+      alerts_sent: sentCount > 0 ? alerts.length : 0,
       checks: results.map((r) => ({ name: r.name, ok: r.ok, severity: r.severity })),
-      telegram_sent: sent,
+      subscribers_sent: sentCount,
+      subscribers_total: subs?.length ?? 0,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
