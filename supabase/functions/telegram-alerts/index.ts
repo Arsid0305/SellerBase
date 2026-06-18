@@ -391,7 +391,8 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("TELEGRAM_CHAT_ID") ??
       Deno.env.get("TG_CHAT_ID") ??
       Deno.env.get("CHAT_ID") ??
-      Deno.env.get("TELEGRAM_ID");
+      Deno.env.get("TELEGRAM_ID") ??
+      Deno.env.get("SellerBase_bot");
     let sent = false;
     if (token && chatId) {
       sent = await sendTelegram(token, chatId, text);
