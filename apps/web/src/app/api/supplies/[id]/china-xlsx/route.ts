@@ -4,7 +4,7 @@ import { createAdminClient } from '@/shared/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
-// TODO(supplies): заменить CSV на XLSX через exceljs.
+// TODO(supplies): заменить CSV на XLSX через уже подключённый exceljs.
 // Поля заказа на 1688: ссылка, фото, комментарий, кол-во, цена юань, сумма юань, доставка.
 
 function escapeCell(v: unknown): string {
