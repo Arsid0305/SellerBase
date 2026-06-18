@@ -85,15 +85,16 @@ export function WbStyleChart({ buckets }: { buckets: Buckets }) {
                 type="button"
                 disabled={!t.available}
                 onClick={() => t.available && setTab(t.key)}
+                aria-label={!t.available ? `${t.label} — скоро` : t.label}
                 className={cn(
-                  'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  'inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                   t.key === tab && t.available && 'bg-foreground text-background',
                   t.key !== tab && t.available && 'text-muted-foreground hover:bg-muted',
-                  !t.available && 'cursor-not-allowed text-muted-foreground/40 line-through',
+                  !t.available && 'cursor-not-allowed text-muted-foreground/40',
                 )}
-                title={!t.available ? 'Скоро — нужен новый фетч с WB API' : undefined}
               >
                 {t.label}
+                {!t.available && <span className="ml-0.5 rounded bg-muted px-1 text-[10px] uppercase">скоро</span>}
               </button>
             ))}
           </div>
@@ -140,13 +141,22 @@ export function WbStyleChart({ buckets }: { buckets: Buckets }) {
               </div>
               <div className="ml-auto flex items-center gap-3 text-xs">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-block h-0.5 w-4 bg-fuchsia-600" /> Сегодня
+                  <svg width="18" height="6" viewBox="0 0 18 6" aria-hidden="true">
+                    <line x1="0" y1="3" x2="18" y2="3" className="stroke-fuchsia-600" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                  Сегодня
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-block h-0.5 w-4 border-t border-dashed border-fuchsia-400" /> Вчера
+                  <svg width="18" height="6" viewBox="0 0 18 6" aria-hidden="true">
+                    <line x1="0" y1="3" x2="18" y2="3" className="stroke-fuchsia-500" strokeWidth="2" strokeDasharray="4 3" strokeLinecap="round" />
+                  </svg>
+                  Вчера
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-block h-0.5 w-4 border-t border-dashed border-violet-300" /> Неделю назад
+                  <svg width="18" height="6" viewBox="0 0 18 6" aria-hidden="true">
+                    <line x1="0" y1="3" x2="18" y2="3" className="stroke-violet-500" strokeWidth="2" strokeDasharray="4 3" strokeLinecap="round" />
+                  </svg>
+                  Неделю назад
                 </span>
               </div>
             </div>
@@ -163,8 +173,8 @@ export function WbStyleChart({ buckets }: { buckets: Buckets }) {
                   </g>
                 );
               })}
-              <path d={weekAgo.line} className="stroke-violet-300" fill="none" strokeWidth={2} strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
-              <path d={yesterday.line} className="stroke-fuchsia-400" fill="none" strokeWidth={2} strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={weekAgo.line} className="stroke-violet-500" fill="none" strokeWidth={2.5} strokeDasharray="6 4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d={yesterday.line} className="stroke-fuchsia-500" fill="none" strokeWidth={2.5} strokeDasharray="6 4" strokeLinecap="round" strokeLinejoin="round" />
               <path d={today.area} className="fill-fuchsia-500/10" />
               <path d={today.line} className="stroke-fuchsia-600" fill="none" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
               {Array.from({ length: 24 }).map((_, h) => {
