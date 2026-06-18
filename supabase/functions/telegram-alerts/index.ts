@@ -386,7 +386,11 @@ Deno.serve(async (req: Request) => {
 
     // Берём всех активных подписчиков из notification_subscribers
     // (заполняется через @SellerBase_bot командой /start), фильтруем по whitelist.
-    const allow = (Deno.env.get("TELEGRAM_ALLOWED_CHAT_IDS") ?? "")
+    const allow = (
+      Deno.env.get("TELEGRAM_ALLOWED_CHAT_IDS") ??
+      Deno.env.get("TELEGRAM_ALLOWED_CHAT_ID") ??
+      ""
+    )
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
