@@ -123,6 +123,20 @@ export function CostsExplorer({ rows }: Props) {
   } | null>(null);
   const [chinaError, setChinaError] = useState<string | null>(null);
 
+  const [unitOpen, setUnitOpen] = useState(false);
+  const [unitFile, setUnitFile] = useState<File | null>(null);
+  const [unitSheetName, setUnitSheetName] = useState('Себес');
+  const [unitSource, setUnitSource] = useState('unit-excel');
+  const [unitEffectiveFrom, setUnitEffectiveFrom] = useState(todayIso());
+  const [unitSubmitting, setUnitSubmitting] = useState(false);
+  const [unitResult, setUnitResult] = useState<{
+    updated_sku_count: number;
+    inserted_history_count: number;
+    warnings: string[];
+    unmatched_count: number;
+  } | null>(null);
+  const [unitError, setUnitError] = useState<string | null>(null);
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
@@ -265,6 +279,45 @@ export function CostsExplorer({ rows }: Props) {
     }
   }, [chinaFile, chinaOrderDate, chinaCnyRate, chinaSupplier, chinaComment, router]);
 
+  const resetUnitForm = useCallback(() => {
+    setUnitFile(null);
+    setUnitSheetName('Себес');
+    setUnitSource('unit-excel');
+    setUnitEffectiveFrom(todayIso());
+    setUnitResult(null);
+    setUnitError(null);
+  }, []);
+
+  const submitUnitImport = useCallback(async () => {
+    if (!unitFile) {
+      setUnitError('Выберите файл XLSX');
+      return;
+    }
+    setUnitSubmitting(true);
+    setUnitError(null);
+    setUnitResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', unitFile);
+      if (unitSheetName.trim()) formData.append('sheet_name', unitSheetName.trim());
+      if (unitSource.trim()) formData.append('source', unitSource.trim());
+      if (unitEffectiveFrom.trim()) formData.append('effective_from', unitEffectiveFrom.trim());
+
+      const res = await fetch('/api/import/unit-cogs', { method: 'POST', body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUnitError(String(data.error ?? res.statusText));
+        return;
+      }
+      setUnitResult(data);
+      startTransition(() => router.refresh());
+    } catch {
+      setUnitError('Ошибка сети');
+    } finally {
+      setUnitSubmitting(false);
+    }
+  }, [unitFile, unitSheetName, unitSource, unitEffectiveFrom, router]);
+
   const columns = useMemo<ColumnDef<CostRow>[]>(
     () => [
       { accessorKey: 'barcode', header: 'Штрихкод', cell: (info) => <span className="font-mono text-xs">{info.getValue<string>() || '—'}</span> },
@@ -375,6 +428,16 @@ export function CostsExplorer({ rows }: Props) {
             }}
           >
             Импортировать заказ Китай (XLSX)
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetUnitForm();
+              setUnitOpen(true);
+            }}
+          >
+            Импортировать себестоимость UNIT (XLSX)
           </Button>
         </div>
       </div>
@@ -545,6 +608,105 @@ export function CostsExplorer({ rows }: Props) {
                 </Button>
                 <Button size="sm" onClick={submitChinaImport} disabled={chinaSubmitting || !chinaFile}>
                   {chinaSubmitting ? 'Загрузка...' : 'Загрузить'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {unitOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setUnitOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold">Импорт себестоимости «до ВБ» (UNIT) из XLSX</h3>
+              <Button variant="ghost" size="sm" onClick={() => setUnitOpen(false)}>
+                ✕
+              </Button>
+            </div>
+            <div className="flex flex-col gap-3 p-4">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Файл XLSX</span>
+                <input
+                  type="file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(e) => setUnitFile(e.target.files?.[0] ?? null)}
+                  className="text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Имя листа</span>
+                <input
+                  type="text"
+                  value={unitSheetName}
+                  onChange={(e) => setUnitSheetName(e.target.value)}
+                  placeholder="Себес"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Источник</span>
+                <input
+                  type="text"
+                  value={unitSource}
+                  onChange={(e) => setUnitSource(e.target.value)}
+                  placeholder="unit-excel"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Дата вступления в силу</span>
+                <input
+                  type="date"
+                  value={unitEffectiveFrom}
+                  onChange={(e) => setUnitEffectiveFrom(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+
+              {unitError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {unitError}
+                </div>
+              )}
+
+              {unitResult && (
+                <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+                  <span>
+                    Обновлено SKU: <span className="font-medium tabular-nums">{unitResult.updated_sku_count}</span>,
+                    добавлено записей истории:{' '}
+                    <span className="font-medium tabular-nums">{unitResult.inserted_history_count}</span>
+                  </span>
+                  {unitResult.unmatched_count > 0 && (
+                    <span className="text-amber-600">Не найден SKU для {unitResult.unmatched_count} позиций</span>
+                  )}
+                  {unitResult.warnings.length > 0 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-muted-foreground">
+                        Предупреждения ({unitResult.warnings.length})
+                      </summary>
+                      <ul className="mt-1 list-inside list-disc text-muted-foreground">
+                        {unitResult.warnings.map((w, i) => (
+                          <li key={i}>{w}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setUnitOpen(false)}>
+                  Закрыть
+                </Button>
+                <Button size="sm" onClick={submitUnitImport} disabled={unitSubmitting || !unitFile}>
+                  {unitSubmitting ? 'Загрузка...' : 'Загрузить'}
                 </Button>
               </div>
             </div>

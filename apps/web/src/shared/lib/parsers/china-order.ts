@@ -98,7 +98,16 @@ export async function parseChinaOrderXlsx(
 
     const supplierUrl = toText(row.getCell(1).value);
     const comment = toText(row.getCell(3).value);
-    const qty = toNumber(row.getCell(4).value);
+    const qtyCellRaw = row.getCell(4).value;
+    const qtyCellText = typeof qtyCellRaw === 'string' ? qtyCellRaw.trim() : null;
+
+    // Хвостовая сводная таблица ("Итого по таблице", "Доставка по Китаю", "ИТОГО" и т.п.)
+    // помечена литералом "*" в колонке D (Кол-во) или служебным текстом в комментарии — на ней останавливаемся.
+    if (qtyCellText === '*' || (comment && /^(итого|доставка по китаю|3% за услуги)/i.test(comment))) {
+      break;
+    }
+
+    const qty = toNumber(qtyCellRaw);
     const price = toNumber(row.getCell(5).value);
     const delivery = toNumber(row.getCell(7).value);
     const myArticle = toText(row.getCell(8).value);
