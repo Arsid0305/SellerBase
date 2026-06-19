@@ -53,7 +53,10 @@
 - ✅ **`fetch-wb-content`** — UPSERT rating + reviews_count + subject_name + last_content_sync_at; cron weekly вторник 09:00 МСК
 - ✅ **Окно `fetch-wb-funnel-aggregate` 60 → 30 дней** — выкуп ~83% совпадёт с WB-кабинетом
 - **Автоматический себес** roadmap: `china_order_items` + `supplies_transport` + `fulfillment_costs` + `delivery_to_wb` → view `v_sku_cost_breakdown`
-- **Лайфсайклы товаров** (Events / Anomaly / Trust-Visibility-Value / Goals) — пропускаем пока, требует решения владелицы что именно трекать
+- **Лайфсайклы товаров** (Events / Anomaly / Trust-Visibility-Value / Goals):
+  - ⏳ Events log + Anomaly detection — **в работе** (агент)
+  - ⏸ TVV (Видимость/Доверие/Ценность) — **отложили**: 3 KPI-блока в /products/[id] с пояснением каждой цифры + конкретной рекомендацией («Видимость 35 — продаётся 11 дней из 30 → запустить акцию»)
+  - ⏸ Goals по SKU — **отложили**, цели по магазину пока достаточно
 - **Excel-экспорт** в шаблон владелицы (`templates/CF_PL_template_wb_only.xlsx`)
 - **Office Add-in / Power Query** — отложено
 
