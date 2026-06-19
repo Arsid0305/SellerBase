@@ -59,7 +59,7 @@ function rowToWeek(row: BreakdownDb): WeekBreakdown {
     byCardRub: byCard,
     ppvzForPayRub: toNumber(row.ppvz_for_pay_rub),
     netProfitRub: net,
-    marginPct: byCard > 0 ? net / byCard : null,
+    marginPct: byCard > 0 ? (net / byCard) * 100 : null,
     components,
   };
 }
@@ -113,7 +113,7 @@ function avgWeeks(weeks: WeekBreakdown[]): WeekBreakdown | null {
   (Object.keys(avg.components) as ComponentKey[]).forEach((k) => {
     avg.components[k] = summed.components[k] / n;
   });
-  avg.marginPct = avg.byCardRub > 0 ? avg.netProfitRub / avg.byCardRub : null;
+  avg.marginPct = avg.byCardRub > 0 ? (avg.netProfitRub / avg.byCardRub) * 100 : null;
   return avg;
 }
 
