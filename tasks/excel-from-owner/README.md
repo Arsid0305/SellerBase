@@ -29,6 +29,11 @@
 
 **Как импортировать:** на странице `/products/costs` — кнопка «Импортировать заказ Китай (XLSX)» (создаёт заказ и позиции, маппит Арт ВБ → `sku_catalog`).
 
+### 1b. Себестоимость «до ВБ» из UNIT-экономики
+**Источник:** `UNIT_economics_cogs_tariffs.xlsx`, лист «Себес» (колонка F — финальная себестоимость).
+**Маршрут:** парсер `apps/web/src/shared/lib/parsers/unit-cogs.ts` → API `apps/web/src/app/api/import/unit-cogs/route.ts` → обновляет `sku_catalog.cost_price_rub` + вставляет запись в `sku_cost_history` (маппинг по «Код WB», фолбэк по «Арт. Поставщика»).
+**Как импортировать:** на странице `/products/costs` — кнопка «Импортировать себестоимость UNIT (XLSX)».
+
 ### 2. Тарифы фулфилмента и Cargo
 **Источник:** `UNIT_economics_cogs_tariffs.xlsx` (листы «Тарифы ВБ», «Тарифы ОЗОН», «Расчет Карго»)
 **Таблицы:** `fulfillment_costs`, `supplies_transport` (предварительные имена)

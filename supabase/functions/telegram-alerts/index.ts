@@ -33,7 +33,9 @@ function fmtPct(n: number): string {
 }
 
 function fmtPp(n: number): string {
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}п.п.`;
+  // Отображаем как % хотя технически это процентные пункты (разница абсолютных процентов).
+  // Так понятнее владелице (запрошено явно).
+  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
 }
 
 function dateStr(d: Date): string {
