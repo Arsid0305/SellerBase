@@ -111,12 +111,13 @@ export function WbStyleChart({ buckets }: { buckets: Buckets }) {
             <div className="mb-3 flex flex-wrap items-end gap-6">
               <div className="flex flex-col gap-0.5">
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">Количество</span>
-                <span
+                <button
+                  type="button"
                   className={cn('text-2xl font-semibold tabular-nums cursor-pointer', metric === 'count' && 'text-foreground', metric !== 'count' && 'text-muted-foreground')}
                   onClick={() => setMetric('count')}
                 >
                   {buckets.today.totalCount.toLocaleString('ru-RU')}
-                </span>
+                </button>
                 <span className="text-[11px] text-muted-foreground">
                   {pctDelta(buckets.today.totalCount, buckets.yesterday.totalCount) >= 0 ? '↑' : '↓'} {Math.abs(pctDelta(buckets.today.totalCount, buckets.yesterday.totalCount))}% за день
                 </span>
@@ -126,12 +127,13 @@ export function WbStyleChart({ buckets }: { buckets: Buckets }) {
               </div>
               <div className="flex flex-col gap-0.5">
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">Сумма</span>
-                <span
+                <button
+                  type="button"
                   className={cn('text-2xl font-semibold tabular-nums cursor-pointer', metric === 'sum' && 'text-foreground', metric !== 'sum' && 'text-muted-foreground')}
                   onClick={() => setMetric('sum')}
                 >
                   {formatRub(buckets.today.totalSum)}
-                </span>
+                </button>
                 <span className="text-[11px] text-muted-foreground">
                   {pctDelta(buckets.today.totalSum, buckets.yesterday.totalSum) >= 0 ? '↑' : '↓'} {Math.abs(pctDelta(buckets.today.totalSum, buckets.yesterday.totalSum))}% за день
                 </span>

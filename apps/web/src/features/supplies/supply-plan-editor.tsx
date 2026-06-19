@@ -314,7 +314,7 @@ export function SupplyPlanEditor({
                   <Download className="size-4" /> Заказ 1688
                 </a>
               </Button>
-              <Button variant="destructive" size="icon" onClick={handleDelete} title="Удалить поставку">
+              <Button variant="destructive" size="icon" onClick={handleDelete} title="Удалить поставку" aria-label="Удалить поставку">
                 <Trash2 className="size-4" />
               </Button>
             </>
@@ -489,7 +489,7 @@ export function SupplyPlanEditor({
                           >
                             <span className="flex items-center justify-between gap-2">
                               <span className="font-medium">{s.name}</span>
-                              {s.priceCny != null && <span className="font-mono text-muted-foreground">¥{s.priceCny}</span>}
+                              {s.priceCny != null && <span className="font-mono tabular-nums text-muted-foreground">¥{s.priceCny}</span>}
                             </span>
                             <span className="truncate text-[10px] text-muted-foreground">{s.link}</span>
                           </button>

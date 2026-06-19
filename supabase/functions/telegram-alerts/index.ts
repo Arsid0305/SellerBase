@@ -44,10 +44,14 @@ function dateStr(d: Date): string {
 // 1. Маржа упала >5pp за последние 7д vs предыдущие 7д
 // ============================================================
 async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
+  // WB Report API лагает 1-2 дня (последние дни приходят неполные).
+  // Поэтому окна сдвинуты на 2 дня назад: сравниваем [today-9, today-2] vs [today-16, today-9].
+  // Иначе текущее окно включает 2 полупустых дня → искусственное «падение» маржи.
   const today = new Date();
-  const d0 = dateStr(today);
-  const d7 = dateStr(new Date(today.getTime() - 7 * 86_400_000));
-  const d14 = dateStr(new Date(today.getTime() - 14 * 86_400_000));
+  const LAG_DAYS = 2;
+  const d0 = dateStr(new Date(today.getTime() - LAG_DAYS * 86_400_000));
+  const d7 = dateStr(new Date(today.getTime() - (LAG_DAYS + 7) * 86_400_000));
+  const d14 = dateStr(new Date(today.getTime() - (LAG_DAYS + 14) * 86_400_000));
 
   const [{ data: curRows, error: curErr }, { data: prevRows, error: prevErr }] = await Promise.all([
     supabase.rpc("get_pnl_by_period", { p_from: d7, p_to: d0 }),
@@ -115,10 +119,12 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
 //    Выкуп = доля проданных (quantity>0) среди всех движений (продажи+возвраты).
 // ============================================================
 async function checkBuyout(supabase: SupabaseClient): Promise<CheckResult> {
+  // Окна со сдвигом 2д назад — тот же фикс что в checkMargin, WB Report лагает.
   const today = new Date();
-  const d0 = dateStr(today);
-  const d7 = dateStr(new Date(today.getTime() - 7 * 86_400_000));
-  const d14 = dateStr(new Date(today.getTime() - 14 * 86_400_000));
+  const LAG_DAYS = 2;
+  const d0 = dateStr(new Date(today.getTime() - LAG_DAYS * 86_400_000));
+  const d7 = dateStr(new Date(today.getTime() - (LAG_DAYS + 7) * 86_400_000));
+  const d14 = dateStr(new Date(today.getTime() - (LAG_DAYS + 14) * 86_400_000));
 
   const buyoutRate = async (from: string, to: string): Promise<number | null> => {
     const { data, error } = await supabase

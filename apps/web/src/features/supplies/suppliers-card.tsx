@@ -222,10 +222,10 @@ export function SuppliersCard({ skuId, initial }: Props) {
                   />
                 </div>
                 <div className="flex justify-end gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => setEditingId(null)} title="Отмена">
+                  <Button size="icon" variant="ghost" onClick={() => setEditingId(null)} title="Отмена" aria-label="Отмена">
                     <X className="size-4" />
                   </Button>
-                  <Button size="icon" onClick={() => handleSaveEdit(s.id)} disabled={busy} title="Сохранить">
+                  <Button size="icon" onClick={() => handleSaveEdit(s.id)} disabled={busy} title="Сохранить" aria-label="Сохранить">
                     <Check className="size-4" />
                   </Button>
                 </div>
@@ -244,7 +244,7 @@ export function SuppliersCard({ skuId, initial }: Props) {
                       </Badge>
                     )}
                     {s.priceCny != null && (
-                      <span className="font-mono text-[11px] text-muted-foreground">¥{s.priceCny}</span>
+                      <span className="font-mono tabular-nums text-[11px] text-muted-foreground">¥{s.priceCny}</span>
                     )}
                   </div>
                   <a
@@ -260,14 +260,14 @@ export function SuppliersCard({ skuId, initial }: Props) {
                 </div>
                 <div className="flex items-center gap-1">
                   {!s.isDefault && (
-                    <Button size="icon" variant="ghost" onClick={() => handleSetDefault(s.id)} title="Сделать по умолчанию">
+                    <Button size="icon" variant="ghost" onClick={() => handleSetDefault(s.id)} title="Сделать по умолчанию" aria-label="Сделать по умолчанию">
                       <Star className="size-4" />
                     </Button>
                   )}
-                  <Button size="icon" variant="ghost" onClick={() => startEdit(s)} title="Редактировать">
+                  <Button size="icon" variant="ghost" onClick={() => startEdit(s)} title="Редактировать" aria-label="Редактировать">
                     <Pencil className="size-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" onClick={() => handleDelete(s.id)} title="Удалить">
+                  <Button size="icon" variant="ghost" onClick={() => handleDelete(s.id)} title="Удалить" aria-label="Удалить">
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
