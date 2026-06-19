@@ -90,11 +90,9 @@ export async function fetchDataQuality(): Promise<DataQualityReport> {
           'id, my_article, wb_article, barcode, title, photo_url, subject_name, is_active, cost_price_rub',
         )
         .range(0, 10_000),
-      supabase
-        .from('wb_reports_fact')
-        .select('nm_id, rr_dt, quantity')
-        .gte('rr_dt', since30)
-        .range(0, 200_000),
+      // Заменено: было .from('wb_reports_fact').select('nm_id,rr_dt,quantity').range(0,200_000) — 200к строк в RSC.
+      // Теперь агрегация в БД через RPC get_sku_reports_aggregate (создана 2026-06-19).
+      supabase.rpc('get_sku_reports_aggregate', { p_from: since30, p_to: todayIso }),
       supabase.from('wb_stocks').select('nm_id, quantity').range(0, 50_000),
       supabase
         .from('ingestion_log')
@@ -124,11 +122,11 @@ export async function fetchDataQuality(): Promise<DataQualityReport> {
 
   const catalog = (catalogRes.data ?? []) as CatalogRow[];
 
-  // активные продажи/остаток за 30д по nm_id
+  // активные продажи/остаток за 30д по nm_id (агрегат из RPC get_sku_reports_aggregate).
   const unitsLast30ByNm = new Map<number, number>();
-  for (const r of (salesFactRes.data ?? []) as { nm_id: number | null; quantity: number | null }[]) {
+  for (const r of (salesFactRes.data ?? []) as { nm_id: number | null; units_sold: number | null }[]) {
     if (r.nm_id == null) continue;
-    unitsLast30ByNm.set(r.nm_id, (unitsLast30ByNm.get(r.nm_id) ?? 0) + toNumber(r.quantity));
+    unitsLast30ByNm.set(r.nm_id, (unitsLast30ByNm.get(r.nm_id) ?? 0) + toNumber(r.units_sold));
   }
   const stockByNm = new Map<number, number>();
   for (const s of (stocksRes.data ?? []) as { nm_id: number | null; quantity: number | null }[]) {
