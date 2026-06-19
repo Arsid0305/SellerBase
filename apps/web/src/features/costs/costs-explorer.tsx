@@ -10,8 +10,26 @@ import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
 import type { CostRow, CostHistoryEntry, CargoTariff } from '@/entities/costs';
+import type { CostBreakdown } from '@/entities/cost-breakdown';
 
-type Props = { rows: CostRow[]; cargoTariff?: CargoTariff | null };
+type Props = { rows: CostRow[]; cargoTariff?: CargoTariff | null; breakdown?: CostBreakdown[] };
+
+const SOURCE_LABEL: Record<CostBreakdown['source'], string> = {
+  unit_import: 'unit_import',
+  cogs_calc: 'cogs_calc',
+  sku_catalog_legacy: 'legacy',
+  none: 'нет данных',
+};
+
+function breakdownTooltip(b: CostBreakdown): string | undefined {
+  if (b.source !== 'cogs_calc') return undefined;
+  const parts: string[] = [];
+  if (b.purchaseRubPerUnit != null) parts.push(`Закупка ${fmtRub(b.purchaseRubPerUnit)}₽`);
+  if (b.cargoRubPerUnit != null) parts.push(`Карго ${fmtRub(b.cargoRubPerUnit)}₽`);
+  if (b.customsRubPerUnit != null) parts.push(`Таможня ${fmtRub(b.customsRubPerUnit)}₽`);
+  if (b.packagingRubPerUnit != null) parts.push(`Упаковка ${fmtRub(b.packagingRubPerUnit)}₽`);
+  return parts.length > 0 ? parts.join(' + ') : undefined;
+}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -104,8 +122,13 @@ function EditCell({ row, onSaved }: EditCellProps) {
   );
 }
 
-export function CostsExplorer({ rows, cargoTariff = null }: Props) {
+export function CostsExplorer({ rows, cargoTariff = null, breakdown = [] }: Props) {
   const router = useRouter();
+  const breakdownBySku = useMemo(() => {
+    const map = new Map<number, CostBreakdown>();
+    for (const b of breakdown) map.set(b.skuId, b);
+    return map;
+  }, [breakdown]);
   const [, startTransition] = useTransition();
   const [historyFor, setHistoryFor] = useState<CostRow | null>(null);
   const [history, setHistory] = useState<CostHistoryEntry[]>([]);
@@ -424,12 +447,25 @@ export function CostsExplorer({ rows, cargoTariff = null }: Props) {
             <TooltipIcon text="Себестоимость товара, действующая на сегодняшний день. Берётся из последней актуальной записи истории, либо из карточки SKU, если истории ещё нет." />
           </span>
         ),
-        cell: (info) => {
-          const value = info.getValue<number>();
+        cell: ({ row, getValue }) => {
+          const value = getValue<number>();
           if (!value) {
             return <span className="text-xs text-muted-foreground">нет данных</span>;
           }
-          return <span className="tabular-nums">{fmtRub(value)}</span>;
+          const b = breakdownBySku.get(row.original.sku_id);
+          const tooltip = b ? breakdownTooltip(b) : undefined;
+          return (
+            <div className="flex flex-col gap-0.5">
+              <span className="tabular-nums" title={tooltip}>
+                {fmtRub(value)}
+              </span>
+              {b && (
+                <span className="text-[10px] text-muted-foreground" title={tooltip}>
+                  источник: {SOURCE_LABEL[b.source]}
+                </span>
+              )}
+            </div>
+          );
         },
       },
       {
@@ -452,7 +488,7 @@ export function CostsExplorer({ rows, cargoTariff = null }: Props) {
         cell: ({ row }) => <EditCell row={row.original} onSaved={onSaved} />,
       },
     ],
-    [openHistory, onSaved],
+    [openHistory, onSaved, breakdownBySku],
   );
 
   return (
