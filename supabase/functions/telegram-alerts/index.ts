@@ -1,8 +1,8 @@
 // telegram-alerts — ежедневная проверка ключевых метрик и алерт владелице в Telegram.
 // Запускается раз в день кроном.
-// 9 проверок параллельно: маржа, выкуп, дефицит, простой cron-задач, новые SKU без cost,
+// 10 проверок параллельно: маржа, выкуп, дефицит, простой cron-задач, новые SKU без cost,
 // акции ВБ заканчивающиеся завтра, обнулившийся остаток активных SKU, упавший рейтинг,
-// устаревшие тарифы ВБ-комиссии.
+// устаревшие тарифы ВБ-комиссии, критические аномалии из sku_events (детектор).
 // Если все проверки зелёные — ничего не отправляет (не спамим «всё ок»).
 // verify_jwt = false (вызывается из pg_cron).
 
@@ -520,6 +520,55 @@ async function checkStaleCommissions(supabase: SupabaseClient): Promise<CheckRes
   };
 }
 
+// ============================================================
+// 10. Критические аномалии за 24ч из sku_events (детектор detect-anomalies).
+// ============================================================
+async function checkAnomalies(supabase: SupabaseClient): Promise<CheckResult> {
+  const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
+  const CRITICAL_TYPES = ["anomaly_detected", "sales_stopped", "stock_zero", "margin_negative"];
+
+  const { data, error } = await supabase
+    .from("sku_events")
+    .select("sku_id, event_type, title, event_dt")
+    .eq("severity", "critical")
+    .in("event_type", CRITICAL_TYPES)
+    .gte("event_dt", since)
+    .order("event_dt", { ascending: false });
+  if (error) {
+    // Таблица могла ещё не существовать в некоторых окружениях — не считаем ошибкой алерта.
+    return { name: "anomalies", ok: true, severity: "yellow", message: null };
+  }
+
+  type Row = { sku_id: number; event_type: string; title: string; event_dt: string };
+  const rows = (data ?? []) as Row[];
+  if (rows.length === 0) {
+    return { name: "anomalies", ok: true, severity: "yellow", message: null };
+  }
+
+  const skuIds = [...new Set(rows.slice(0, 5).map((r) => r.sku_id))];
+  const { data: skuRows } = await supabase
+    .from("sku_catalog")
+    .select("id, my_article")
+    .in("id", skuIds);
+  const articleById = new Map(
+    ((skuRows ?? []) as Array<{ id: number; my_article: string | null }>).map((s) => [s.id, s.my_article]),
+  );
+
+  const top5 = rows.slice(0, 5)
+    .map((r) => `${articleById.get(r.sku_id) ?? `sku#${r.sku_id}`} — ${r.title}`)
+    .join("\n");
+
+  return {
+    name: "anomalies",
+    ok: false,
+    severity: "red",
+    message:
+      `🔴 *Критические аномалии за 24ч: ${rows.length}*\n` +
+      `${top5}\n` +
+      `→ Открыть ${BASE_URL}/dashboard`,
+  };
+}
+
 async function sendTelegram(token: string, chatId: string, text: string): Promise<boolean> {
   const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -567,6 +616,7 @@ Deno.serve(async (req: Request) => {
       checkOutOfStockActiveSku(supabase),
       checkLowRating(supabase),
       checkStaleCommissions(supabase),
+      checkAnomalies(supabase),
     ]);
 
     const alerts = results.filter((r) => r.message != null);
