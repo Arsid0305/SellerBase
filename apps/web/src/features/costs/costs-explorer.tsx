@@ -108,6 +108,21 @@ export function CostsExplorer({ rows }: Props) {
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [chinaOpen, setChinaOpen] = useState(false);
+  const [chinaFile, setChinaFile] = useState<File | null>(null);
+  const [chinaOrderDate, setChinaOrderDate] = useState(todayIso());
+  const [chinaCnyRate, setChinaCnyRate] = useState('');
+  const [chinaSupplier, setChinaSupplier] = useState('');
+  const [chinaComment, setChinaComment] = useState('');
+  const [chinaSubmitting, setChinaSubmitting] = useState(false);
+  const [chinaResult, setChinaResult] = useState<{
+    order_id: number;
+    inserted_count: number;
+    warnings: string[];
+    unmatched_sku_count: number;
+  } | null>(null);
+  const [chinaError, setChinaError] = useState<string | null>(null);
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
@@ -204,6 +219,51 @@ export function CostsExplorer({ rows }: Props) {
       if (fileRef.current) fileRef.current.value = '';
     }
   };
+
+  const resetChinaForm = useCallback(() => {
+    setChinaFile(null);
+    setChinaOrderDate(todayIso());
+    setChinaCnyRate('');
+    setChinaSupplier('');
+    setChinaComment('');
+    setChinaResult(null);
+    setChinaError(null);
+  }, []);
+
+  const submitChinaImport = useCallback(async () => {
+    if (!chinaFile) {
+      setChinaError('Выберите файл XLSX');
+      return;
+    }
+    if (!chinaOrderDate) {
+      setChinaError('Укажите дату заказа');
+      return;
+    }
+    setChinaSubmitting(true);
+    setChinaError(null);
+    setChinaResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', chinaFile);
+      formData.append('order_date', chinaOrderDate);
+      if (chinaCnyRate.trim()) formData.append('cny_rate', chinaCnyRate.trim());
+      if (chinaSupplier.trim()) formData.append('supplier_name', chinaSupplier.trim());
+      if (chinaComment.trim()) formData.append('comment', chinaComment.trim());
+
+      const res = await fetch('/api/import/china-order', { method: 'POST', body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setChinaError(String(data.error ?? res.statusText));
+        return;
+      }
+      setChinaResult(data);
+      startTransition(() => router.refresh());
+    } catch {
+      setChinaError('Ошибка сети');
+    } finally {
+      setChinaSubmitting(false);
+    }
+  }, [chinaFile, chinaOrderDate, chinaCnyRate, chinaSupplier, chinaComment, router]);
 
   const columns = useMemo<ColumnDef<CostRow>[]>(
     () => [
@@ -306,6 +366,16 @@ export function CostsExplorer({ rows }: Props) {
           >
             {importing ? 'Импорт...' : 'Импорт Excel/CSV'}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetChinaForm();
+              setChinaOpen(true);
+            }}
+          >
+            Импортировать заказ Китай (XLSX)
+          </Button>
         </div>
       </div>
 
@@ -368,6 +438,115 @@ export function CostsExplorer({ rows }: Props) {
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {chinaOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setChinaOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold">Импорт заказа Китай (1688) из XLSX</h3>
+              <Button variant="ghost" size="sm" onClick={() => setChinaOpen(false)}>
+                ✕
+              </Button>
+            </div>
+            <div className="flex flex-col gap-3 p-4">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Файл XLSX</span>
+                <input
+                  type="file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(e) => setChinaFile(e.target.files?.[0] ?? null)}
+                  className="text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Дата заказа</span>
+                <input
+                  type="date"
+                  value={chinaOrderDate}
+                  onChange={(e) => setChinaOrderDate(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Курс юаня (₽ за CNY)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={chinaCnyRate}
+                  onChange={(e) => setChinaCnyRate(e.target.value)}
+                  placeholder="напр. 12.50"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Поставщик (опционально)</span>
+                <input
+                  type="text"
+                  value={chinaSupplier}
+                  onChange={(e) => setChinaSupplier(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Комментарий (опционально)</span>
+                <input
+                  type="text"
+                  value={chinaComment}
+                  onChange={(e) => setChinaComment(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+
+              {chinaError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {chinaError}
+                </div>
+              )}
+
+              {chinaResult && (
+                <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+                  <span>
+                    Заказ <span className="font-medium tabular-nums">#{chinaResult.order_id}</span> создан,
+                    добавлено позиций: <span className="font-medium tabular-nums">{chinaResult.inserted_count}</span>
+                  </span>
+                  {chinaResult.unmatched_sku_count > 0 && (
+                    <span className="text-amber-600">
+                      Не найден SKU для {chinaResult.unmatched_sku_count} позиций
+                    </span>
+                  )}
+                  {chinaResult.warnings.length > 0 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-muted-foreground">
+                        Предупреждения ({chinaResult.warnings.length})
+                      </summary>
+                      <ul className="mt-1 list-inside list-disc text-muted-foreground">
+                        {chinaResult.warnings.map((w, i) => (
+                          <li key={i}>{w}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setChinaOpen(false)}>
+                  Закрыть
+                </Button>
+                <Button size="sm" onClick={submitChinaImport} disabled={chinaSubmitting || !chinaFile}>
+                  {chinaSubmitting ? 'Загрузка...' : 'Загрузить'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
