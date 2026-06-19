@@ -78,8 +78,21 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
     return { name: "margin", ok: true, severity: "yellow", message: null };
   }
 
+  const totalRevenue = (rows: { revenue_rub: number }[] | null) =>
+    (rows ?? []).reduce((s, r) => s + Number(r.revenue_rub ?? 0), 0);
+  const totalProfit = (rows: { net_profit_rub: number }[] | null) =>
+    (rows ?? []).reduce((s, r) => s + Number(r.net_profit_rub ?? 0), 0);
+  const curRevenue = totalRevenue(curRows);
+  const prevRevenue = totalRevenue(prevRows);
+  const curProfit = totalProfit(curRows);
+  const prevProfit = totalProfit(prevRows);
+
   const deltaPp = curMargin - prevMargin;
-  if (deltaPp < -5) {
+  // Порог -15pp (не -5pp): при просадке выручки за неделю полуфиксированные расходы
+  // (storage, логистика) сами по себе сжимают маржу на 5-10pp — обычная операционная
+  // левередж-чувствительность тонкой маржи (10-20%), не аномалия. Разбор 2026-06-19:
+  // delta -9.6pp при падении выручки -27.7% (63111₽ vs 87297₽) — не баг RPC.
+  if (deltaPp < -15) {
     // топ-3 SKU где маржа упала больше всего
     const prevBySku = new Map<string, { margin: number; revenue: number }>();
     for (const r of (prevRows ?? []) as Array<{ my_article: string; margin_pct: number | null; revenue_rub: number }>) {
@@ -106,6 +119,8 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       message:
         `🔴 *Маржа упала на ${fmtPp(deltaPp)}*\n` +
         `За 7д: ${curMargin.toFixed(1)}% vs предыдущие 7д: ${prevMargin.toFixed(1)}%\n` +
+        `Выручка: ${Math.round(prevRevenue).toLocaleString("ru-RU")}₽ → ${Math.round(curRevenue).toLocaleString("ru-RU")}₽\n` +
+        `Прибыль: ${Math.round(prevProfit).toLocaleString("ru-RU")}₽ → ${Math.round(curProfit).toLocaleString("ru-RU")}₽\n` +
         `Топ-3 SKU где маржа упала: ${top3Str}\n` +
         `→ Открыть ${BASE_URL}/margin-analyzer`,
     };
