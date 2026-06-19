@@ -334,6 +334,70 @@ export function CostsExplorer({ rows, cargoTariff = null }: Props) {
     }
   }, [unitFile, unitSheetName, unitSource, unitEffectiveFrom, router]);
 
+  const resetCargoForm = useCallback(() => {
+    setCargoCnyRate('');
+    setCargoUsdRate('');
+    setCargoDeliveryPerKg('');
+    setCargoEffectiveFrom(todayIso());
+    setCargoComment('');
+    setCargoError(null);
+  }, []);
+
+  const submitCargoTariff = useCallback(async () => {
+    const cnyRate = Number(cargoCnyRate.replace(',', '.').trim());
+    if (!Number.isFinite(cnyRate) || cnyRate <= 0) {
+      setCargoError('Укажите корректный курс юаня');
+      return;
+    }
+    const deliveryPerKg = Number(cargoDeliveryPerKg.replace(',', '.').trim());
+    if (!Number.isFinite(deliveryPerKg) || deliveryPerKg <= 0) {
+      setCargoError('Укажите корректную стоимость доставки 1 кг');
+      return;
+    }
+    let usdRate: number | null = null;
+    if (cargoUsdRate.trim()) {
+      const v = Number(cargoUsdRate.replace(',', '.').trim());
+      if (!Number.isFinite(v) || v <= 0) {
+        setCargoError('Укажите корректный курс доллара или оставьте пустым');
+        return;
+      }
+      usdRate = v;
+    }
+    setCargoSubmitting(true);
+    setCargoError(null);
+    try {
+      const res = await fetch('/api/cargo-tariffs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          cny_rate_rub: cnyRate,
+          usd_rate_rub: usdRate,
+          cny_delivery_per_kg: deliveryPerKg,
+          effective_from: cargoEffectiveFrom || todayIso(),
+          comment: cargoComment.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCargoError(String(data.error ?? res.statusText));
+        return;
+      }
+      setCurrentCargoTariff({
+        cny_rate_rub: cnyRate,
+        usd_rate_rub: usdRate,
+        cny_delivery_per_kg: deliveryPerKg,
+        effective_from: data.effective_from ?? (cargoEffectiveFrom || todayIso()),
+        comment: cargoComment.trim() || null,
+      });
+      setCargoOpen(false);
+      startTransition(() => router.refresh());
+    } catch {
+      setCargoError('Ошибка сети');
+    } finally {
+      setCargoSubmitting(false);
+    }
+  }, [cargoCnyRate, cargoUsdRate, cargoDeliveryPerKg, cargoEffectiveFrom, cargoComment, router]);
+
   const columns = useMemo<ColumnDef<CostRow>[]>(
     () => [
       { accessorKey: 'barcode', header: 'Штрихкод', cell: (info) => <span className="font-mono text-xs">{info.getValue<string>() || '—'}</span> },
@@ -455,8 +519,26 @@ export function CostsExplorer({ rows, cargoTariff = null }: Props) {
           >
             Импортировать себестоимость UNIT (XLSX)
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetCargoForm();
+              setCargoOpen(true);
+            }}
+          >
+            Тарифы Карго
+          </Button>
         </div>
       </div>
+
+      {currentCargoTariff && (
+        <p className="text-xs text-muted-foreground">
+          Текущий курс юаня: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_rate_rub)}₽</span>
+          {' · '}Доставка: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_delivery_per_kg)}¥/кг</span>
+          {' · '}Действует с <span className="font-medium text-foreground tabular-nums">{fmtDateRu(currentCargoTariff.effective_from)}</span>
+        </p>
+      )}
 
       <DataTable
         data={filtered}
@@ -723,6 +805,97 @@ export function CostsExplorer({ rows, cargoTariff = null }: Props) {
                 </Button>
                 <Button size="sm" onClick={submitUnitImport} disabled={unitSubmitting || !unitFile}>
                   {unitSubmitting ? 'Загрузка...' : 'Загрузить'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cargoOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setCargoOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold">Тарифы Карго</h3>
+              <Button variant="ghost" size="sm" onClick={() => setCargoOpen(false)}>
+                ✕
+              </Button>
+            </div>
+            <div className="flex flex-col gap-3 p-4">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Курс юаня (₽ за 1 ¥)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cargoCnyRate}
+                  onChange={(e) => setCargoCnyRate(e.target.value)}
+                  placeholder="напр. 12.50"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Курс доллара (₽ за 1 $) — опционально</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cargoUsdRate}
+                  onChange={(e) => setCargoUsdRate(e.target.value)}
+                  placeholder="напр. 95.00"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Стоимость доставки 1 кг (юаней)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cargoDeliveryPerKg}
+                  onChange={(e) => setCargoDeliveryPerKg(e.target.value)}
+                  placeholder="напр. 45.00"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Дата действия</span>
+                <input
+                  type="date"
+                  value={cargoEffectiveFrom}
+                  onChange={(e) => setCargoEffectiveFrom(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Комментарий (опционально)</span>
+                <input
+                  type="text"
+                  value={cargoComment}
+                  onChange={(e) => setCargoComment(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+
+              {cargoError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {cargoError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setCargoOpen(false)}>
+                  Закрыть
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={submitCargoTariff}
+                  disabled={cargoSubmitting || !cargoCnyRate || !cargoDeliveryPerKg}
+                >
+                  {cargoSubmitting ? 'Сохранение...' : 'Сохранить'}
                 </Button>
               </div>
             </div>

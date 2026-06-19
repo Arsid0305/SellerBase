@@ -1,6 +1,8 @@
 // telegram-alerts — ежедневная проверка ключевых метрик и алерт владелице в Telegram.
 // Запускается раз в день кроном.
-// 5 проверок параллельно: маржа, выкуп, дефицит, простой cron-задач, новые SKU без cost.
+// 9 проверок параллельно: маржа, выкуп, дефицит, простой cron-задач, новые SKU без cost,
+// акции ВБ заканчивающиеся завтра, обнулившийся остаток активных SKU, упавший рейтинг,
+// устаревшие тарифы ВБ-комиссии.
 // Если все проверки зелёные — ничего не отправляет (не спамим «всё ок»).
 // verify_jwt = false (вызывается из pg_cron).
 
@@ -263,6 +265,7 @@ async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
   // (зона ответственности владелицы по §6).
   const MONITORED: { job: string; staleHours: number }[] = [
     { job: "fetch-wb-sales", staleHours: 2 },       // cron 30 мин → должен быть свежий
+    { job: "fetch-wb-orders", staleHours: 2 },      // cron 30 мин → должен быть свежий
     { job: "fetch-wb-funnel", staleHours: 30 },     // daily
     { job: "fetch-wb-funnel-aggregate", staleHours: 30 }, // daily
     { job: "fetch-wb-tariffs", staleHours: 30 },    // daily
@@ -360,6 +363,163 @@ async function checkNewSkuNoCost(supabase: SupabaseClient): Promise<CheckResult>
   };
 }
 
+// ============================================================
+// 6. Акция ВБ заканчивается завтра
+// ============================================================
+async function checkPromotionsEndingSoon(supabase: SupabaseClient): Promise<CheckResult> {
+  const tomorrow = dateStr(new Date(Date.now() + 86_400_000));
+  const { data, error } = await supabase
+    .from("wb_promotions")
+    .select("name, end_at")
+    .gte("end_at", `${tomorrow}T00:00:00`)
+    .lt("end_at", `${tomorrow}T23:59:59.999`);
+  if (error) {
+    // Таблица может не существовать в некоторых окружениях — не считаем это ошибкой алерта,
+    // просто молча пропускаем проверку (yellow с ok:true, без сообщения).
+    return { name: "promotions_ending", ok: true, severity: "yellow", message: null };
+  }
+
+  const rows = (data ?? []) as Array<{ name: string | null; end_at: string }>;
+  if (rows.length === 0) {
+    return { name: "promotions_ending", ok: true, severity: "yellow", message: null };
+  }
+
+  const endDate = new Date(`${tomorrow}T00:00:00`);
+  const ddmm = `${String(endDate.getDate()).padStart(2, "0")}.${String(endDate.getMonth() + 1).padStart(2, "0")}`;
+  const listStr = rows.map((r) => `«${r.name ?? "без названия"}»`).join(", ");
+
+  return {
+    name: "promotions_ending",
+    ok: false,
+    severity: "yellow",
+    message: `🟡 *Акция ${listStr} заканчивается завтра ${ddmm}*`,
+  };
+}
+
+// ============================================================
+// 7. Остаток на ВБ-складах закончился для активных SKU (0 по всем складам)
+// ============================================================
+async function checkOutOfStockActiveSku(supabase: SupabaseClient): Promise<CheckResult> {
+  const [{ data: skus, error: skuErr }, { data: stocks, error: stockErr }] = await Promise.all([
+    supabase.from("sku_catalog").select("wb_article, my_article, title").eq("is_active", true),
+    supabase.from("wb_stocks").select("nm_id, quantity"),
+  ]);
+  if (skuErr || stockErr) {
+    return {
+      name: "out_of_stock",
+      ok: false,
+      severity: "yellow",
+      message: `🟡 *Остатки ВБ* — не удалось проверить (${skuErr?.message ?? stockErr?.message})`,
+    };
+  }
+
+  const stockByNm = new Map<number, number>();
+  for (const r of (stocks ?? []) as Array<{ nm_id: number; quantity: number | null }>) {
+    stockByNm.set(r.nm_id, (stockByNm.get(r.nm_id) ?? 0) + Number(r.quantity ?? 0));
+  }
+
+  const oos: { article: string; title: string }[] = [];
+  for (const s of (skus ?? []) as Array<{ wb_article: number | null; my_article: string | null; title: string | null }>) {
+    if (s.wb_article == null) continue;
+    const qty = stockByNm.get(s.wb_article);
+    // Нет записи в wb_stocks вообще = тоже нулевой остаток (склад не вернул товар).
+    if (qty == null || qty === 0) {
+      oos.push({ article: s.my_article ?? String(s.wb_article), title: s.title ?? "" });
+    }
+  }
+
+  if (oos.length === 0) {
+    return { name: "out_of_stock", ok: true, severity: "yellow", message: null };
+  }
+
+  const top3 = oos.slice(0, 3).map((o) => o.article).join(", ");
+
+  return {
+    name: "out_of_stock",
+    ok: false,
+    severity: "red",
+    message:
+      `🔴 *Остаток на ВБ-складах закончился: ${oos.length} активных SKU*\n` +
+      `Топ-3: ${top3}\n` +
+      `→ Открыть ${BASE_URL}/deficit`,
+  };
+}
+
+// ============================================================
+// 8. SKU с упавшим рейтингом (<4.0) среди активных
+// ============================================================
+async function checkLowRating(supabase: SupabaseClient): Promise<CheckResult> {
+  const { data, error } = await supabase
+    .from("sku_catalog")
+    .select("my_article, rating")
+    .eq("is_active", true)
+    .not("rating", "is", null)
+    .lt("rating", 4.0);
+  if (error) {
+    return {
+      name: "low_rating",
+      ok: false,
+      severity: "yellow",
+      message: `🟡 *Рейтинг* — не удалось проверить (${error.message})`,
+    };
+  }
+
+  const rows = (data ?? []) as Array<{ my_article: string | null; rating: number | null }>;
+  if (rows.length === 0) {
+    return { name: "low_rating", ok: true, severity: "yellow", message: null };
+  }
+
+  rows.sort((a, b) => Number(a.rating ?? 0) - Number(b.rating ?? 0));
+  const top5 = rows.slice(0, 5).map((r) => `${r.my_article ?? "?"} (${Number(r.rating).toFixed(1)})`).join(", ");
+
+  return {
+    name: "low_rating",
+    ok: false,
+    severity: "yellow",
+    message:
+      `🟡 *${rows.length} SKU с рейтингом ниже 4.0*\n` +
+      `Худшие: ${top5}\n` +
+      `→ Открыть ${BASE_URL}/products`,
+  };
+}
+
+// ============================================================
+// 9. Тарифы ВБ-комиссии не обновлялись 14+ дней
+// ============================================================
+async function checkStaleCommissions(supabase: SupabaseClient): Promise<CheckResult> {
+  const { data, error } = await supabase
+    .from("wb_commissions_by_subject")
+    .select("fetched_at")
+    .order("fetched_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    return {
+      name: "stale_commissions",
+      ok: false,
+      severity: "yellow",
+      message: `🟡 *Тарифы ВБ-комиссии* — не удалось проверить (${error.message})`,
+    };
+  }
+
+  const rows = (data ?? []) as Array<{ fetched_at: string | null }>;
+  const lastFetchedAt = rows[0]?.fetched_at;
+  if (!lastFetchedAt) {
+    return { name: "stale_commissions", ok: true, severity: "yellow", message: null };
+  }
+
+  const daysAgo = (Date.now() - new Date(lastFetchedAt).getTime()) / 86_400_000;
+  if (daysAgo < 14) {
+    return { name: "stale_commissions", ok: true, severity: "yellow", message: null };
+  }
+
+  return {
+    name: "stale_commissions",
+    ok: false,
+    severity: "yellow",
+    message: `🟡 *Тарифы ВБ-комиссии не обновлялись ${Math.floor(daysAgo)}+ дней*\n→ Открыть ${BASE_URL}/data-quality`,
+  };
+}
+
 async function sendTelegram(token: string, chatId: string, text: string): Promise<boolean> {
   const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -403,6 +563,10 @@ Deno.serve(async (req: Request) => {
       checkDeficit(supabase),
       checkCronHealth(supabase),
       checkNewSkuNoCost(supabase),
+      checkPromotionsEndingSoon(supabase),
+      checkOutOfStockActiveSku(supabase),
+      checkLowRating(supabase),
+      checkStaleCommissions(supabase),
     ]);
 
     const alerts = results.filter((r) => r.message != null);
