@@ -34,7 +34,9 @@ export function AnomaliesBanner({ anomalies }: { anomalies: Anomaly[] }) {
               <Link href={`/products/${encodeURIComponent(a.barcode)}`} className="min-w-0 flex-1 hover:underline">
                 <div className="truncate font-medium">{a.title}</div>
                 <div className="text-xs text-muted-foreground tabular-nums">
-                  {formatDate(a.date)} · {a.units} шт против {a.baseline} среднее (z={a.zScore})
+                  {a.zScore === 0
+                    ? formatDate(a.date)
+                    : `${formatDate(a.date)} · ${a.units} шт против ${a.baseline} среднее (z=${a.zScore})`}
                 </div>
               </Link>
             </li>

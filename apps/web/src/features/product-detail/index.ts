@@ -7,6 +7,7 @@ export { ProductWarehousesCard } from './product-warehouses-card';
 export { ProductLogisticsForecastCard } from './product-logistics-forecast-card';
 export { ProductPhotosCard } from './product-photos-card';
 export { ProductEventsCard } from './product-events-card';
+export { EventsCard } from './events-card';
 export { ProductHistoryCard } from './product-history-card';
 export { RevenueByDayChart, StockByDayChart } from './product-charts';
 export type { ProductDetail } from './types';

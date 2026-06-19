@@ -24,6 +24,51 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+type SkuEventRow = { sku_id: number; event_type: string; title: string; event_dt: string; details: Record<string, unknown> | null };
+const CRITICAL_EVENT_TYPES = ['anomaly_detected', 'sales_stopped', 'stock_zero', 'margin_negative'];
+
+// Критические события за 24ч из sku_events (детектор detect-anomalies), приведённые к форме Anomaly.
+async function fetchCriticalSkuEventAnomalies(
+  supabase: ReturnType<typeof createAdminClient>,
+): Promise<Anomaly[]> {
+  const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
+  const { data, error } = await supabase
+    .from('sku_events')
+    .select('sku_id, event_type, title, event_dt, details')
+    .eq('severity', 'critical')
+    .in('event_type', CRITICAL_EVENT_TYPES)
+    .gte('event_dt', since)
+    .order('event_dt', { ascending: false })
+    .limit(20);
+  if (error || !data || data.length === 0) return [];
+
+  const rows = data as SkuEventRow[];
+  const skuIds = [...new Set(rows.map((r) => r.sku_id))];
+  const { data: skuRows } = await supabase
+    .from('sku_catalog')
+    .select('id, barcode, title')
+    .in('id', skuIds);
+  const metaById = new Map(
+    ((skuRows ?? []) as Array<{ id: number; barcode: string | null; title: string | null }>).map((s) => [
+      s.id,
+      { barcode: s.barcode ?? String(s.id), title: s.title ?? '—' },
+    ]),
+  );
+
+  return rows.map((r) => {
+    const meta = metaById.get(r.sku_id);
+    return {
+      barcode: meta?.barcode ?? String(r.sku_id),
+      title: `${meta?.title ?? '—'} · ${r.title}`,
+      date: r.event_dt.slice(0, 10),
+      units: 0,
+      baseline: 0,
+      zScore: 0,
+      direction: 'drop' as const,
+    };
+  });
+}
+
 export async function fetchAnomalies(): Promise<Anomaly[]> {
   const supabase = createAdminClient();
   const today = new Date();
@@ -31,7 +76,7 @@ export async function fetchAnomalies(): Promise<Anomaly[]> {
   const since = new Date(todayUtc);
   since.setUTCDate(since.getUTCDate() - 30);
 
-  const [factsRes, catalogRes] = await Promise.all([
+  const [factsRes, catalogRes, skuEventAnomalies] = await Promise.all([
     supabase
       .from('wb_reports_fact')
       .select('nm_id, rr_dt, quantity')
@@ -43,6 +88,7 @@ export async function fetchAnomalies(): Promise<Anomaly[]> {
       .select('wb_article, barcode, title')
       .not('wb_article', 'is', null)
       .range(0, 5_000),
+    fetchCriticalSkuEventAnomalies(supabase),
   ]);
 
   const facts = (factsRes.data ?? []) as FactRow[];
@@ -97,5 +143,7 @@ export async function fetchAnomalies(): Promise<Anomaly[]> {
   }
 
   anomalies.sort((a, b) => Math.abs(b.zScore) - Math.abs(a.zScore));
-  return anomalies.slice(0, 10);
+  // Критические события из sku_events идут первыми (это уже подтверждённые аномалии детектора,
+  // не статистическая эвристика z-score) — не должны быть отрезаны лимитом.
+  return [...skuEventAnomalies, ...anomalies].slice(0, 10);
 }
