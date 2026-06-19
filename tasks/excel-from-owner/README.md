@@ -25,7 +25,14 @@
 ### 1. Автосебес из заказов 1688
 **Источник:** `Order_china_128122.xlsx`
 **Таблица:** `china_order_items` (sku_id, qty, price_cny, delivery_cny, date)
-**Маршрут:** парсер `apps/web/src/app/api/import/china-orders/route.ts` → upsert в `china_order_items`.
+**Маршрут:** парсер `apps/web/src/shared/lib/parsers/china-order.ts` → API `apps/web/src/app/api/import/china-order/route.ts` → insert в `china_orders` + `china_order_items`.
+
+**Как импортировать:** на странице `/products/costs` — кнопка «Импортировать заказ Китай (XLSX)» (создаёт заказ и позиции, маппит Арт ВБ → `sku_catalog`).
+
+### 1b. Себестоимость «до ВБ» из UNIT-экономики
+**Источник:** `UNIT_economics_cogs_tariffs.xlsx`, лист «Себес» (колонка F — финальная себестоимость).
+**Маршрут:** парсер `apps/web/src/shared/lib/parsers/unit-cogs.ts` → API `apps/web/src/app/api/import/unit-cogs/route.ts` → обновляет `sku_catalog.cost_price_rub` + вставляет запись в `sku_cost_history` (маппинг по «Код WB», фолбэк по «Арт. Поставщика»).
+**Как импортировать:** на странице `/products/costs` — кнопка «Импортировать себестоимость UNIT (XLSX)».
 
 ### 2. Тарифы фулфилмента и Cargo
 **Источник:** `UNIT_economics_cogs_tariffs.xlsx` (листы «Тарифы ВБ», «Тарифы ОЗОН», «Расчет Карго»)

@@ -9,9 +9,9 @@ import { Button } from '@/shared/ui/button';
 import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
-import type { CostRow, CostHistoryEntry } from '@/entities/costs';
+import type { CostRow, CostHistoryEntry, CargoTariff } from '@/entities/costs';
 
-type Props = { rows: CostRow[] };
+type Props = { rows: CostRow[]; cargoTariff?: CargoTariff | null };
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -21,6 +21,12 @@ const costFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 
 
 function fmtRub(n: number): string {
   return costFormatter.format(n);
+}
+
+function fmtDateRu(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function matchesSearch(row: CostRow, q: string): boolean {
@@ -98,7 +104,7 @@ function EditCell({ row, onSaved }: EditCellProps) {
   );
 }
 
-export function CostsExplorer({ rows }: Props) {
+export function CostsExplorer({ rows, cargoTariff = null }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [historyFor, setHistoryFor] = useState<CostRow | null>(null);
@@ -122,6 +128,30 @@ export function CostsExplorer({ rows }: Props) {
     unmatched_sku_count: number;
   } | null>(null);
   const [chinaError, setChinaError] = useState<string | null>(null);
+
+  const [unitOpen, setUnitOpen] = useState(false);
+  const [unitFile, setUnitFile] = useState<File | null>(null);
+  const [unitSheetName, setUnitSheetName] = useState('Себес');
+  const [unitSource, setUnitSource] = useState('unit-excel');
+  const [unitEffectiveFrom, setUnitEffectiveFrom] = useState(todayIso());
+  const [unitSubmitting, setUnitSubmitting] = useState(false);
+  const [unitResult, setUnitResult] = useState<{
+    updated_sku_count: number;
+    inserted_history_count: number;
+    warnings: string[];
+    unmatched_count: number;
+  } | null>(null);
+  const [unitError, setUnitError] = useState<string | null>(null);
+
+  const [cargoOpen, setCargoOpen] = useState(false);
+  const [cargoCnyRate, setCargoCnyRate] = useState('');
+  const [cargoUsdRate, setCargoUsdRate] = useState('');
+  const [cargoDeliveryPerKg, setCargoDeliveryPerKg] = useState('');
+  const [cargoEffectiveFrom, setCargoEffectiveFrom] = useState(todayIso());
+  const [cargoComment, setCargoComment] = useState('');
+  const [cargoSubmitting, setCargoSubmitting] = useState(false);
+  const [cargoError, setCargoError] = useState<string | null>(null);
+  const [currentCargoTariff, setCurrentCargoTariff] = useState<CargoTariff | null>(cargoTariff);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -265,6 +295,109 @@ export function CostsExplorer({ rows }: Props) {
     }
   }, [chinaFile, chinaOrderDate, chinaCnyRate, chinaSupplier, chinaComment, router]);
 
+  const resetUnitForm = useCallback(() => {
+    setUnitFile(null);
+    setUnitSheetName('Себес');
+    setUnitSource('unit-excel');
+    setUnitEffectiveFrom(todayIso());
+    setUnitResult(null);
+    setUnitError(null);
+  }, []);
+
+  const submitUnitImport = useCallback(async () => {
+    if (!unitFile) {
+      setUnitError('Выберите файл XLSX');
+      return;
+    }
+    setUnitSubmitting(true);
+    setUnitError(null);
+    setUnitResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', unitFile);
+      if (unitSheetName.trim()) formData.append('sheet_name', unitSheetName.trim());
+      if (unitSource.trim()) formData.append('source', unitSource.trim());
+      if (unitEffectiveFrom.trim()) formData.append('effective_from', unitEffectiveFrom.trim());
+
+      const res = await fetch('/api/import/unit-cogs', { method: 'POST', body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUnitError(String(data.error ?? res.statusText));
+        return;
+      }
+      setUnitResult(data);
+      startTransition(() => router.refresh());
+    } catch {
+      setUnitError('Ошибка сети');
+    } finally {
+      setUnitSubmitting(false);
+    }
+  }, [unitFile, unitSheetName, unitSource, unitEffectiveFrom, router]);
+
+  const resetCargoForm = useCallback(() => {
+    setCargoCnyRate('');
+    setCargoUsdRate('');
+    setCargoDeliveryPerKg('');
+    setCargoEffectiveFrom(todayIso());
+    setCargoComment('');
+    setCargoError(null);
+  }, []);
+
+  const submitCargoTariff = useCallback(async () => {
+    const cnyRate = Number(cargoCnyRate.replace(',', '.').trim());
+    if (!Number.isFinite(cnyRate) || cnyRate <= 0) {
+      setCargoError('Укажите корректный курс юаня');
+      return;
+    }
+    const deliveryPerKg = Number(cargoDeliveryPerKg.replace(',', '.').trim());
+    if (!Number.isFinite(deliveryPerKg) || deliveryPerKg <= 0) {
+      setCargoError('Укажите корректную стоимость доставки 1 кг');
+      return;
+    }
+    let usdRate: number | null = null;
+    if (cargoUsdRate.trim()) {
+      const v = Number(cargoUsdRate.replace(',', '.').trim());
+      if (!Number.isFinite(v) || v <= 0) {
+        setCargoError('Укажите корректный курс доллара или оставьте пустым');
+        return;
+      }
+      usdRate = v;
+    }
+    setCargoSubmitting(true);
+    setCargoError(null);
+    try {
+      const res = await fetch('/api/cargo-tariffs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          cny_rate_rub: cnyRate,
+          usd_rate_rub: usdRate,
+          cny_delivery_per_kg: deliveryPerKg,
+          effective_from: cargoEffectiveFrom || todayIso(),
+          comment: cargoComment.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCargoError(String(data.error ?? res.statusText));
+        return;
+      }
+      setCurrentCargoTariff({
+        cny_rate_rub: cnyRate,
+        usd_rate_rub: usdRate,
+        cny_delivery_per_kg: deliveryPerKg,
+        effective_from: data.effective_from ?? (cargoEffectiveFrom || todayIso()),
+        comment: cargoComment.trim() || null,
+      });
+      setCargoOpen(false);
+      startTransition(() => router.refresh());
+    } catch {
+      setCargoError('Ошибка сети');
+    } finally {
+      setCargoSubmitting(false);
+    }
+  }, [cargoCnyRate, cargoUsdRate, cargoDeliveryPerKg, cargoEffectiveFrom, cargoComment, router]);
+
   const columns = useMemo<ColumnDef<CostRow>[]>(
     () => [
       { accessorKey: 'barcode', header: 'Штрихкод', cell: (info) => <span className="font-mono text-xs">{info.getValue<string>() || '—'}</span> },
@@ -376,8 +509,36 @@ export function CostsExplorer({ rows }: Props) {
           >
             Импортировать заказ Китай (XLSX)
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetUnitForm();
+              setUnitOpen(true);
+            }}
+          >
+            Импортировать себестоимость UNIT (XLSX)
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetCargoForm();
+              setCargoOpen(true);
+            }}
+          >
+            Тарифы Карго
+          </Button>
         </div>
       </div>
+
+      {currentCargoTariff && (
+        <p className="text-xs text-muted-foreground">
+          Текущий курс юаня: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_rate_rub)}₽</span>
+          {' · '}Доставка: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_delivery_per_kg)}¥/кг</span>
+          {' · '}Действует с <span className="font-medium text-foreground tabular-nums">{fmtDateRu(currentCargoTariff.effective_from)}</span>
+        </p>
+      )}
 
       <DataTable
         data={filtered}
@@ -545,6 +706,196 @@ export function CostsExplorer({ rows }: Props) {
                 </Button>
                 <Button size="sm" onClick={submitChinaImport} disabled={chinaSubmitting || !chinaFile}>
                   {chinaSubmitting ? 'Загрузка...' : 'Загрузить'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {unitOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setUnitOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold">Импорт себестоимости «до ВБ» (UNIT) из XLSX</h3>
+              <Button variant="ghost" size="sm" onClick={() => setUnitOpen(false)}>
+                ✕
+              </Button>
+            </div>
+            <div className="flex flex-col gap-3 p-4">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Файл XLSX</span>
+                <input
+                  type="file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(e) => setUnitFile(e.target.files?.[0] ?? null)}
+                  className="text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Имя листа</span>
+                <input
+                  type="text"
+                  value={unitSheetName}
+                  onChange={(e) => setUnitSheetName(e.target.value)}
+                  placeholder="Себес"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Источник</span>
+                <input
+                  type="text"
+                  value={unitSource}
+                  onChange={(e) => setUnitSource(e.target.value)}
+                  placeholder="unit-excel"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Дата вступления в силу</span>
+                <input
+                  type="date"
+                  value={unitEffectiveFrom}
+                  onChange={(e) => setUnitEffectiveFrom(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+
+              {unitError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {unitError}
+                </div>
+              )}
+
+              {unitResult && (
+                <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+                  <span>
+                    Обновлено SKU: <span className="font-medium tabular-nums">{unitResult.updated_sku_count}</span>,
+                    добавлено записей истории:{' '}
+                    <span className="font-medium tabular-nums">{unitResult.inserted_history_count}</span>
+                  </span>
+                  {unitResult.unmatched_count > 0 && (
+                    <span className="text-amber-600">Не найден SKU для {unitResult.unmatched_count} позиций</span>
+                  )}
+                  {unitResult.warnings.length > 0 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-muted-foreground">
+                        Предупреждения ({unitResult.warnings.length})
+                      </summary>
+                      <ul className="mt-1 list-inside list-disc text-muted-foreground">
+                        {unitResult.warnings.map((w, i) => (
+                          <li key={i}>{w}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setUnitOpen(false)}>
+                  Закрыть
+                </Button>
+                <Button size="sm" onClick={submitUnitImport} disabled={unitSubmitting || !unitFile}>
+                  {unitSubmitting ? 'Загрузка...' : 'Загрузить'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cargoOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setCargoOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold">Тарифы Карго</h3>
+              <Button variant="ghost" size="sm" onClick={() => setCargoOpen(false)}>
+                ✕
+              </Button>
+            </div>
+            <div className="flex flex-col gap-3 p-4">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Курс юаня (₽ за 1 ¥)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cargoCnyRate}
+                  onChange={(e) => setCargoCnyRate(e.target.value)}
+                  placeholder="напр. 12.50"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Курс доллара (₽ за 1 $) — опционально</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cargoUsdRate}
+                  onChange={(e) => setCargoUsdRate(e.target.value)}
+                  placeholder="напр. 95.00"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Стоимость доставки 1 кг (юаней)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={cargoDeliveryPerKg}
+                  onChange={(e) => setCargoDeliveryPerKg(e.target.value)}
+                  placeholder="напр. 45.00"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Дата действия</span>
+                <input
+                  type="date"
+                  value={cargoEffectiveFrom}
+                  onChange={(e) => setCargoEffectiveFrom(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Комментарий (опционально)</span>
+                <input
+                  type="text"
+                  value={cargoComment}
+                  onChange={(e) => setCargoComment(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+
+              {cargoError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {cargoError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setCargoOpen(false)}>
+                  Закрыть
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={submitCargoTariff}
+                  disabled={cargoSubmitting || !cargoCnyRate || !cargoDeliveryPerKg}
+                >
+                  {cargoSubmitting ? 'Сохранение...' : 'Сохранить'}
                 </Button>
               </div>
             </div>

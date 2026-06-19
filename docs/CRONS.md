@@ -15,6 +15,7 @@
 | `fetch-wb-content-weekly`         | `0 6 * * 2`     | 09:00 вт | `fetch-wb-content`        | Синхронизирует карточки товаров с WB Content API: title, brand, category/subject_name, photo_url, rating, reviews_count, last_content_sync_at. | `20260618_cron_fetch_wb_content.sql`           |
 | `telegram-alerts-daily`           | `0 8 * * *`     | 11:00   | `telegram-alerts`          | 5 проверок: маржа, выкуп, дефицит, cron, новые SKU без cost. Шлёт только если есть проблемы. | `20260618_telegram_alerts_cron.sql`            |
 | `fetch-wb-sales-30min`            | `*/30 * * * *`  | каждые 30 мин | `fetch-wb-sales`           | Тянет продажи из WB Statistics API `/api/v1/supplier/sales`, UPSERT по `srid`. | `20260614_cron_fetch_wb_sales.sql`             |
+| `fetch-wb-orders-30min`           | `*/30 * * * *`  | каждые 30 мин | `fetch-wb-orders`          | Тянет заказы из WB Statistics API `/api/v1/supplier/orders`, UPSERT по `(g_number, date)`. | `20260619120002_cron_fetch_wb_orders.sql`      |
 
 ⚠️ Часть cron'ов (`fetch-wb-stocks-daily`, `fetch-wb-tariffs-daily`, `fetch-wb-funnel-daily`, `fetch-wb-report-weekly`) исторически добавлены через Supabase Dashboard, а не миграциями — это технический долг. При воссоздании БД они НЕ восстановятся автоматически. Решение: вынести их в миграции при возможности.
 
