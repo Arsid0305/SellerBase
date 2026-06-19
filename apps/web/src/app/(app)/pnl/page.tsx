@@ -73,6 +73,14 @@ export default async function PnLPage({ searchParams }: { searchParams: SearchPa
             <Download className="size-4" />
             За {year - 1}
           </a>
+          <a
+            href={`/api/finance/pl-wb-xlsx?year=${year}`}
+            download
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+          >
+            <Download className="size-4" />
+            Скачать P&L WB (формат владелицы)
+          </a>
         </div>
       </div>
 
