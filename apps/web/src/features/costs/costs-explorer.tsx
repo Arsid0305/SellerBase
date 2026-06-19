@@ -9,9 +9,9 @@ import { Button } from '@/shared/ui/button';
 import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
-import type { CostRow, CostHistoryEntry } from '@/entities/costs';
+import type { CostRow, CostHistoryEntry, CargoTariff } from '@/entities/costs';
 
-type Props = { rows: CostRow[] };
+type Props = { rows: CostRow[]; cargoTariff?: CargoTariff | null };
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -21,6 +21,12 @@ const costFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 
 
 function fmtRub(n: number): string {
   return costFormatter.format(n);
+}
+
+function fmtDateRu(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function matchesSearch(row: CostRow, q: string): boolean {
@@ -98,7 +104,7 @@ function EditCell({ row, onSaved }: EditCellProps) {
   );
 }
 
-export function CostsExplorer({ rows }: Props) {
+export function CostsExplorer({ rows, cargoTariff = null }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [historyFor, setHistoryFor] = useState<CostRow | null>(null);
@@ -136,6 +142,16 @@ export function CostsExplorer({ rows }: Props) {
     unmatched_count: number;
   } | null>(null);
   const [unitError, setUnitError] = useState<string | null>(null);
+
+  const [cargoOpen, setCargoOpen] = useState(false);
+  const [cargoCnyRate, setCargoCnyRate] = useState('');
+  const [cargoUsdRate, setCargoUsdRate] = useState('');
+  const [cargoDeliveryPerKg, setCargoDeliveryPerKg] = useState('');
+  const [cargoEffectiveFrom, setCargoEffectiveFrom] = useState(todayIso());
+  const [cargoComment, setCargoComment] = useState('');
+  const [cargoSubmitting, setCargoSubmitting] = useState(false);
+  const [cargoError, setCargoError] = useState<string | null>(null);
+  const [currentCargoTariff, setCurrentCargoTariff] = useState<CargoTariff | null>(cargoTariff);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');

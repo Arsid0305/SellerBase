@@ -1,2 +1,2 @@
-export { fetchCostRows, fetchCostHistory } from './queries';
-export type { CostRow, CostHistoryEntry } from './queries';
+export { fetchCostRows, fetchCostHistory, fetchCurrentCargoTariff } from './queries';
+export type { CostRow, CostHistoryEntry, CargoTariff } from './queries';

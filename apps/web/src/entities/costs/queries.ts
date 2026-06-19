@@ -89,6 +89,34 @@ export async function fetchCostRows(): Promise<CostRow[]> {
   });
 }
 
+export type CargoTariff = {
+  cny_rate_rub: number;
+  usd_rate_rub: number | null;
+  cny_delivery_per_kg: number;
+  effective_from: string;
+  comment: string | null;
+};
+
+export async function fetchCurrentCargoTariff(): Promise<CargoTariff | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('cargo_tariffs')
+    .select('cny_rate_rub, usd_rate_rub, cny_delivery_per_kg, effective_from, comment')
+    .lte('effective_from', todayIso())
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn('[fetchCurrentCargoTariff] error (table may not exist yet)', error.message);
+    return null;
+  }
+  return (data as CargoTariff | null) ?? null;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export async function fetchCostHistory(skuId: number): Promise<CostHistoryEntry[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
