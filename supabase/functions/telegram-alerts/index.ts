@@ -261,17 +261,18 @@ async function checkDeficit(supabase: SupabaseClient): Promise<CheckResult> {
 // ============================================================
 async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
   // Мониторим только cron-задачи у которых есть свой порог.
-  // Не мониторим ручные вызовы из UI (fetch-wb-promotions) и WB-токеновые ошибки 401
-  // (зона ответственности владелицы по §6).
+  // Не мониторим:
+  //   - ручные вызовы из UI (fetch-wb-promotions)
+  //   - WB-токеновые ошибки 401 (зона ответственности владелицы по §6)
+  //   - сама telegram-alerts (мониторит саму себя → ложный positive при первом запуске)
+  //   - fetch-wb-content (только что задеплоен, успешного запуска ещё не было; вернуть когда отработает первый раз вторник)
   const MONITORED: { job: string; staleHours: number }[] = [
     { job: "fetch-wb-sales", staleHours: 2 },       // cron 30 мин → должен быть свежий
     { job: "fetch-wb-orders", staleHours: 2 },      // cron 30 мин → должен быть свежий
     { job: "fetch-wb-funnel", staleHours: 30 },     // daily
     { job: "fetch-wb-funnel-aggregate", staleHours: 30 }, // daily
     { job: "fetch-wb-tariffs", staleHours: 30 },    // daily
-    { job: "fetch-wb-content", staleHours: 24 * 8 }, // weekly + слабина
     { job: "fetch-wb-commissions", staleHours: 24 * 8 }, // weekly + слабина
-    { job: "telegram-alerts", staleHours: 30 },     // daily
   ];
 
   const { data, error } = await supabase
