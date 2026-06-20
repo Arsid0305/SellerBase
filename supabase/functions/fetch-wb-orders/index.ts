@@ -6,24 +6,15 @@
 // dateFrom = max(last_change_date) - 1 час (overlap), либо ?days=N для бэкфилла.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { adminClient } from "../_shared/supabase.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { wbGet, batchUpsert } from "../_shared/wb-client.ts";
 
 const JOB_NAME = "fetch-wb-orders";
 const WB_BASE = "https://statistics-api.wildberries.ru";
-const BATCH_SIZE = 1000;
 const MAX_LOOPS = 30; // защита от бесконечного цикла
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function adminClient(): SupabaseClient {
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY env not set");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+const FULL_PAGE_THRESHOLD = 80000;
 
 interface WbOrderRow {
   gNumber: string;
@@ -59,32 +50,10 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-async function upsertInBatches(
-  supabase: SupabaseClient,
-  rows: Record<string, unknown>[],
-): Promise<void> {
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const chunk = rows.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase
-      .from("wb_orders_fact")
-      .upsert(chunk, { onConflict: "g_number,date", ignoreDuplicates: false });
-    if (error) throw new Error(`upsert wb_orders_fact failed: ${error.message}`);
-  }
-}
-
 async function fetchPage(token: string, dateFrom: string): Promise<WbOrderRow[]> {
   const url = `${WB_BASE}/api/v1/supplier/orders?dateFrom=${encodeURIComponent(dateFrom)}`;
-  const res = await fetch(url, {
-    headers: { Authorization: token, "Content-Type": "application/json" },
-  });
-  if (res.status === 429) {
-    const retry = parseInt(res.headers.get("x-ratelimit-retry") ?? "10", 10);
-    await new Promise((r) => setTimeout(r, (retry + 1) * 1000));
-    return fetchPage(token, dateFrom);
-  }
-  if (!res.ok) throw new Error(`wb orders api ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  const data = await wbGet(url, token);
+  return Array.isArray(data) ? (data as WbOrderRow[]) : [];
 }
 
 async function run(supabase: SupabaseClient, jobId: number, dateFromStart: string) {
@@ -138,7 +107,7 @@ async function run(supabase: SupabaseClient, jobId: number, dateFromStart: strin
     }));
 
     if (dbRows.length > 0) {
-      await upsertInBatches(supabase, dbRows);
+      await batchUpsert(supabase, "wb_orders_fact", dbRows, { onConflict: "g_number,date", batchSize: 1000 });
       totalOut += dbRows.length;
     }
 
@@ -147,7 +116,7 @@ async function run(supabase: SupabaseClient, jobId: number, dateFromStart: strin
     for (const r of rows) {
       if (r.lastChangeDate && r.lastChangeDate > maxLast) maxLast = r.lastChangeDate;
     }
-    if (maxLast === dateFrom || rows.length < 80000) break;
+    if (maxLast === dateFrom || rows.length < FULL_PAGE_THRESHOLD) break;
     // следующий dateFrom = maxLast + 1 сек
     const t = new Date(maxLast);
     t.setSeconds(t.getSeconds() + 1);

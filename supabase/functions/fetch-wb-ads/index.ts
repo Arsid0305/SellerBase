@@ -8,25 +8,15 @@
 // ?days=N — фетч статистики за последние N дней (default 7, max 90).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { adminClient } from "../_shared/supabase.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { wbPost, batchUpsert } from "../_shared/wb-client.ts";
 
 const JOB_NAME = "fetch-wb-ads";
 const WB_BASE = "https://advert-api.wildberries.ru";
-const BATCH_SIZE = 1000;
 // fullstats принимает максимум 100 кампаний и 31 дату за один запрос.
 const CAMPAIGNS_PER_CALL = 100;
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function adminClient(): SupabaseClient {
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY env not set");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
 
 interface WbCampaign {
   advertId: number;
@@ -109,41 +99,32 @@ function dateRangeDays(days: number): string[] {
   return out;
 }
 
-async function fetchWithRetry(
-  url: string,
-  token: string,
-  init?: RequestInit,
-): Promise<Response> {
+/**
+ * Список всех кампаний продавца (любого статуса/типа).
+ * Особый случай: WB возвращает 204 No Content когда кампаний нет —
+ * стандартный wbGet помощник упадёт на res.json(), поэтому здесь свой fetch.
+ */
+async function fetchCampaignIds(token: string): Promise<WbCampaign[]> {
+  const url = `${WB_BASE}/adv/v1/promotion/count`;
   const res = await fetch(url, {
-    ...init,
-    headers: { Authorization: token, "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: { Authorization: token, "Content-Type": "application/json" },
   });
   if (res.status === 429) {
     const retry = parseInt(res.headers.get("x-ratelimit-retry") ?? "20", 10);
     await new Promise((r) => setTimeout(r, (retry + 1) * 1000));
-    return fetchWithRetry(url, token, init);
+    return fetchCampaignIds(token);
   }
-  return res;
-}
-
-/** Список всех кампаний продавца (любого статуса/типа). */
-async function fetchCampaignIds(token: string): Promise<WbCampaign[]> {
-  const url = `${WB_BASE}/adv/v1/promotion/count`;
-  const res = await fetchWithRetry(url, token);
-  if (res.status === 200) {
-    const data = (await res.json()) as { adverts?: WbCampaignCountGroup[] };
-    const groups = data?.adverts ?? [];
-    const out: WbCampaign[] = [];
-    for (const g of groups) {
-      for (const a of g.advert_list ?? []) {
-        out.push({ advertId: a.advertId, type: g.type, status: g.status });
-      }
+  if (res.status === 204) return []; // нет кампаний
+  if (!res.ok) throw new Error(`wb promotion/count ${res.status}: ${await res.text()}`);
+  const data = (await res.json()) as { adverts?: WbCampaignCountGroup[] };
+  const groups = data?.adverts ?? [];
+  const out: WbCampaign[] = [];
+  for (const g of groups) {
+    for (const a of g.advert_list ?? []) {
+      out.push({ advertId: a.advertId, type: g.type, status: g.status });
     }
-    return out;
   }
-  // 204 = нет кампаний
-  if (res.status === 204) return [];
-  throw new Error(`wb promotion/count ${res.status}: ${await res.text()}`);
+  return out;
 }
 
 async function fetchFullstats(
@@ -153,23 +134,8 @@ async function fetchFullstats(
 ): Promise<WbFullstatsCampaign[]> {
   const url = `${WB_BASE}/adv/v2/fullstats`;
   const body = campaignIds.map((id) => ({ id, dates }));
-  const res = await fetchWithRetry(url, token, { method: "POST", body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`wb fullstats ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
-}
-
-async function upsertInBatches(
-  supabase: SupabaseClient,
-  rows: Record<string, unknown>[],
-): Promise<void> {
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const chunk = rows.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase
-      .from("wb_ads_fact")
-      .upsert(chunk, { onConflict: "campaign_id,date,nm_id_key", ignoreDuplicates: false });
-    if (error) throw new Error(`upsert wb_ads_fact failed: ${error.message}`);
-  }
+  const data = await wbPost(url, token, body);
+  return Array.isArray(data) ? (data as WbFullstatsCampaign[]) : [];
 }
 
 function buildRows(
@@ -268,7 +234,10 @@ async function run(supabase: SupabaseClient, jobId: number, days: number) {
 
     const rows = buildRows(stats, campaignMeta);
     if (rows.length > 0) {
-      await upsertInBatches(supabase, rows);
+      await batchUpsert(supabase, "wb_ads_fact", rows, {
+        onConflict: "campaign_id,date,nm_id_key",
+        batchSize: 1000,
+      });
       totalOut += rows.length;
     }
 

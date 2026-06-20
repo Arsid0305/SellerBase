@@ -7,24 +7,15 @@
 // либо ?days=N для бэкфилла.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { adminClient } from "../_shared/supabase.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { wbGet, batchUpsert } from "../_shared/wb-client.ts";
 
 const JOB_NAME = "fetch-wb-sales";
 const WB_BASE = "https://statistics-api.wildberries.ru";
-const BATCH_SIZE = 1000;
 const MAX_LOOPS = 30; // защита от бесконечного цикла
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function adminClient(): SupabaseClient {
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY env not set");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+const FULL_PAGE_THRESHOLD = 80000; // если страница меньше — данных больше нет
 
 interface WbSaleRow {
   date: string;
@@ -68,32 +59,10 @@ function dateOnly(iso: string): string {
   return iso.slice(0, 10);
 }
 
-async function upsertInBatches(
-  supabase: SupabaseClient,
-  rows: Record<string, unknown>[],
-): Promise<void> {
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const chunk = rows.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase
-      .from("wb_sales_fact")
-      .upsert(chunk, { onConflict: "srid", ignoreDuplicates: false });
-    if (error) throw new Error(`upsert wb_sales_fact failed: ${error.message}`);
-  }
-}
-
 async function fetchPage(token: string, dateFrom: string): Promise<WbSaleRow[]> {
   const url = `${WB_BASE}/api/v1/supplier/sales?dateFrom=${encodeURIComponent(dateFrom)}`;
-  const res = await fetch(url, {
-    headers: { Authorization: token, "Content-Type": "application/json" },
-  });
-  if (res.status === 429) {
-    const retry = parseInt(res.headers.get("x-ratelimit-retry") ?? "10", 10);
-    await new Promise((r) => setTimeout(r, (retry + 1) * 1000));
-    return fetchPage(token, dateFrom);
-  }
-  if (!res.ok) throw new Error(`wb sales api ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  const data = await wbGet(url, token);
+  return Array.isArray(data) ? (data as WbSaleRow[]) : [];
 }
 
 async function run(supabase: SupabaseClient, jobId: number, dateFromStart: string) {
@@ -117,41 +86,40 @@ async function run(supabase: SupabaseClient, jobId: number, dateFromStart: strin
         uniqueRows.push(r);
       }
     }
-    const dbRows = uniqueRows
-      .map((r) => {
-        const saleId = r.saleID ?? null;
-        const isStorno = typeof saleId === "string" && saleId.startsWith("R");
-        return {
-          srid: r.srid,
-          sale_id: saleId,
-          sale_dt: dateOnly(r.date),
-          sale_ts: r.date,
-          last_change_date: r.lastChangeDate,
-          nm_id: r.nmId,
-          barcode: r.barcode ?? null,
-          supplier_article: r.supplierArticle ?? null,
-          tech_size: r.techSize ?? null,
-          brand: r.brand ?? null,
-          subject: r.subject ?? null,
-          category: r.category ?? null,
-          finished_price: toNum(r.finishedPrice),
-          for_pay: toNum(r.forPay),
-          price_with_disc: toNum(r.priceWithDisc),
-          total_price: toNum(r.totalPrice),
-          discount_percent: toNum(r.discountPercent),
-          spp_percent: toNum(r.spp),
-          is_storno: isStorno,
-          warehouse_name: r.warehouseName ?? null,
-          office_name: r.oblastOkrugName ?? null,
-          region_name: r.regionName ?? null,
-          country_name: r.countryName ?? null,
-          raw: r,
-          updated_at: new Date().toISOString(),
-        };
-      });
+    const dbRows = uniqueRows.map((r) => {
+      const saleId = r.saleID ?? null;
+      const isStorno = typeof saleId === "string" && saleId.startsWith("R");
+      return {
+        srid: r.srid,
+        sale_id: saleId,
+        sale_dt: dateOnly(r.date),
+        sale_ts: r.date,
+        last_change_date: r.lastChangeDate,
+        nm_id: r.nmId,
+        barcode: r.barcode ?? null,
+        supplier_article: r.supplierArticle ?? null,
+        tech_size: r.techSize ?? null,
+        brand: r.brand ?? null,
+        subject: r.subject ?? null,
+        category: r.category ?? null,
+        finished_price: toNum(r.finishedPrice),
+        for_pay: toNum(r.forPay),
+        price_with_disc: toNum(r.priceWithDisc),
+        total_price: toNum(r.totalPrice),
+        discount_percent: toNum(r.discountPercent),
+        spp_percent: toNum(r.spp),
+        is_storno: isStorno,
+        warehouse_name: r.warehouseName ?? null,
+        office_name: r.oblastOkrugName ?? null,
+        region_name: r.regionName ?? null,
+        country_name: r.countryName ?? null,
+        raw: r,
+        updated_at: new Date().toISOString(),
+      };
+    });
 
     if (dbRows.length > 0) {
-      await upsertInBatches(supabase, dbRows);
+      await batchUpsert(supabase, "wb_sales_fact", dbRows, { onConflict: "srid", batchSize: 1000 });
       totalOut += dbRows.length;
     }
 
@@ -160,7 +128,7 @@ async function run(supabase: SupabaseClient, jobId: number, dateFromStart: strin
     for (const r of rows) {
       if (r.lastChangeDate && r.lastChangeDate > maxLast) maxLast = r.lastChangeDate;
     }
-    if (maxLast === dateFrom || rows.length < 80000) break;
+    if (maxLast === dateFrom || rows.length < FULL_PAGE_THRESHOLD) break;
     // следующий dateFrom = maxLast + 1 сек
     const t = new Date(maxLast);
     t.setSeconds(t.getSeconds() + 1);
