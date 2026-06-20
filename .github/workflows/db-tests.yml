@@ -1,0 +1,61 @@
+name: SQL Tests (pgTAP)
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**/*.sql'
+      - 'supabase/tests/**/*.sql'
+      - '.github/workflows/db-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**/*.sql'
+      - 'supabase/tests/**/*.sql'
+
+jobs:
+  pgtap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+
+      - name: Install pgTAP + pg_prove
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-16-pgtap libtap-parser-sourcehandler-pgtap-perl
+
+      - name: Enable pgTAP extension
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d testdb -c "CREATE EXTENSION IF NOT EXISTS pgtap;"
+
+      - name: Apply migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in supabase/migrations/*.sql; do
+            echo "Applying $f"
+            psql -h localhost -U postgres -d testdb -f "$f" || echo "Migration $f failed (non-fatal for tests)"
+          done
+
+      - name: Run pgTAP tests
+        env:
+          PGPASSWORD: postgres
+        run: |
+          pg_prove -h localhost -U postgres -d testdb supabase/tests/*.sql

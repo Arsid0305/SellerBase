@@ -2,6 +2,11 @@
 
 Юнит-тесты SQL-формул для ключевых RPC и views: P&L, оборачиваемость, ABC/XYZ.
 
+Запускаются автоматически в CI workflow [`db-tests.yml`](../../.github/workflows/db-tests.yml)
+на каждый PR и push в `main`, затрагивающий `supabase/migrations/**` или `supabase/tests/**`.
+Workflow поднимает чистый `postgres:16`, прогоняет миграции, ставит pgTAP и запускает
+`pg_prove` по всем файлам в этой папке.
+
 ## Файлы
 
 | Файл | Покрытие |
