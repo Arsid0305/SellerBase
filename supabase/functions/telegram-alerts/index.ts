@@ -26,8 +26,19 @@ function adminClient(): SupabaseClient {
 interface CheckResult {
   name: string;
   ok: boolean;
-  severity: "red" | "yellow";
-  message: string | null; // Markdown-блок алерта, null если всё в порядке
+  // green   = всё в норме / улучшение
+  // yellow  = внимание / нейтрально
+  // orange  = на грани / стоит посмотреть
+  // red     = критично, действовать срочно
+  severity: "red" | "orange" | "yellow" | "green";
+  // Краткая строка для ежедневной сводки: «🟢 Маржа стабильна: 18.6%»
+  summary: string;
+  // Подробный markdown-блок (только когда severity=red/orange, иначе null)
+  message: string | null;
+}
+
+function emoji(s: CheckResult["severity"]): string {
+  return s === "red" ? "🔴" : s === "orange" ? "🟠" : s === "yellow" ? "🟡" : "🟢";
 }
 
 function fmtPct(n: number): string {
@@ -66,6 +77,7 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: false,
       severity: "yellow",
+      summary: "Маржа: не удалось посчитать",
       message: `🟡 *Маржа* — не удалось посчитать (${curErr?.message ?? prevErr?.message})`,
     };
   }
@@ -79,7 +91,7 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
   const curMargin = totalMargin(curRows);
   const prevMargin = totalMargin(prevRows);
   if (curMargin == null || prevMargin == null) {
-    return { name: "margin", ok: true, severity: "yellow", message: null };
+    return { name: "margin", ok: true, severity: "yellow", summary: "Маржа: нет данных за период", message: null };
   }
 
   const totalRevenue = (rows: { revenue_rub: number }[] | null) =>
@@ -120,6 +132,7 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: false,
       severity: "red",
+      summary: `Маржа упала: ${curMargin.toFixed(1)}% (Δ ${fmtPp(deltaPp)})`,
       message:
         `🔴 *Маржа упала на ${fmtPp(deltaPp)}*\n` +
         `За 7д: ${curMargin.toFixed(1)}% vs предыдущие 7д: ${prevMargin.toFixed(1)}%\n` +
@@ -130,7 +143,40 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
     };
   }
 
-  return { name: "margin", ok: true, severity: "yellow", message: null };
+  if (deltaPp <= -10) {
+    return {
+      name: "margin",
+      ok: true,
+      severity: "orange",
+      summary: `Маржа: ${curMargin.toFixed(1)}% (Δ ${fmtPp(deltaPp)}) — внимание`,
+      message:
+        `🟠 *Маржа снизилась на ${fmtPp(deltaPp)}*\n` +
+        `За 7д: ${curMargin.toFixed(1)}% vs предыдущие 7д: ${prevMargin.toFixed(1)}%\n` +
+        `→ Открыть ${BASE_URL}/margin-analyzer`,
+    };
+  }
+
+  if (deltaPp <= -1) {
+    return {
+      name: "margin",
+      ok: true,
+      severity: "yellow",
+      summary: `Маржа: ${curMargin.toFixed(1)}% (Δ ${fmtPp(deltaPp)})`,
+      message: null,
+    };
+  }
+
+  if (deltaPp > 1) {
+    return {
+      name: "margin",
+      ok: true,
+      severity: "green",
+      summary: `Маржа улучшилась: ${fmtPp(deltaPp)} (${curMargin.toFixed(1)}%)`,
+      message: null,
+    };
+  }
+
+  return { name: "margin", ok: true, severity: "green", summary: `Маржа стабильна: ${curMargin.toFixed(1)}%`, message: null };
 }
 
 // ============================================================
@@ -170,7 +216,7 @@ async function checkBuyout(supabase: SupabaseClient): Promise<CheckResult> {
   ]);
 
   if (curRate == null || prevRate == null) {
-    return { name: "buyout", ok: true, severity: "yellow", message: null };
+    return { name: "buyout", ok: true, severity: "yellow", summary: "Выкуп: нет данных за период", message: null };
   }
 
   const deltaPp = curRate - prevRate;
@@ -179,6 +225,7 @@ async function checkBuyout(supabase: SupabaseClient): Promise<CheckResult> {
       name: "buyout",
       ok: false,
       severity: "red",
+      summary: `Выкуп упал: ${curRate.toFixed(1)}% (Δ ${fmtPp(deltaPp)})`,
       message:
         `🔴 *Выкуп упал на ${fmtPp(deltaPp)}*\n` +
         `За 7д: ${curRate.toFixed(1)}% vs предыдущие 7д: ${prevRate.toFixed(1)}%\n` +
@@ -186,7 +233,40 @@ async function checkBuyout(supabase: SupabaseClient): Promise<CheckResult> {
     };
   }
 
-  return { name: "buyout", ok: true, severity: "yellow", message: null };
+  if (deltaPp <= -5) {
+    return {
+      name: "buyout",
+      ok: true,
+      severity: "orange",
+      summary: `Выкуп: ${curRate.toFixed(1)}% (Δ ${fmtPp(deltaPp)}) — внимание`,
+      message:
+        `🟠 *Выкуп снизился на ${fmtPp(deltaPp)}*\n` +
+        `За 7д: ${curRate.toFixed(1)}% vs предыдущие 7д: ${prevRate.toFixed(1)}%\n` +
+        `→ Открыть ${BASE_URL}/deficit`,
+    };
+  }
+
+  if (deltaPp <= -1) {
+    return {
+      name: "buyout",
+      ok: true,
+      severity: "yellow",
+      summary: `Выкуп: ${curRate.toFixed(1)}% (Δ ${fmtPp(deltaPp)})`,
+      message: null,
+    };
+  }
+
+  if (deltaPp > 1) {
+    return {
+      name: "buyout",
+      ok: true,
+      severity: "green",
+      summary: `Выкуп улучшился: ${fmtPp(deltaPp)} (${curRate.toFixed(1)}%)`,
+      message: null,
+    };
+  }
+
+  return { name: "buyout", ok: true, severity: "green", summary: `Выкуп стабилен: ${curRate.toFixed(1)}%`, message: null };
 }
 
 // ============================================================
@@ -208,6 +288,7 @@ async function checkDeficit(supabase: SupabaseClient): Promise<CheckResult> {
       name: "deficit",
       ok: false,
       severity: "yellow",
+      summary: "Дефицит: не удалось посчитать",
       message: `🟡 *Дефицит* — не удалось посчитать (${pnlErr?.message ?? turErr?.message ?? skuErr?.message})`,
     };
   }
@@ -236,7 +317,7 @@ async function checkDeficit(supabase: SupabaseClient): Promise<CheckResult> {
   }
 
   if (deficits.length === 0) {
-    return { name: "deficit", ok: true, severity: "yellow", message: null };
+    return { name: "deficit", ok: true, severity: "green", summary: "Дефицит: 0 SKU из топ-20", message: null };
   }
 
   deficits.sort((a, b) => a.daysOfStock - b.daysOfStock);
@@ -245,12 +326,16 @@ async function checkDeficit(supabase: SupabaseClient): Promise<CheckResult> {
     .map((d) => `${d.article} (${d.daysOfStock.toFixed(0)}д)`)
     .join(", ");
 
+  const severity: CheckResult["severity"] = deficits.length >= 4 ? "red" : "orange";
+  const summary = `Дефицит: ${deficits.length} SKU из топ-20`;
+
   return {
     name: "deficit",
     ok: false,
-    severity: "red",
+    severity,
+    summary,
     message:
-      `🔴 *Дефицит стока: ${deficits.length} SKU из топ-20 по выручке*\n` +
+      `${emoji(severity)} *Дефицит стока: ${deficits.length} SKU из топ-20 по выручке*\n` +
       `${listStr}\n` +
       `→ Открыть ${BASE_URL}/deficit`,
   };
@@ -285,6 +370,7 @@ async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
       name: "cron",
       ok: false,
       severity: "yellow",
+      summary: "Cron: не удалось проверить",
       message: `🟡 *Cron* — не удалось прочитать ingestion_log (${error.message})`,
     };
   }
@@ -307,19 +393,25 @@ async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
   }
 
   if (stale.length === 0) {
-    return { name: "cron", ok: true, severity: "yellow", message: null };
+    return { name: "cron", ok: true, severity: "green", summary: `Все ${MONITORED.length} cron работают`, message: null };
   }
 
   const listStr = stale
     .map((s) => `${s.job} (${s.hoursAgo == null ? "нет успешных запусков" : `${s.hoursAgo.toFixed(0)}ч назад`})`)
     .join(", ");
 
+  const severity: CheckResult["severity"] = stale.length >= 3 ? "red" : "orange";
+  const summary = stale.length >= 3
+    ? `Cron не работает: ${stale.length} задач(а)`
+    : `Cron: ${stale.length} задача(и) провисла`;
+
   return {
     name: "cron",
     ok: false,
-    severity: "red",
+    severity,
+    summary,
     message:
-      `🔴 *Cron не работает: ${stale.length} задач(а)*\n` +
+      `${emoji(severity)} *Cron не работает: ${stale.length} задач(а)*\n` +
       `${listStr}\n` +
       `→ Открыть ${BASE_URL}/data-quality`,
   };
@@ -339,6 +431,7 @@ async function checkNewSkuNoCost(supabase: SupabaseClient): Promise<CheckResult>
       name: "new_sku_no_cost",
       ok: false,
       severity: "yellow",
+      summary: "Новых SKU без cost: не удалось проверить",
       message: `🟡 *Новые SKU* — не удалось проверить (${error.message})`,
     };
   }
@@ -348,7 +441,7 @@ async function checkNewSkuNoCost(supabase: SupabaseClient): Promise<CheckResult>
   ) as Array<{ my_article: string }>;
 
   if (noCost.length === 0) {
-    return { name: "new_sku_no_cost", ok: true, severity: "yellow", message: null };
+    return { name: "new_sku_no_cost", ok: true, severity: "green", summary: "Новых SKU без cost: 0", message: null };
   }
 
   const listStr = noCost.slice(0, 15).map((r) => r.my_article).join(", ");
@@ -357,6 +450,7 @@ async function checkNewSkuNoCost(supabase: SupabaseClient): Promise<CheckResult>
     name: "new_sku_no_cost",
     ok: false,
     severity: "yellow",
+    summary: `Новых SKU без cost: ${noCost.length}`,
     message:
       `🟡 *${noCost.length} новых SKU без себестоимости*\n` +
       `${listStr}\n` +
@@ -377,12 +471,12 @@ async function checkPromotionsEndingSoon(supabase: SupabaseClient): Promise<Chec
   if (error) {
     // Таблица может не существовать в некоторых окружениях — не считаем это ошибкой алерта,
     // просто молча пропускаем проверку (yellow с ok:true, без сообщения).
-    return { name: "promotions_ending", ok: true, severity: "yellow", message: null };
+    return { name: "promotions_ending", ok: true, severity: "green", summary: "Акции завтра: 0", message: null };
   }
 
   const rows = (data ?? []) as Array<{ name: string | null; end_at: string }>;
   if (rows.length === 0) {
-    return { name: "promotions_ending", ok: true, severity: "yellow", message: null };
+    return { name: "promotions_ending", ok: true, severity: "green", summary: "Акции завтра: 0", message: null };
   }
 
   const endDate = new Date(`${tomorrow}T00:00:00`);
@@ -393,6 +487,7 @@ async function checkPromotionsEndingSoon(supabase: SupabaseClient): Promise<Chec
     name: "promotions_ending",
     ok: false,
     severity: "yellow",
+    summary: `Акции завтра: ${rows.length}`,
     message: `🟡 *Акция ${listStr} заканчивается завтра ${ddmm}*`,
   };
 }
@@ -410,6 +505,7 @@ async function checkOutOfStockActiveSku(supabase: SupabaseClient): Promise<Check
       name: "out_of_stock",
       ok: false,
       severity: "yellow",
+      summary: "OOS активных SKU: не удалось проверить",
       message: `🟡 *Остатки ВБ* — не удалось проверить (${skuErr?.message ?? stockErr?.message})`,
     };
   }
@@ -430,17 +526,20 @@ async function checkOutOfStockActiveSku(supabase: SupabaseClient): Promise<Check
   }
 
   if (oos.length === 0) {
-    return { name: "out_of_stock", ok: true, severity: "yellow", message: null };
+    return { name: "out_of_stock", ok: true, severity: "green", summary: "OOS активных SKU: 0", message: null };
   }
 
   const top3 = oos.slice(0, 3).map((o) => o.article).join(", ");
+  const severity: CheckResult["severity"] = oos.length >= 6 ? "red" : "orange";
+  const summary = `OOS активных SKU: ${oos.length}`;
 
   return {
     name: "out_of_stock",
     ok: false,
-    severity: "red",
+    severity,
+    summary,
     message:
-      `🔴 *Остаток на ВБ-складах закончился: ${oos.length} активных SKU*\n` +
+      `${emoji(severity)} *Остаток на ВБ-складах закончился: ${oos.length} активных SKU*\n` +
       `Топ-3: ${top3}\n` +
       `→ Открыть ${BASE_URL}/deficit`,
   };
@@ -461,24 +560,29 @@ async function checkLowRating(supabase: SupabaseClient): Promise<CheckResult> {
       name: "low_rating",
       ok: false,
       severity: "yellow",
+      summary: "SKU с рейтингом <4.0: не удалось проверить",
       message: `🟡 *Рейтинг* — не удалось проверить (${error.message})`,
     };
   }
 
   const rows = (data ?? []) as Array<{ my_article: string | null; rating: number | null }>;
   if (rows.length === 0) {
-    return { name: "low_rating", ok: true, severity: "yellow", message: null };
+    return { name: "low_rating", ok: true, severity: "green", summary: "SKU с рейтингом <4.0: 0", message: null };
   }
 
   rows.sort((a, b) => Number(a.rating ?? 0) - Number(b.rating ?? 0));
   const top5 = rows.slice(0, 5).map((r) => `${r.my_article ?? "?"} (${Number(r.rating).toFixed(1)})`).join(", ");
 
+  const severity: CheckResult["severity"] = rows.length >= 4 ? "red" : "orange";
+  const summary = `SKU с рейтингом <4.0: ${rows.length}`;
+
   return {
     name: "low_rating",
     ok: false,
-    severity: "yellow",
+    severity,
+    summary,
     message:
-      `🟡 *${rows.length} SKU с рейтингом ниже 4.0*\n` +
+      `${emoji(severity)} *${rows.length} SKU с рейтингом ниже 4.0*\n` +
       `Худшие: ${top5}\n` +
       `→ Открыть ${BASE_URL}/products`,
   };
@@ -498,6 +602,7 @@ async function checkStaleCommissions(supabase: SupabaseClient): Promise<CheckRes
       name: "stale_commissions",
       ok: false,
       severity: "yellow",
+      summary: "Комиссии WB: не удалось проверить",
       message: `🟡 *Тарифы ВБ-комиссии* — не удалось проверить (${error.message})`,
     };
   }
@@ -505,19 +610,28 @@ async function checkStaleCommissions(supabase: SupabaseClient): Promise<CheckRes
   const rows = (data ?? []) as Array<{ fetched_at: string | null }>;
   const lastFetchedAt = rows[0]?.fetched_at;
   if (!lastFetchedAt) {
-    return { name: "stale_commissions", ok: true, severity: "yellow", message: null };
+    return { name: "stale_commissions", ok: true, severity: "yellow", summary: "Комиссии WB: нет данных", message: null };
   }
 
   const daysAgo = (Date.now() - new Date(lastFetchedAt).getTime()) / 86_400_000;
   if (daysAgo < 14) {
-    return { name: "stale_commissions", ok: true, severity: "yellow", message: null };
+    return {
+      name: "stale_commissions",
+      ok: true,
+      severity: "green",
+      summary: `Комиссии WB обновлены: ${Math.floor(daysAgo)} дней назад`,
+      message: null,
+    };
   }
+
+  const severity: CheckResult["severity"] = daysAgo >= 21 ? "orange" : "yellow";
 
   return {
     name: "stale_commissions",
     ok: false,
-    severity: "yellow",
-    message: `🟡 *Тарифы ВБ-комиссии не обновлялись ${Math.floor(daysAgo)}+ дней*\n→ Открыть ${BASE_URL}/data-quality`,
+    severity,
+    summary: `Комиссии WB обновлены: ${Math.floor(daysAgo)} дней назад`,
+    message: `${emoji(severity)} *Тарифы ВБ-комиссии не обновлялись ${Math.floor(daysAgo)}+ дней*\n→ Открыть ${BASE_URL}/data-quality`,
   };
 }
 
@@ -537,13 +651,13 @@ async function checkAnomalies(supabase: SupabaseClient): Promise<CheckResult> {
     .order("event_dt", { ascending: false });
   if (error) {
     // Таблица могла ещё не существовать в некоторых окружениях — не считаем ошибкой алерта.
-    return { name: "anomalies", ok: true, severity: "yellow", message: null };
+    return { name: "anomalies", ok: true, severity: "green", summary: "Аномалии за 24ч: 0 критичных", message: null };
   }
 
   type Row = { sku_id: number; event_type: string; title: string; event_dt: string };
   const rows = (data ?? []) as Row[];
   if (rows.length === 0) {
-    return { name: "anomalies", ok: true, severity: "yellow", message: null };
+    return { name: "anomalies", ok: true, severity: "green", summary: "Аномалии за 24ч: 0 критичных", message: null };
   }
 
   const skuIds = [...new Set(rows.slice(0, 5).map((r) => r.sku_id))];
@@ -563,6 +677,7 @@ async function checkAnomalies(supabase: SupabaseClient): Promise<CheckResult> {
     name: "anomalies",
     ok: false,
     severity: "red",
+    summary: `Аномалии за 24ч: ${rows.length} критичных`,
     message:
       `🔴 *Критические аномалии за 24ч: ${rows.length}*\n` +
       `${top5}\n` +
@@ -622,14 +737,20 @@ Deno.serve(async (req: Request) => {
 
     const alerts = results.filter((r) => r.message != null);
 
-    if (alerts.length === 0) {
-      return json({ ok: true, alerts_sent: 0, checks: results.map((r) => ({ name: r.name, ok: r.ok })) });
-    }
-
+    // Всегда формируем сводку по всем 10 проверкам.
     const today = dateStr(new Date());
-    const header = `📊 *SellerBase — алерты на ${today}*\n`;
-    const body = alerts.map((a) => a.message).join("\n\n");
-    const text = `${header}\n${body}`;
+    const header = `📊 *SellerBase — ежедневная сводка ${today}*`;
+    const allChecks = results.map((r) => `${emoji(r.severity)} ${r.summary}`).join("\n");
+
+    // Детали — только для критичных/оранжевых проверок с подробным message.
+    const details = results
+      .filter((r) => r.message && (r.severity === "red" || r.severity === "orange"))
+      .map((r) => r.message)
+      .join("\n\n");
+
+    const text = details
+      ? `${header}\n\n${allChecks}\n\n---\n${details}`
+      : `${header}\n\n${allChecks}`;
 
     const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
 
