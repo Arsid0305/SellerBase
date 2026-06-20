@@ -61,7 +61,34 @@
 
 ### Точка возобновления
 
-**Файл README в репо:** `tasks/excel-from-owner/FF_services_per_sku.xlsx` оказался дублем `FF_supply_plan_by_warehouse.xlsx` — это план поставок по складам, а не услуги ФФ. Услуги ФФ оставлены как одна общая ставка через `fulfillment_costs.rub_per_unit`.
+**КРИТИЧНО для новой сессии — переделать модель FF-услуг:**
+Текущая миграция `20260620120001_extra_cost_tariffs.sql` сделана с **одной общей ставкой** `fulfillment_costs.rub_per_unit` — это НЕПРАВИЛЬНО. Владелица показала скриншот файла `FF_services_per_sku.xlsx`, колонка BG «Услуга — Цена на ед.» содержит **per-SKU ставку** (на скриншоте у разных SKU 14₽ но могут различаться). Нужно:
+
+1. Новая миграция: создать таблицу `sku_ff_tariffs (sku_id BIGINT REFERENCES sku_catalog(id), rub_per_unit NUMERIC, effective_from DATE, comment TEXT, PRIMARY KEY (sku_id, effective_from))`
+2. Парсер `apps/web/src/shared/lib/parsers/ff-tariffs.ts`: читает лист `ТЗ_ФФ`, колонка D (бар-код) → ищет `sku_catalog.barcode = D` → колонка BG (Услуга цена за ед.) → UPSERT в `sku_ff_tariffs`
+3. API route `/api/import/ff-tariffs` для загрузки XLSX (как импорт UNIT)
+4. UI: 5-я кнопка «Тарифы услуг ФФ (XLSX)» на `/products/costs`
+5. Миграция view `v_sku_cost_breakdown` v3: брать `ff_service_rub_per_unit` из последней записи `sku_ff_tariffs` по `sku_id` вместо общей `fulfillment_costs`
+
+**`fulfillment_costs` оставить как fallback** (общая ставка если на SKU нет персональной).
+
+**Структура колонок листа `ТЗ_ФФ`** (из скриншота владелицы):
+- A: Товар (для отображения)
+- D: Бар-код (ключ для маппинга на sku_catalog)
+- AY: Приёмка (3₽)
+- AZ: Сортировка (5₽)
+- BA: Формирование комплекта (5₽)
+- BB: Упаковка в БОПП (13₽)
+- BC: Доп. расходы
+- BD: Упаковка в мой пакет (10₽)
+- BE: Маркировка (6₽)
+- BF: Сортировка готового товара (5₽)
+- **BG: Услуга — Цена за ед. = ИТОГО для этого SKU (то что брать в `sku_ff_tariffs.rub_per_unit`)**
+- BH: ИТОГО ФФ на товар (= qty × BG, не нужно)
+- BI: Пакеты мои
+- BJ: ИТОГО НА ПАРТИЮ
+
+**Файл README в репо:** `tasks/excel-from-owner/FF_services_per_sku.xlsx`
 
 **Последний PR:** #144 (или auto-pr откроется после push 4281050) — содержит автосебес. Проверить Vercel зелёный, мержить, потом продолжать.
 
