@@ -20,7 +20,7 @@ const TABS: { key: TabKey; label: string; available: boolean }[] = [
   { key: 'orders', label: 'Заказы', available: true },
   { key: 'sales', label: 'Выкупы', available: true },
   { key: 'pnl', label: 'Приход и расход', available: false },
-  { key: 'ads', label: 'Продвижение', available: false },
+  { key: 'ads', label: 'Продвижение', available: true },
 ];
 
 type Buckets = { today: SalesHourlyBucket; yesterday: SalesHourlyBucket; weekAgo: SalesHourlyBucket };
@@ -54,11 +54,11 @@ function pctDelta(a: number, b: number): number {
   return Math.round(((a - b) / Math.abs(b)) * 100);
 }
 
-export function WbStyleChart({ salesBuckets, ordersBuckets }: { salesBuckets: Buckets; ordersBuckets: Buckets }) {
+export function WbStyleChart({ salesBuckets, ordersBuckets, adsBuckets }: { salesBuckets: Buckets; ordersBuckets: Buckets; adsBuckets?: Buckets }) {
   const [tab, setTab] = useState<TabKey>('sales');
   const [metric, setMetric] = useState<Metric>('sum');
 
-  const buckets = tab === 'orders' ? ordersBuckets : salesBuckets;
+  const buckets = tab === 'orders' ? ordersBuckets : tab === 'ads' && adsBuckets ? adsBuckets : salesBuckets;
 
   const innerW = WIDTH - PAD_LEFT - PAD_RIGHT;
   const innerH = HEIGHT - PAD_TOP - PAD_BOTTOM;

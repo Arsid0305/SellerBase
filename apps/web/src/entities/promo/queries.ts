@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { TURNOVER_PROMO } from '@/shared/lib/business-rules';
 import type { PromoSkuRow, PromoSummary } from './types';
 
 function num(v: unknown): number | null {
@@ -57,8 +58,13 @@ function classifyRecommendation(
   marginPromoPct: number | null,
 ): boolean {
   if (turnoverDays == null) return false;
-  if (turnoverDays > 90) return true;
-  if (turnoverDays >= 60 && marginPromoPct != null && marginPromoPct >= 0.1) return true;
+  if (turnoverDays > TURNOVER_PROMO.urgentSell) return true;
+  if (
+    turnoverDays >= TURNOVER_PROMO.promoBenefit &&
+    marginPromoPct != null &&
+    marginPromoPct >= TURNOVER_PROMO.minPromoMargin
+  )
+    return true;
   return false;
 }
 

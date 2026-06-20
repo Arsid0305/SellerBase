@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { WB_WAREHOUSES } from '@/shared/lib/wb-warehouses';
 import { fetchExternalStock } from '@/entities/external-stock';
+import { SUPPLY_PLAN } from '@/shared/lib/business-rules';
 import type {
   SupplyPlan,
   SupplyPlanInput,
@@ -12,8 +13,6 @@ import type {
 } from './types';
 
 const TABLE_MISSING = '42P01';
-const TARGET_DAYS = 30;
-const SALES_WINDOW_DAYS = 60;
 
 type PlanDb = {
   id: number;
@@ -251,7 +250,7 @@ export async function fetchSupplyStats(): Promise<{
     supabase
       .from('wb_reports_fact')
       .select('nm_id, warehouse_name, quantity')
-      .gte('rr_dt', new Date(Date.now() - SALES_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10))
+      .gte('rr_dt', new Date(Date.now() - SUPPLY_PLAN.salesWindow * 86_400_000).toISOString().slice(0, 10))
       .range(0, 200000),
     supabase
       .from('wb_stocks')
@@ -326,9 +325,9 @@ export async function fetchSupplyStats(): Promise<{
     for (const w of warehouses) {
       const sv = salesByWarehouse[w] ?? 0;
       const st = stocksByWarehouse[w] ?? 0;
-      const velocity = sv / SALES_WINDOW_DAYS;
+      const velocity = sv / SUPPLY_PLAN.salesWindow;
       const share = totalSales > 0 ? sv / totalSales : 0;
-      const need = velocity * TARGET_DAYS - st - share * externalTotal;
+      const need = velocity * SUPPLY_PLAN.targetDays - st - share * externalTotal;
       recommendByWarehouse[w] = need > 0 ? Math.ceil(need) : 0;
     }
 
@@ -363,9 +362,9 @@ export function buildRecommendation(
   for (const w of warehouses) {
     const sv = salesByWarehouse[w] ?? 0;
     const st = stocksByWarehouse[w] ?? 0;
-    const velocity = sv / SALES_WINDOW_DAYS;
+    const velocity = sv / SUPPLY_PLAN.salesWindow;
     const share = totalSales > 0 ? sv / totalSales : 0;
-    const need = velocity * TARGET_DAYS - st - share * externalTotal;
+    const need = velocity * SUPPLY_PLAN.targetDays - st - share * externalTotal;
     out[w] = need > 0 ? Math.ceil(need) : 0;
   }
   return out;

@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import type { PnlSkuRow, PeriodRange } from '@/entities/pnl/types';
 import { wbPhotoUrl } from '@/shared/lib/wb-photo';
+import { ABC_THRESHOLDS } from '@/shared/lib/business-rules';
 
 export type ParetoZone = 'A' | 'B' | 'C';
 
@@ -68,12 +69,17 @@ export async function fetchParetoData(period: PeriodRange): Promise<ParetoData> 
   const skuIds = withRevenue.map((r) => r.skuId);
   const catalogMap = new Map<number, CatalogLite>();
   const CHUNK = 500;
-  for (let i = 0; i < skuIds.length; i += CHUNK) {
-    const slice = skuIds.slice(i, i + CHUNK);
-    const { data: cat, error: catErr } = await supabase
-      .from('sku_catalog')
-      .select('id, barcode, title, my_article, wb_article, photo_url')
-      .in('id', slice);
+  const chunks: number[][] = [];
+  for (let i = 0; i < skuIds.length; i += CHUNK) chunks.push(skuIds.slice(i, i + CHUNK));
+  const results = await Promise.all(
+    chunks.map((slice) =>
+      supabase
+        .from('sku_catalog')
+        .select('id, barcode, title, my_article, wb_article, photo_url')
+        .in('id', slice)
+    )
+  );
+  for (const { data: cat, error: catErr } of results) {
     if (catErr) {
       console.error('[fetchParetoData] sku_catalog error', catErr);
       continue;
@@ -88,7 +94,8 @@ export async function fetchParetoData(period: PeriodRange): Promise<ParetoData> 
     cum += r.revenue;
     const cumPct = totalRevenue > 0 ? (cum / totalRevenue) * 100 : 0;
     const sharePct = totalRevenue > 0 ? (r.revenue / totalRevenue) * 100 : 0;
-    const zone: ParetoZone = cumPct <= 80 ? 'A' : cumPct <= 95 ? 'B' : 'C';
+    const zone: ParetoZone =
+      cumPct <= ABC_THRESHOLDS.a * 100 ? 'A' : cumPct <= ABC_THRESHOLDS.b * 100 ? 'B' : 'C';
     const cat = catalogMap.get(r.skuId);
     const barcode = cat?.barcode ?? r.barcodeRpc ?? '';
     const name = cat?.title ?? cat?.my_article ?? 'Без названия';

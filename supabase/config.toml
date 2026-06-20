@@ -59,3 +59,11 @@ verify_jwt = false
 [functions.fetch-wb-orders]
 # pg_cron every 30 min — JWT не нужен.
 verify_jwt = false
+
+[functions.detect-anomalies]
+# pg_cron hourly — JWT не нужен.
+verify_jwt = false
+
+[functions.fetch-wb-ads]
+# pg_cron hourly — JWT не нужен.
+verify_jwt = false

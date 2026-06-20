@@ -56,7 +56,6 @@ export const navItems: NavItem[] = [
   { title: 'Pareto 80/20', href: '/analytics/pareto', icon: Sigma, group: 'analytics' },
   { title: 'Аналитика по неделям', href: '/analytics/weekly', icon: CalendarRange, group: 'analytics' },
   { title: 'Анализатор маржи', href: '/analytics/margin', icon: TrendingDown, group: 'analytics' },
-  { title: 'Анализатор маржи: почему падает', href: '/margin-analyzer', icon: TrendingDown, group: 'analytics' },
   { title: 'Сравнение периодов', href: '/compare', icon: GitCompare, group: 'analytics' },
   { title: 'Промо-акции WB', href: '/promo', icon: Percent, group: 'operations' },
   { title: 'Дефицит товаров', href: '/deficit', icon: AlertTriangle, group: 'operations' },

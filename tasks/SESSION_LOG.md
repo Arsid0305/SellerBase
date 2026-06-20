@@ -1,3 +1,87 @@
+## 2026-06-19/20 — Backlog финиш + критичный аудит
+
+### Контекст
+Длинная автономная сессия после владелицыного «спать». Цели: добить backlog (от автосебеса до fetch-wb-ads), провести глубокий критичный аудит проекта, применить только механические правки.
+
+### Сделано
+
+**Закрыто из 🔮 Backlog (5 пунктов):**
+- ✅ **Импорт заказов 1688 → china_orders + china_order_items** — парсер `shared/lib/parsers/china-order.ts` + API route `/api/import/china-order` + UI кнопка на `/products/costs`. Тестово вытащил 51 позицию из эталонного `Order_china_128122.xlsx`
+- ✅ **Импорт UNIT-себестоимости** — парсер листа «Себес», UPSERT в `sku_catalog.cost_price_rub` + `sku_cost_history` (80 SKU)
+- ✅ **`fetch-wb-orders`** + cron 30 мин + таблица `wb_orders_fact` + RPC `get_orders_hourly` + вкладка «Заказы» в WbStyleChart
+- ✅ **Excel-экспорт PL WB** — `/api/finance/pl-wb-xlsx?year=...` в формате эталонного листа «PL WB» владелицы
+- ✅ **Тарифы Карго** — таблица `cargo_tariffs` + view `v_cargo_tariff_current` + UI кнопка ручного ввода (курс юаня/доллара/доставка 1кг) на `/products/costs`
+- ✅ **`fetch-wb-ads`** + cron каждый час + таблица `wb_ads_fact` + view `v_daily_marketing_spend` + RPC `get_ads_hourly` + RPC `get_real_marketing_for_period` + вкладка «Продвижение» в WbStyleChart
+- ✅ **`v_sku_cost_breakdown`** — итоговый view себестоимости с приоритетом `unit_import` → `cogs_calc` → `sku_catalog_legacy`. Показывает разбивку в `/products/costs`
+- ✅ **Events log по SKU** — таблица `sku_events` + entity + компонент `EventsCard` в `/products/[id]` (лента до 50 событий)
+- ✅ **Anomaly detection** — edge function `detect-anomalies` + cron hourly + 5 типов: sales_stopped, price_drop, rating_drop, stock_zero, margin_negative
+- ✅ **+4 Telegram-алерта**: акции завтра, OOS активных SKU, низкий рейтинг (<4.0), устаревшие комиссии (>14д)
+- ✅ **+1 Telegram-алерт**: критические аномалии за 24ч из `sku_events`
+- ✅ Маркетинг для P&L — реальные расходы из `wb_ads_fact` через `get_real_marketing_for_period`
+
+**Решения владелицы (зафиксированы):**
+- Q1 WB-токен — единый (зафиксировано в §6 rules.md)
+- Q2 Excel-экспорт — лист «PL WB»
+- Q3 Тарифы Карго — ручной ввод курсов через UI
+- Q4 Упаковка FF — пропускаем, владелица сама проставит
+- Q5 Доп Telegram-алерты — добавили все 4
+
+**Отложено по запросу владелицы:**
+- TVV (Видимость/Доверие/Ценность) — 3 KPI-блока с пояснениями в `/products/[id]` — нужна доп проработка
+- Goals по SKU — отложили, цели по магазину пока достаточно
+- Office Add-in / Power Query — отложено
+
+**Эталонные Excel от владелицы получены (8 файлов в `tasks/excel-from-owner/`):**
+- CF_PL_2026_dashboard, CF_PL_2026_april_copy, UNIT_economics_cogs_tariffs, UNIT_WB_weekly_2026, FF_supply_plan_by_warehouse, Stocks_summary_wb_ozon, Order_china_128122, CF_PL_WB_refresh
+
+### Аудит 2026-06-20
+
+Полный документ: `docs/AUDIT_2026-06-20.md` (120 строк).
+
+**Технические прогоны зелёные:** `tsc --noEmit` + `eslint .` + `next build` — 0 ошибок.
+
+**Найдено по уровням:**
+- 🔴 4 критичных:
+  1. **`middleware.ts` — фейковая защита** через Origin/Referer (обходится `curl -H`)
+  2. **Все 16 edge functions `verify_jwt = false`** — регресс vs 17.06, любой может вызвать публично
+  3. **Нет advisory_lock против конкурентных cron** — объясняет зомби-записи `running` в `ingestion_log`
+  4. **`china_orders.cny_rate` — мёртвое поле** (заполняется в UI, никогда не читается; расчёт берёт `cargo_tariffs.cny_rate_rub`)
+- 🟠 4 серьёзных:
+  1. **margin-analyzer v1 vs v2** — конфликтующие формулы (v2 не вычитает налог!), оба в проде
+  2. **`.range(0, 200_000)` в 11 местах** — без изменений с 17.06
+  3. **3 пары идентичных миграций** (legacy `20260618_*` vs timestamped `20260618000XXX_*`) — ✅ **исправлено механически**
+  4. **70% дубль кода** в `fetch-wb-sales`/`orders`/`ads` — нужен `_shared/wb-client.ts`
+- 🟡 4 мелких: магические пороги не дотащены в `business-rules.ts`, pareto чанкованный await, pgTAP не в CI, exceljs TODO
+- 💡 4 упрощения: удалить v2 margin-analyzer, проверить RPC `get_pnl_by_period` на удаление, общий import-skeleton, _shared/wb-client.ts
+
+**Применено механически:** удалены 3 дубля миграций (`legacy 20260618_*` форматы).
+
+### Открытые задачи (требуют решения владелицы)
+
+**🔴 Стратегические (после владелицыной разборки):**
+- Реальная Auth для API routes (Supabase Auth session в middleware)
+- `verify_jwt = true` на edge functions (нужен service_role JWT в pg_cron)
+- Advisory lock на cron-функциях (фикс зомби-записей)
+- `china_orders.cny_rate` — использовать как override или убрать поле
+- margin-analyzer v1/v2 — выбрать одну реализацию
+
+**🟠 Большой рефакторинг (требует времени):**
+- `.range(200_000)` × 11 мест → RPC агрегация
+- `_shared/wb-client.ts` (унификация fetch-wb-* функций)
+- Vitest + unit-тесты финансовых формул
+
+**🟡 Мелкое (можно делать самому, безопасно):**
+- Допилить миграцию `business-rules.ts` для 5 файлов
+- Подключить pgTAP к CI (migrate.yml или db-tests.yml)
+- Pareto chunked → `Promise.all`
+
+### Следующие шаги
+1. Дождаться обсуждения 🔴-критичных с владелицей
+2. Параллельно — добить 🟡-мелкие
+3. После выработки решения по margin-analyzer — почистить дубль
+
+---
+
 ## 2026-06-17/18 — Большая сессия: UAT 10 страниц, 6 новых страниц/компонентов, аудит и фиксы
 
 ### Контекст

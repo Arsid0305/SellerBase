@@ -16,9 +16,11 @@ import {
   ProductHistoryCard,
   RevenueByDayChart,
   StockByDayChart,
+  EventsCard,
 } from '@/features/product-detail';
 import { fetchProductDetailByBarcode } from '@/entities/product-detail';
 import { fetchProductEvents } from '@/entities/events';
+import { fetchSkuEvents } from '@/entities/sku-events';
 import { fetchSnapshotsBySkuId } from '@/entities/snapshots';
 import { ProductScenariosCard } from '@/features/customer';
 import { SuppliersCard } from '@/features/supplies';
@@ -46,9 +48,12 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   ]);
   if (!product) notFound();
   const skuId = Number(product.id);
-  const diffs = Number.isFinite(skuId) ? await fetchSnapshotsBySkuId(skuId) : [];
-  const suppliers = Number.isFinite(skuId) ? await fetchSuppliersBySku(skuId) : [];
-  const boxTariffs = await fetchLatestBoxTariffs();
+  const [diffs, suppliers, skuEvents, boxTariffs] = await Promise.all([
+    Number.isFinite(skuId) ? fetchSnapshotsBySkuId(skuId) : Promise.resolve([]),
+    Number.isFinite(skuId) ? fetchSuppliersBySku(skuId) : Promise.resolve([]),
+    Number.isFinite(skuId) ? fetchSkuEvents(skuId) : Promise.resolve([]),
+    fetchLatestBoxTariffs(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -124,6 +129,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
         <ProductEventsCard events={events} />
         <ProductHistoryCard diffs={diffs} />
       </div>
+
+      {Number.isFinite(skuId) ? <EventsCard events={skuEvents} /> : null}
 
       <p className="text-xs text-muted-foreground">
         · Данные из `sku_catalog` + RPC `get_full_pnl_by_period` + `wb_reports_fact` (30 дней) + `wb_stocks` (текущие остатки). История остатков из `wb_stocks_history` подключится позже.
