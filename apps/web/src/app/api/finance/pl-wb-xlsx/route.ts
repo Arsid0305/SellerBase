@@ -44,7 +44,7 @@ async function fetchMonthlyPnl(
   const from = `${year}-${String(monthIndex + 1).padStart(2, '0')}-01`;
   const to = lastDayOfMonth(year, monthIndex);
 
-  const { data, error } = await supabase.rpc('get_pnl_by_period', {
+  const { data, error } = await supabase.rpc('get_full_pnl_by_period', {
     p_from: from,
     p_to: to,
   });

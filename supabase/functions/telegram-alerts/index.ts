@@ -69,8 +69,8 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
   const d14 = dateStr(new Date(today.getTime() - (LAG_DAYS + 14) * 86_400_000));
 
   const [{ data: curRows, error: curErr }, { data: prevRows, error: prevErr }] = await Promise.all([
-    supabase.rpc("get_pnl_by_period", { p_from: d7, p_to: d0 }),
-    supabase.rpc("get_pnl_by_period", { p_from: d14, p_to: d7 }),
+    supabase.rpc("get_full_pnl_by_period", { p_from: d7, p_to: d0 }),
+    supabase.rpc("get_full_pnl_by_period", { p_from: d14, p_to: d7 }),
   ]);
   if (curErr || prevErr) {
     return {
@@ -279,7 +279,7 @@ async function checkDeficit(supabase: SupabaseClient): Promise<CheckResult> {
 
   const [{ data: pnlRows, error: pnlErr }, { data: turnoverRows, error: turErr }, { data: skus, error: skuErr }] =
     await Promise.all([
-      supabase.rpc("get_pnl_by_period", { p_from: d30, p_to: d0 }),
+      supabase.rpc("get_full_pnl_by_period", { p_from: d30, p_to: d0 }),
       supabase.from("v_turnover_by_sku").select("nm_id, stock_qty, turnover_days"),
       supabase.from("sku_catalog").select("id, my_article, wb_article"),
     ]);

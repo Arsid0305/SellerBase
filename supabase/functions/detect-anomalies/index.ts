@@ -291,7 +291,7 @@ async function detectMarginNegative(supabase: SupabaseClient, skus: SkuRow[]): P
   const d0 = dateStr(today);
   const d7 = dateStr(new Date(today.getTime() - 7 * 86_400_000));
 
-  const { data, error } = await supabase.rpc("get_pnl_by_period", { p_from: d7, p_to: d0 });
+  const { data, error } = await supabase.rpc("get_full_pnl_by_period", { p_from: d7, p_to: d0 });
   if (error) throw new Error(`detectMarginNegative: ${error.message}`);
 
   const myArticleById = new Map(skus.map((s) => [s.id, s.my_article]));
