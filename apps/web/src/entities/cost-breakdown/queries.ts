@@ -14,6 +14,10 @@ export interface CostBreakdown {
   packagingRubPerUnit: number | null;
   effectiveFrom: string | null;
   source: CostBreakdownSource;
+  transportToFfRubPerUnit: number | null;
+  ffServiceRubPerUnit: number | null;
+  deliveryToWbRubPerUnit: number | null;
+  totalWithExtrasRubPerUnit: number | null;
 }
 
 type ViewRow = {
@@ -28,6 +32,10 @@ type ViewRow = {
   packaging_rub_per_unit: number | string | null;
   effective_from: string | null;
   source: CostBreakdownSource;
+  transport_to_ff_rub_per_unit: number | string | null;
+  ff_service_rub_per_unit: number | string | null;
+  delivery_to_wb_rub_per_unit: number | string | null;
+  total_with_extras_rub_per_unit: number | string | null;
 };
 
 function toNumberOrNull(v: number | string | null): number | null {
@@ -41,7 +49,7 @@ export async function fetchCostBreakdown(): Promise<CostBreakdown[]> {
   const { data, error } = await supabase
     .from('v_sku_cost_breakdown')
     .select(
-      'sku_id, wb_article, my_article, title, total_cost_rub_per_unit, purchase_rub_per_unit, cargo_rub_per_unit, customs_rub_per_unit, packaging_rub_per_unit, effective_from, source',
+      'sku_id, wb_article, my_article, title, total_cost_rub_per_unit, purchase_rub_per_unit, cargo_rub_per_unit, customs_rub_per_unit, packaging_rub_per_unit, effective_from, source, transport_to_ff_rub_per_unit, ff_service_rub_per_unit, delivery_to_wb_rub_per_unit, total_with_extras_rub_per_unit',
     )
     .order('my_article', { ascending: true });
 
@@ -62,5 +70,9 @@ export async function fetchCostBreakdown(): Promise<CostBreakdown[]> {
     packagingRubPerUnit: toNumberOrNull(r.packaging_rub_per_unit),
     effectiveFrom: r.effective_from,
     source: r.source,
+    transportToFfRubPerUnit: toNumberOrNull(r.transport_to_ff_rub_per_unit),
+    ffServiceRubPerUnit: toNumberOrNull(r.ff_service_rub_per_unit),
+    deliveryToWbRubPerUnit: toNumberOrNull(r.delivery_to_wb_rub_per_unit),
+    totalWithExtrasRubPerUnit: toNumberOrNull(r.total_with_extras_rub_per_unit),
   }));
 }

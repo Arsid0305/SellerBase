@@ -117,6 +117,33 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+export type ExtraTariffs = {
+  supplies_transport_rub_per_kg: number | null;
+  fulfillment_rub_per_unit: number | null;
+  delivery_to_wb_rub_per_kg: number | null;
+};
+
+export async function fetchExtraTariffsCurrent(): Promise<ExtraTariffs | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('v_extra_tariffs_current')
+    .select('supplies_transport_rub_per_kg, fulfillment_rub_per_unit, delivery_to_wb_rub_per_kg')
+    .maybeSingle();
+  if (error) {
+    console.warn('[fetchExtraTariffsCurrent] error (view may not exist yet)', error.message);
+    return null;
+  }
+  if (!data) return null;
+  return {
+    supplies_transport_rub_per_kg:
+      data.supplies_transport_rub_per_kg != null ? Number(data.supplies_transport_rub_per_kg) : null,
+    fulfillment_rub_per_unit:
+      data.fulfillment_rub_per_unit != null ? Number(data.fulfillment_rub_per_unit) : null,
+    delivery_to_wb_rub_per_kg:
+      data.delivery_to_wb_rub_per_kg != null ? Number(data.delivery_to_wb_rub_per_kg) : null,
+  };
+}
+
 export async function fetchCostHistory(skuId: number): Promise<CostHistoryEntry[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase

@@ -9,10 +9,15 @@ import { Button } from '@/shared/ui/button';
 import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
-import type { CostRow, CostHistoryEntry, CargoTariff } from '@/entities/costs';
+import type { CostRow, CostHistoryEntry, CargoTariff, ExtraTariffs } from '@/entities/costs';
 import type { CostBreakdown } from '@/entities/cost-breakdown';
 
-type Props = { rows: CostRow[]; cargoTariff?: CargoTariff | null; breakdown?: CostBreakdown[] };
+type Props = {
+  rows: CostRow[];
+  cargoTariff?: CargoTariff | null;
+  breakdown?: CostBreakdown[];
+  extraTariffs?: ExtraTariffs | null;
+};
 
 const SOURCE_LABEL: Record<CostBreakdown['source'], string> = {
   unit_import: 'unit_import',
@@ -122,7 +127,7 @@ function EditCell({ row, onSaved }: EditCellProps) {
   );
 }
 
-export function CostsExplorer({ rows, cargoTariff = null, breakdown = [] }: Props) {
+export function CostsExplorer({ rows, cargoTariff = null, breakdown = [], extraTariffs = null }: Props) {
   const router = useRouter();
   const breakdownBySku = useMemo(() => {
     const map = new Map<number, CostBreakdown>();
