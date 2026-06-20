@@ -79,6 +79,47 @@ supabase secrets set TELEGRAM_CHAT_ID='<chat_id владелицы>'
 
 ---
 
+## CRON_SHARED_SECRET — защита cron edge functions
+
+Все cron-функции имеют `verify_jwt = false` (pg_cron не умеет генерить service_role JWT).
+Чтобы внешние пользователи не могли вызвать их напрямую, добавлен заголовок `X-Cron-Secret`
+(см. `supabase/functions/_shared/auth.ts`, helper `checkCronSecret`).
+
+Логика:
+- Если `Deno.env.CRON_SHARED_SECRET` не задан → функция пропускает любой запрос
+  (обратная совместимость).
+- Если задан и `X-Cron-Secret` header совпадает → пропускает.
+- Иначе → `401 unauthorized`.
+
+pg_cron шлёт header через `current_setting('app.settings.cron_shared_secret', true)`
+(см. миграцию `20260620200001_cron_x_cron_secret.sql`). Если setting не задан — пустая
+строка, секрет в env тоже не задан → всё работает по-старому.
+
+### Активация защиты (после мерджа PR)
+
+1. Сгенерировать случайную строку (≥32 символа):
+   ```bash
+   openssl rand -hex 32
+   ```
+2. Положить в env edge functions:
+   ```bash
+   supabase secrets set CRON_SHARED_SECRET='<сгенерированная строка>'
+   ```
+3. Положить в БД (тот же самый секрет):
+   ```sql
+   ALTER DATABASE postgres SET app.settings.cron_shared_secret = '<сгенерированная строка>';
+   SELECT pg_reload_conf();
+   ```
+4. Проверить: внешний `curl https://<project>.supabase.co/functions/v1/telegram-alerts`
+   без header → 401. С `-H 'X-Cron-Secret: <secret>'` → 200.
+
+Покрыты: `telegram-alerts`, `detect-anomalies`, `fetch-wb-content`, `fetch-wb-funnel`,
+`fetch-wb-funnel-aggregate`, `fetch-wb-commissions`, `fetch-wb-goods-returns`,
+`fetch-wb-tariffs`, `fetch-wb-stocks`, `fetch-wb-report`,
+`fetch-wb-sales`, `fetch-wb-orders`, `fetch-wb-ads`.
+
+---
+
 ## Логирование
 
 Каждый успешный/упавший запуск пишется в `ingestion_log`:
