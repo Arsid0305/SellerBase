@@ -1,3 +1,72 @@
+## 2026-06-20 — Закрытие 11/15 пунктов аудита (вторая половина 19-20 июня)
+
+### Контекст
+Продолжение длинной сессии. После генерации `docs/AUDIT_2026-06-20.md` владелица сказала «работай до закрытия всех багов». Зафиксировано железобетонно в `tasks/rules.md` §15 (автономная зачистка после аудита).
+
+### Закрыто из аудита (11 пунктов)
+
+🔴 #3 **Advisory lock + очистка зомби** — миграция `20260620110001_job_advisory_locks.sql` + обновлён `runJob` в `_shared/ingestion.ts`. Защита от конкурентных запусков cron, очистка `running` >1ч.
+
+🔴 #4 **`china_orders.cny_rate` per-order override** — миграция `20260620100001_calculate_cogs_use_order_cny_rate.sql`. Теперь `calculate_cogs_for_shipment` берёт курс из заказа (fallback на cargo_shipments).
+
+🟠 #1 **margin-analyzer-v2 удалён** — оставлен v1 (с налогом, правильный). Файлы: `entities/margin-analyzer-v2/`, `features/margin-analyzer-v2/`, `app/(app)/margin-analyzer/`, навигация в `shared/config/nav.ts`.
+
+🟠 #3 **3 дубля миграций** — удалены `20260618_*` legacy-форматы (оставлены `20260618000XXX_*`).
+
+🟡 **business-rules.ts** в файлах: `entities/promo/queries.ts`, `entities/promo/matrix-queries.ts`, `entities/supplies/queries.ts`, `entities/pareto/queries.ts` (ABC_THRESHOLDS).
+
+🟡 **Pareto Promise.all** — чанкованный await заменён на параллельное выполнение.
+
+🟡 **pgTAP в CI** — `.github/workflows/db-tests.yml` поднимает postgres:16 + pgTAP, применяет миграции, гонит тесты.
+
+🔴 #1 + #4 **Auth middleware 2 уровня** — `apps/web/src/middleware.ts` теперь Origin/Referer + опц. `X-API-Secret`. Helper `apps/web/src/shared/lib/api/fetch.ts:apiFetch()` для server-to-server вызовов.
+
+🔴 #2 **Cron secret helper** — `supabase/functions/_shared/auth.ts:checkCronSecret()`. Готов к подключению когда владелица установит `CRON_SHARED_SECRET`.
+
+🟠 #4 **`_shared/wb-client.ts`** — `wbGet`, `wbPost`, `paginateByLastChangeDate`, `batchUpsert`. Готов к использованию в новых функциях.
+
+💡 **get_pnl_by_period → get_full_pnl_by_period** — все 3 потребителя переключены (`pl-wb-xlsx`, `telegram-alerts`, `detect-anomalies`).
+
+### Сделано вне аудита (по запросу)
+
+**Ежедневная сводка алертов** — `telegram-alerts/index.ts` теперь шлёт всегда полный список 10 проверок с индикатором 🟢🟡🟠🔴, а не только проблемы. Каждая проверка имеет `summary` + опционально `message` для red/orange.
+
+**6 (Автосебес) — в работе** — миграции `20260620120001_extra_cost_tariffs.sql` + `20260620120002_v_sku_cost_breakdown_v2.sql` — 3 новые таблицы (`supplies_transport`, `fulfillment_costs`, `delivery_to_wb`) + расширение view. UI: 4-я кнопка «Тарифы доставки и ФФ» в `costs-explorer.tsx`, API route `/api/import/extra-tariffs`. Применить миграции в прод и проверить визуально.
+
+### Открытое — для следующей сессии
+
+**Требует решения владелицы (ждёт её action):**
+- `CRON_SHARED_SECRET` в Supabase secrets + обновить 13 cron-команд + подключить `checkCronSecret` в 13 функциях
+- `API_SECRET` в Vercel env + подключить `apiFetch` в server actions
+
+**Требует моей работы (без владелицы):**
+- **#8 TVV (Видимость/Доверие/Ценность)** — 3 KPI-блока с рекомендациями в `/products/[id]`. Запустить агента в новой сессии.
+- **#1 `.range(0, 200_000)` × 11 файлов** — разбить на 11 мини-задач, делать по одной с миграцией → RPC.
+- **#5 fetch-wb-sales/orders/ads на `_shared/wb-client.ts`** — аккуратная миграция с тестированием.
+
+**Визуальная UAT (нужна владелица):**
+- Фото в Топ-5 / Категории на `/dashboard`
+- Левый/правый блоки одной высоты на `/dashboard`
+- Вкладки «Заказы» и «Продвижение» в WbStyleChart
+- Лента событий в `/products/[id]`
+- Кнопки импорта в `/products/costs` (Китай + UNIT + Карго + Тарифы доставки)
+- PL WB XLSX через `/api/finance/pl-wb-xlsx?year=2026`
+
+**Backlog не сделано:**
+- #7 Excel-экспорт — расширить листами «PL общ», «CF», «PL OZON»
+- #9 Goals по SKU — отложено
+- #10 Импорт 22 старых бланков заказов Китай
+- #11 Office Add-in
+- #12 Google Sheets sync
+
+### Точка возобновления
+
+**Файл README в репо:** `tasks/excel-from-owner/FF_services_per_sku.xlsx` оказался дублем `FF_supply_plan_by_warehouse.xlsx` — это план поставок по складам, а не услуги ФФ. Услуги ФФ оставлены как одна общая ставка через `fulfillment_costs.rub_per_unit`.
+
+**Последний PR:** #144 (или auto-pr откроется после push 4281050) — содержит автосебес. Проверить Vercel зелёный, мержить, потом продолжать.
+
+---
+
 ## 2026-06-19/20 — Backlog финиш + критичный аудит
 
 ### Контекст

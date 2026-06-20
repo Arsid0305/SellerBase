@@ -181,6 +181,16 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [], extraT
   const [cargoError, setCargoError] = useState<string | null>(null);
   const [currentCargoTariff, setCurrentCargoTariff] = useState<CargoTariff | null>(cargoTariff);
 
+  const [extraOpen, setExtraOpen] = useState(false);
+  const [extraSuppliesTransport, setExtraSuppliesTransport] = useState('');
+  const [extraFulfillment, setExtraFulfillment] = useState('');
+  const [extraDeliveryToWb, setExtraDeliveryToWb] = useState('');
+  const [extraEffectiveFrom, setExtraEffectiveFrom] = useState(todayIso());
+  const [extraComment, setExtraComment] = useState('');
+  const [extraSubmitting, setExtraSubmitting] = useState(false);
+  const [extraError, setExtraError] = useState<string | null>(null);
+  const [currentExtraTariffs, setCurrentExtraTariffs] = useState<ExtraTariffs | null>(extraTariffs);
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
@@ -426,6 +436,78 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [], extraT
     }
   }, [cargoCnyRate, cargoUsdRate, cargoDeliveryPerKg, cargoEffectiveFrom, cargoComment, router]);
 
+  const resetExtraForm = useCallback(() => {
+    setExtraSuppliesTransport('');
+    setExtraFulfillment('');
+    setExtraDeliveryToWb('');
+    setExtraEffectiveFrom(todayIso());
+    setExtraComment('');
+    setExtraError(null);
+  }, []);
+
+  const submitExtraTariffs = useCallback(async () => {
+    const parseField = (raw: string): number | null | undefined => {
+      const t = raw.trim();
+      if (!t) return undefined;
+      const n = Number(t.replace(',', '.'));
+      if (!Number.isFinite(n) || n < 0) return null;
+      return n;
+    };
+
+    const suppliesTransport = parseField(extraSuppliesTransport);
+    const fulfillment = parseField(extraFulfillment);
+    const deliveryToWb = parseField(extraDeliveryToWb);
+
+    if (suppliesTransport === null || fulfillment === null || deliveryToWb === null) {
+      setExtraError('Укажите корректные числовые значения тарифов (или оставьте поле пустым)');
+      return;
+    }
+    if (suppliesTransport === undefined && fulfillment === undefined && deliveryToWb === undefined) {
+      setExtraError('Заполните хотя бы одно поле тарифа');
+      return;
+    }
+
+    setExtraSubmitting(true);
+    setExtraError(null);
+    try {
+      const res = await fetch('/api/import/extra-tariffs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          supplies_transport_rub_per_kg: suppliesTransport,
+          fulfillment_rub_per_unit: fulfillment,
+          delivery_to_wb_rub_per_kg: deliveryToWb,
+          effective_from: extraEffectiveFrom || todayIso(),
+          comment: extraComment.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setExtraError(String(data.error ?? res.statusText));
+        return;
+      }
+      setCurrentExtraTariffs({
+        supplies_transport_rub_per_kg: suppliesTransport ?? currentExtraTariffs?.supplies_transport_rub_per_kg ?? null,
+        fulfillment_rub_per_unit: fulfillment ?? currentExtraTariffs?.fulfillment_rub_per_unit ?? null,
+        delivery_to_wb_rub_per_kg: deliveryToWb ?? currentExtraTariffs?.delivery_to_wb_rub_per_kg ?? null,
+      });
+      setExtraOpen(false);
+      startTransition(() => router.refresh());
+    } catch {
+      setExtraError('Ошибка сети');
+    } finally {
+      setExtraSubmitting(false);
+    }
+  }, [
+    extraSuppliesTransport,
+    extraFulfillment,
+    extraDeliveryToWb,
+    extraEffectiveFrom,
+    extraComment,
+    currentExtraTariffs,
+    router,
+  ]);
+
   const columns = useMemo<ColumnDef<CostRow>[]>(
     () => [
       { accessorKey: 'barcode', header: 'Штрихкод', cell: (info) => <span className="font-mono text-xs">{info.getValue<string>() || '—'}</span> },
@@ -570,6 +652,16 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [], extraT
           >
             Тарифы Карго
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetExtraForm();
+              setExtraOpen(true);
+            }}
+          >
+            Тарифы доставки и ФФ
+          </Button>
         </div>
       </div>
 
@@ -580,6 +672,32 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [], extraT
           {' · '}Действует с <span className="font-medium text-foreground tabular-nums">{fmtDateRu(currentCargoTariff.effective_from)}</span>
         </p>
       )}
+
+      {currentExtraTariffs &&
+        (currentExtraTariffs.supplies_transport_rub_per_kg != null ||
+          currentExtraTariffs.fulfillment_rub_per_unit != null ||
+          currentExtraTariffs.delivery_to_wb_rub_per_kg != null) && (
+          <p className="text-xs text-muted-foreground">
+            Доставка ФФ:{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {currentExtraTariffs.supplies_transport_rub_per_kg != null
+                ? `${fmtRub(currentExtraTariffs.supplies_transport_rub_per_kg)}₽/кг`
+                : '—'}
+            </span>
+            {' · '}Услуги ФФ:{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {currentExtraTariffs.fulfillment_rub_per_unit != null
+                ? `${fmtRub(currentExtraTariffs.fulfillment_rub_per_unit)}₽/шт`
+                : '—'}
+            </span>
+            {' · '}Доставка ВБ:{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {currentExtraTariffs.delivery_to_wb_rub_per_kg != null
+                ? `${fmtRub(currentExtraTariffs.delivery_to_wb_rub_per_kg)}₽/кг`
+                : '—'}
+            </span>
+          </p>
+        )}
 
       <DataTable
         data={filtered}
@@ -937,6 +1055,100 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [], extraT
                   disabled={cargoSubmitting || !cargoCnyRate || !cargoDeliveryPerKg}
                 >
                   {cargoSubmitting ? 'Сохранение...' : 'Сохранить'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {extraOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setExtraOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold">Тарифы доставки и ФФ</h3>
+              <Button variant="ghost" size="sm" onClick={() => setExtraOpen(false)}>
+                ✕
+              </Button>
+            </div>
+            <div className="flex flex-col gap-3 p-4">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Доставка до фулфилмента (₽/кг)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={extraSuppliesTransport}
+                  onChange={(e) => setExtraSuppliesTransport(e.target.value)}
+                  placeholder="напр. 50.00"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Услуги фулфилмента (₽/шт)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={extraFulfillment}
+                  onChange={(e) => setExtraFulfillment(e.target.value)}
+                  placeholder="напр. 15.00"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Доставка до склада ВБ (₽/кг)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={extraDeliveryToWb}
+                  onChange={(e) => setExtraDeliveryToWb(e.target.value)}
+                  placeholder="напр. 30.00"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Дата действия</span>
+                <input
+                  type="date"
+                  value={extraEffectiveFrom}
+                  onChange={(e) => setExtraEffectiveFrom(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Комментарий (опционально)</span>
+                <input
+                  type="text"
+                  value={extraComment}
+                  onChange={(e) => setExtraComment(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+
+              {extraError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {extraError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setExtraOpen(false)}>
+                  Закрыть
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={submitExtraTariffs}
+                  disabled={
+                    extraSubmitting ||
+                    (!extraSuppliesTransport && !extraFulfillment && !extraDeliveryToWb)
+                  }
+                >
+                  {extraSubmitting ? 'Сохранение...' : 'Сохранить'}
                 </Button>
               </div>
             </div>
