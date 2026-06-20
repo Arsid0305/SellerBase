@@ -22,6 +22,7 @@ import { fetchDashboardBrief } from '@/entities/dashboard-brief';
 import { fetchSellerAnalytics } from '@/entities/seller-analytics';
 import { fetchSalesComparison } from '@/entities/sales-hourly';
 import { fetchOrdersHourlyComparison } from '@/entities/wb-orders';
+import { fetchAdsHourlyComparison } from '@/entities/wb-ads';
 
 export const metadata = { title: 'Сводка' };
 export const dynamic = 'force-dynamic';
@@ -63,7 +64,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   const weekAgoIso = weekAgo.toISOString().slice(0, 10);
 
-  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics, salesComparison, ordersComparison] = await Promise.all([
+  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics, salesComparison, ordersComparison, adsComparison] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
@@ -76,6 +77,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     fetchSellerAnalytics(),
     fetchSalesComparison(),
     fetchOrdersHourlyComparison(),
+    fetchAdsHourlyComparison(),
   ]);
 
   const revenueKpi: DashboardKpi = {
@@ -178,7 +180,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         }}
         comparison={{ from: comparison.from, to: comparison.to, label: formatRange(comparison) }}
       />
-      <WbStyleChart salesBuckets={salesComparison} ordersBuckets={ordersComparison} />
+      <WbStyleChart salesBuckets={salesComparison} ordersBuckets={ordersComparison} adsBuckets={adsComparison} />
       <PnLChart data={series} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <CategoriesCard rows={categoryPnl} />
