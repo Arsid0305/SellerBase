@@ -45,15 +45,13 @@ type CatalogDb = {
   photo_url: string | null;
 };
 
-type FactRow = {
+type FactDailyAgg = {
   nm_id: number | null;
   rr_dt: string;
-  retail_amount: number | null;
-  quantity: number | null;
-  ppvz_for_pay: number | null;
-  commission_rub: number | null;
-  delivery_rub: number | null;
-  penalty: number | null;
+  revenue: number | string | null;
+  units: number | string | null;
+  profit: number | string | null;
+  cost: number | string | null;
 };
 
 type StockRow = {
@@ -132,13 +130,9 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
   const sinceIso = iso(new Date(Date.now() - 30 * 86_400_000));
 
   const [factsResult, stocksResult, supplyResult, lifecycleResult] = await Promise.all([
+    // Заменено: .range(0, 200_000) на wb_reports_fact — теперь дневной агрегат в БД через RPC.
     nmIds.length > 0
-      ? supabase
-          .from('wb_reports_fact')
-          .select('nm_id, rr_dt, retail_amount, quantity, ppvz_for_pay, commission_rub, delivery_rub, penalty')
-          .in('nm_id', nmIds)
-          .gte('rr_dt', sinceIso)
-          .range(0, 200_000)
+      ? supabase.rpc('get_catalog_sales_daily', { p_since: sinceIso, p_nm_ids: nmIds })
       : Promise.resolve({ data: [], error: null }),
     nmIds.length > 0
       ? supabase
@@ -178,7 +172,7 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
     lastSaleDate: string | null;
   };
   const salesByNmId = new Map<number, Sales>();
-  for (const r of (factsResult.data ?? []) as FactRow[]) {
+  for (const r of (factsResult.data ?? []) as FactDailyAgg[]) {
     if (r.nm_id == null) continue;
     const cur =
       salesByNmId.get(r.nm_id) ??
@@ -191,16 +185,14 @@ export async function fetchCatalog(): Promise<CatalogProduct[]> {
         sparkline: new Map<string, number>(),
         lastSaleDate: null,
       } satisfies Sales);
-    const revenue = toNumber(r.retail_amount);
-    const expenses = toNumber(r.commission_rub) + toNumber(r.delivery_rub) + toNumber(r.penalty);
+    const revenue = toNumber(r.revenue);
     cur.revenue += revenue;
-    cur.units += toNumber(r.quantity);
-    cur.profit += revenue - expenses;
-    cur.cost += expenses;
+    cur.units += toNumber(r.units);
+    cur.profit += toNumber(r.profit);
+    cur.cost += toNumber(r.cost);
     if (revenue > 0) {
       cur.daysWithSales.add(r.rr_dt);
-      const prev = cur.sparkline.get(r.rr_dt) ?? 0;
-      cur.sparkline.set(r.rr_dt, prev + revenue);
+      cur.sparkline.set(r.rr_dt, (cur.sparkline.get(r.rr_dt) ?? 0) + revenue);
       if (cur.lastSaleDate == null || r.rr_dt > cur.lastSaleDate) cur.lastSaleDate = r.rr_dt;
     }
     salesByNmId.set(r.nm_id, cur);
