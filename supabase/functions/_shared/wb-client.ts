@@ -43,49 +43,72 @@ export async function wbPost(url: string, token: string, body: unknown): Promise
 /**
  * Инкрементальная пагинация по lastChangeDate (для Statistics API endpoints).
  *
- * WB возвращает до PAGE_LIMIT элементов за раз. Курсор — самый поздний lastChangeDate
- * последнего элемента + 1 секунда. Завершение когда страница меньше PAGE_LIMIT.
+ * WB возвращает до pageLimit элементов за раз (по умолчанию 80_000).
+ * Курсор — самый поздний lastChangeDate последнего элемента + 1 секунда.
  *
- * @param fetchPage — функция получения одной страницы по dateFrom
- * @param getLastChangeDate — извлекает lastChangeDate из элемента
- * @param getDedupKey — уникальный ключ внутри страницы (для исключения дублей)
- * @param maxPages — защита от бесконечного цикла
+ * Завершение цикла:
+ *   - страница меньше pageLimit (последняя страница);
+ *   - после дедупа добавлено 0 новых элементов (все — дубли с предыдущих страниц);
+ *   - достигнут maxPages (защита от бесконечного цикла).
+ *
+ * Per-page workflow:
+ *   1. fetchPage(cursor) → page
+ *   2. дедуп внутри страницы через seen Set по getDedupKey
+ *   3. await onPage(uniqueItems) — здесь caller делает batchUpsert
+ *   4. сдвиг курсора на max(lastChangeDate) + 1 сек
+ *
+ * Возвращает счётчики, не накапливает items в памяти.
  */
-export async function paginateByLastChangeDate<T>(
-  fetchPage: (dateFrom: string) => Promise<T[]>,
-  getLastChangeDate: (item: T) => string,
-  getDedupKey: (item: T) => string,
-  initialDateFrom: string,
-  maxPages = 50,
-): Promise<T[]> {
+export async function paginateByLastChangeDate<T>(opts: {
+  fetchPage: (dateFrom: string) => Promise<T[]>;
+  getLastChangeDate: (item: T) => string;
+  getDedupKey: (item: T) => string;
+  initialDateFrom: string;
+  onPage: (items: T[]) => Promise<void>;
+  pageLimit?: number;
+  maxPages?: number;
+}): Promise<{ totalSeen: number; totalUnique: number; pages: number }> {
+  const pageLimit = opts.pageLimit ?? 80_000;
+  const maxPages = opts.maxPages ?? 50;
   const seen = new Set<string>();
-  const all: T[] = [];
-  let cursor = initialDateFrom;
+  let cursor = opts.initialDateFrom;
+  let totalSeen = 0;
+  let totalUnique = 0;
+  let pages = 0;
 
   for (let i = 0; i < maxPages; i++) {
-    const page = await fetchPage(cursor);
+    const page = await opts.fetchPage(cursor);
+    pages++;
     if (page.length === 0) break;
+    totalSeen += page.length;
 
-    let added = 0;
+    const uniqueItems: T[] = [];
     let latest = cursor;
     for (const item of page) {
-      const key = getDedupKey(item);
-      if (seen.has(key)) continue;
+      const key = opts.getDedupKey(item);
+      if (!key || seen.has(key)) continue;
       seen.add(key);
-      all.push(item);
-      added++;
-      const lcd = getLastChangeDate(item);
-      if (lcd > latest) latest = lcd;
+      uniqueItems.push(item);
+      const lcd = opts.getLastChangeDate(item);
+      if (lcd && lcd > latest) latest = lcd;
     }
 
-    if (added === 0) break;
+    if (uniqueItems.length > 0) {
+      await opts.onPage(uniqueItems);
+      totalUnique += uniqueItems.length;
+    }
 
-    // Сдвигаем курсор на 1 секунду вперёд от последнего lastChangeDate
+    // Условие завершения: последняя страница или все дубли.
+    if (page.length < pageLimit) break;
+    if (uniqueItems.length === 0) break;
+
+    // Сдвигаем курсор на 1 секунду вперёд от последнего lastChangeDate.
+    // Формат WB Statistics API: ISO без миллисекунд.
     const nextDt = new Date(new Date(latest).getTime() + 1000);
-    cursor = nextDt.toISOString();
+    cursor = nextDt.toISOString().replace(/\.\d{3}Z$/, "");
   }
 
-  return all;
+  return { totalSeen, totalUnique, pages };
 }
 
 /**
