@@ -218,8 +218,6 @@ export async function replacePlanChinaItems(
   return true;
 }
 
-type FactRow = { nm_id: number | null; warehouse_name: string | null; quantity: number | null };
-type StockRow = { nm_id: number | null; warehouse_name: string | null; quantity: number | null };
 type SkuRow = {
   id: number;
   my_article: string | null;
@@ -240,22 +238,20 @@ export async function fetchSupplyStats(): Promise<{
 }> {
   const supabase = createAdminClient();
 
-  const [skuRes, factRes, stockRes, extStock] = await Promise.all([
+  const since60 = new Date(Date.now() - SUPPLY_PLAN.salesWindow * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+
+  const [skuRes, statsRes, extStock] = await Promise.all([
     supabase
       .from('sku_catalog')
       .select('id, my_article, wb_article, barcode, title, is_active')
       .eq('is_active', true)
       .order('id', { ascending: true })
       .range(0, 5000),
-    supabase
-      .from('wb_reports_fact')
-      .select('nm_id, warehouse_name, quantity')
-      .gte('rr_dt', new Date(Date.now() - SUPPLY_PLAN.salesWindow * 86_400_000).toISOString().slice(0, 10))
-      .range(0, 200000),
-    supabase
-      .from('wb_stocks')
-      .select('nm_id, warehouse_name, quantity')
-      .range(0, 100000),
+    // Заменено: было .range(0, 200_000) на wb_reports_fact + .range(0, 100_000) на wb_stocks
+    // (до 300k строк в RSC). Теперь агрегат в БД через RPC get_supplies_stats — ≈1.2k строк.
+    supabase.rpc('get_supplies_stats', { p_since: since60 }),
     fetchExternalStock(),
   ]);
 
@@ -264,36 +260,28 @@ export async function fetchSupplyStats(): Promise<{
     console.error('[fetchSupplyStats sku]', skuRes.error);
     return { rows: [], warehouses: [...WB_WAREHOUSES] };
   }
+  if (statsRes.error) console.error('[fetchSupplyStats stats]', statsRes.error);
 
   const skus = (skuRes.data ?? []) as SkuRow[];
-  const facts = (factRes.error ? [] : (factRes.data ?? [])) as FactRow[];
-  const stocks = (stockRes.error ? [] : (stockRes.data ?? [])) as StockRow[];
+  type StatsRow = { source: 'sales' | 'stock'; nm_id: number; warehouse_name: string; qty: number | string | null };
+  const statsRows = (statsRes.data ?? []) as StatsRow[];
 
   const whSet = new Set<string>();
-  for (const s of stocks) if (s.warehouse_name) whSet.add(s.warehouse_name);
-  for (const f of facts) if (f.warehouse_name) whSet.add(f.warehouse_name);
+  for (const r of statsRows) if (r.warehouse_name) whSet.add(r.warehouse_name);
   if (whSet.size === 0) for (const w of WB_WAREHOUSES) whSet.add(w);
   const warehouses = Array.from(whSet).sort();
 
   const factsByNm = new Map<number, Map<string, number>>();
-  for (const f of facts) {
-    if (f.nm_id == null || !f.warehouse_name) continue;
-    let m = factsByNm.get(f.nm_id);
-    if (!m) {
-      m = new Map();
-      factsByNm.set(f.nm_id, m);
-    }
-    m.set(f.warehouse_name, (m.get(f.warehouse_name) ?? 0) + (f.quantity ?? 0));
-  }
   const stocksByNm = new Map<number, Map<string, number>>();
-  for (const s of stocks) {
-    if (s.nm_id == null || !s.warehouse_name) continue;
-    let m = stocksByNm.get(s.nm_id);
+  for (const r of statsRows) {
+    if (r.nm_id == null || !r.warehouse_name) continue;
+    const target = r.source === 'sales' ? factsByNm : stocksByNm;
+    let m = target.get(r.nm_id);
     if (!m) {
       m = new Map();
-      stocksByNm.set(s.nm_id, m);
+      target.set(r.nm_id, m);
     }
-    m.set(s.warehouse_name, (m.get(s.warehouse_name) ?? 0) + (s.quantity ?? 0));
+    m.set(r.warehouse_name, Number(r.qty ?? 0));
   }
   const extByS = new Map<number, { home: number; ff: number }>();
   for (const e of extStock) {
