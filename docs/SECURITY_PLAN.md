@@ -81,3 +81,55 @@ cron'ы будут падать с 401 пока миграция не доеде
    `SELECT vault.create_secret('<service_role JWT>', 'service_role_key');`
 2. Мерж PR → `migrate.yml` применяет миграцию → cron'ы начинают слать оба header'а.
 3. `supabase functions deploy` (через CI) подхватывает новый `config.toml` с `verify_jwt=true`.
+
+---
+
+## Слой Auth (single-tenant, Supabase Auth magic-link)
+
+Финальный слой, защищает само Next.js приложение (страницы + API routes).
+Дополняет существующую Origin/Referer + X-API-Secret защиту, которая
+теперь остаётся как defense in depth для `/api/*`.
+
+### Что настроила владелица в Supabase Dashboard
+
+- Authentication → Providers → Email = **on**, Magic Link = **on**.
+- Authentication → Settings → Sign-up = **disabled** (новые юзеры не регистрируются).
+- URL Configuration → Site URL = `<vercel-домен>`.
+- URL Configuration → Redirect URLs = `<vercel-домен>/**`.
+- Authentication → Users → Add user → её email с auto-confirm.
+
+### Код
+
+| Файл | Роль |
+|------|------|
+| `apps/web/src/middleware.ts` | Слой A: Supabase session. Нет user → редирект на `/login` (страницы) или 401 JSON (`/api/*`). Слои B/C (Origin, X-API-Secret) сохранены для `/api/*`. |
+| `apps/web/src/app/(auth)/login/page.tsx` + `login-form.tsx` | Публичная страница. Email → `signInWithOtp` → «Письмо отправлено». |
+| `apps/web/src/app/auth/callback/route.ts` | `exchangeCodeForSession(code)` → редирект на `/` или `/login?error=...`. |
+| `apps/web/src/shared/lib/auth/require-auth.ts` | Хелпер для API routes: `{userId} \| NextResponse(401)`. |
+
+### Где подключён `requireAuth()`
+
+Все мутирующие (POST/PUT/DELETE/PATCH) handler'ы критичных routes:
+
+- `POST /api/costs`
+- `POST /api/costs/parse-xlsx`
+- `POST /api/cargo-tariffs`
+- `DELETE /api/demo/clear`
+- `POST /api/import/china-order`
+- `POST /api/import/unit-cogs`
+
+Остальные мутирующие routes защищены middleware (401 для незалогиненных).
+GET-only routes полагаются на RLS + middleware.
+
+### Whitelist в middleware
+
+`['/login', '/auth/callback', '/api/health']` — публичные пути.
+Всё остальное требует session.
+
+### Инструкция для владелицы — как залогиниться
+
+1. Открыть `<vercel-домен>/login`.
+2. Ввести email (тот же, который добавлен в Supabase Auth → Users).
+3. Кликнуть «Прислать magic-link».
+4. В почте кликнуть по ссылке → редирект на `/auth/callback` → session создаётся → редирект на `/`.
+5. Дальше **~30 дней без повторного логина** (refresh token Supabase живёт долго).

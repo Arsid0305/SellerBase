@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { parseUnitCogsXlsx } from '@/shared/lib/parsers/unit-cogs';
+import { requireAuth } from '@/shared/lib/auth/require-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,9 @@ function isIsoDate(s: string): boolean {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuth();
+  if (auth instanceof NextResponse) return auth;
+
   const form = await req.formData().catch(() => null);
   if (!form) {
     return NextResponse.json({ error: 'invalid_form_data' }, { status: 400 });

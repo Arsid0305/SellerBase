@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { requireAuth } from '@/shared/lib/auth/require-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,9 @@ function isValidDate(s: string): boolean {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuth();
+  if (auth instanceof NextResponse) return auth;
+
   let body: unknown;
   try {
     body = await req.json();

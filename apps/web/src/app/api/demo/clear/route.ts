@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/shared/lib/supabase/admin';
+import { requireAuth } from '@/shared/lib/auth/require-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,9 @@ async function clearTable(supabase: SupabaseAdmin, table: string): Promise<numbe
 }
 
 export async function DELETE(req: Request) {
+  const auth = await requireAuth();
+  if (auth instanceof NextResponse) return auth;
+
   let body: { scope?: Scope } = {};
   try {
     body = (await req.json()) as { scope?: Scope };
