@@ -5,8 +5,7 @@
 --
 -- Активация защиты после применения миграции (делает владелица):
 --   1) supabase secrets set CRON_SHARED_SECRET=<long-random>
---   2) ALTER DATABASE postgres SET app.settings.cron_shared_secret = '<тот же>';
---      SELECT pg_reload_conf();
+--   2) SELECT vault.create_secret('<тот же hex>', 'cron_shared_secret');  -- Supabase Vault (ALTER DATABASE недоступен)
 --
 -- НЕ трогаем: fetch-wb-sales-30min, fetch-wb-orders-30min, fetch-wb-ads-hourly
 -- (правит параллельный агент в той же ветке).
@@ -21,7 +20,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/telegram-alerts',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 120000
@@ -37,7 +36,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/detect-anomalies',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 180000
@@ -53,7 +52,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-content',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 180000
@@ -69,7 +68,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-funnel',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 180000
@@ -85,7 +84,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-funnel-aggregate',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 180000
@@ -101,7 +100,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-commissions',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 60000
@@ -117,7 +116,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-goods-returns',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 180000
@@ -133,7 +132,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-tariffs',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 180000
@@ -149,7 +148,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-stocks',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 1800000
@@ -165,7 +164,7 @@ SELECT cron.schedule(
     url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/fetch-wb-report',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'X-Cron-Secret', coalesce(current_setting('app.settings.cron_shared_secret', true), '')
+      'X-Cron-Secret', coalesce((SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'cron_shared_secret'), '')
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 600000
