@@ -12,41 +12,69 @@
 
 ---
 
-## ⏸ Требует решения владелицы
+## 🟢 Готовы к merge (16 PR от 20-21.06)
 
-- **🔒 Макс. безопасность (3 пункта) + multi-tenant fork** — план собран в `docs/SECURITY_PLAN.md`. Решение владелицы (21.06): «сделать максимально безопасно». Готов к запуску агентов (A: verify_jwt+JWT в pg_cron, B: Supabase Auth magic-link + middleware + /login). После их PR'ов — 15-минутная сессия владелицы в Supabase Dashboard (5 шагов в `SECURITY_PLAN.md`). Ждёт «делай». **Триггерные фразы для выдачи плана: «безопасность», «план по безопасности», «друзьям предложить», «Dashboard сессия».**
-- **Multi-tenant fork** (если когда-нибудь подключать друзей) — 3 варианта (A/B/C) + 5 вопросов в `docs/SECURITY_PLAN.md`. Рекомендация по умолчанию: Вариант A + параллельный `docs/MULTI_TENANT_PLAN.md`.
+Все зелёные на CI (Vercel preview success, типы и билд проходят). 7 PR с включённым `enable-automerge` сольются автоматически, остальные нужно мерджить вручную или ре-триггерить CI.
+
+### С enable-automerge — сольются сами:
+- **#159** test(vitest): unit-тесты финансовых формул (50 кейсов в 7 файлах)
+- **#158** refactor(fetch-wb-orders): paginateByLastChangeDate с onPage-callback
+- **#156** docs(todo,rules): закрыть выполненное + §16 правило сверки RPC
+
+### БЕЗ enable-automerge — нужен ручной merge или re-trigger CI:
+- **#157** refactor(wb-client): paginateByLastChangeDate финиш + миграция fetch-wb-sales
+- **#155** refactor(rpc): xlsx-export через RPC (9/9 range)
+- **#154** refactor(rpc): sales-report (8/9)
+- **#153** refactor(rpc): analytics (7/9)
+- **#152** refactor(rpc): catalog (6/9)
+- **#151** refactor(rpc): business-snapshot ×3 функции (5/9)
+- **#150** refactor(rpc): price-simulator (4/9)
+- **#149** refactor(rpc): sources (3/9)
+- **#148** refactor(rpc): supplies (2/9)
+- **#147** refactor(rpc): data-quality channelGaps (1/9)
+- **#146** security(cron): X-Cron-Secret guard в 10 edge functions
+- **#145** refactor(wb): унификация fetch-wb-{sales,orders,ads} через _shared/wb-client.ts
+
+### Чужая ветка (PR #144 на `claude/funny-cerf-s37pkh`):
+- **#144** feat(autosebes): 3 доп тарифа + extend v_sku_cost_breakdown + FF Excel — это автосебес-задача с предыдущей сессии, не из этой.
 
 ---
 
-## 🟡 Можно делать в фоне без согласования
+## ⏸ Требует решения / приостановлено владелицей
 
-- ✅ **Vitest + unit-тесты финансовых формул** — в работе (агент)
-- ✅ **`paginateByLastChangeDate` финиш** — в работе (агент)
-- ✅ **`.range(0, 200_000) × 11` → RPC агрегация** — закрыто (9 PR: data-quality, supplies, sources, price-simulator, business-snapshot ×3 функции, catalog, analytics, sales-report, xlsx). Каждый — со сверкой старое=новое.
-- ✅ **CRON_SHARED_SECRET в 10 edge functions** — PR #146 (см. action для владелицы ниже).
-- ✅ **wb-client.ts helpers для fetch-wb-{sales,orders,ads}** — PR #145.
+- **🔒 Макс. безопасность (3 пункта)** — решение владелицы 21.06: **«всё оставляем как есть, ничего не меняем по входу»**. План полностью зафиксирован в `docs/SECURITY_PLAN.md` (verify_jwt + service_role JWT в pg_cron + Supabase Auth magic-link + 15-минутная Dashboard-сессия). **Триггерные фразы для возобновления: «безопасность», «план по безопасности», «друзьям предложить», «Dashboard сессия».** Текущая защита: `X-Cron-Secret` (PR #146 после мерджа) + Origin/Referer гигиена (PR #138).
+- **Multi-tenant fork** (если когда-нибудь подключать друзей) — решение 21.06: **«делаем пока только для меня»**. План в `docs/SECURITY_PLAN.md` (3 варианта + 5 вопросов) + детальный чек-лист в `docs/MULTI_TENANT_PLAN.md`. Возобновить когда «созреет».
+
+---
+
+## 🟡 Можно делать в фоне без согласования (все ✅ закрыты в этой сессии)
+
+- ✅ **`.range(0, 200_000) × 9 файлов` → RPC агрегация** — 9 PR (#147-155). Каждый со сверкой старое=новое через MCP execute_sql.
+- ✅ **CRON_SHARED_SECRET helper для 10 edge functions** — PR #146. После мерджа — 2 команды от владелицы (см. `docs/SECURITY_PLAN.md`).
+- ✅ **wb-client.ts helpers + paginateByLastChangeDate** — PR #145, #157, #158.
+- ✅ **Vitest + 50 кейсов финансовых формул** — PR #159 (classifyProfit/Sales/Stability, buildRecommendation, computeBreakEven, business-rules snapshots).
+- ✅ **WorktreeCreate hook** — задача зафиксирована (требует ручной настройки `~/.claude/settings.json`).
 
 ---
 
 ## 🔮 Backlog (новые Edge Functions / большие фичи)
 
-- **Автоматический себес** roadmap: `china_order_items` + `supplies_transport` + `fulfillment_costs` + `delivery_to_wb` → view `v_sku_cost_breakdown` (в работе на ветке `claude/funny-cerf-s37pkh`, PR #144)
-- **Лайфсайклы товаров** (Events / Anomaly / Trust-Visibility-Value / Goals):
-  - ⏸ TVV (Видимость/Доверие/Ценность) — **отложили**
-  - ⏸ Goals по SKU — **отложили**, цели по магазину пока достаточно
-- **Office Add-in / Power Query** — отложено
-- **Импорт 22 старых бланков заказов Китай** — отложено
+- **Автоматический себес** roadmap — в работе на ветке `claude/funny-cerf-s37pkh`, PR #144.
+- **TVV (Видимость/Доверие/Ценность)** — ⏸ отложили
+- **Goals по SKU** — ⏸ отложили
+- **Office Add-in / Power Query** — ⏸ отложено
+- **Импорт 22 старых бланков заказов Китай** — ⏸ отложено (после стабилизации БД)
 
 ---
 
 ## ⏸ Ждём от пользователя
 
 - Excel «Фулфилмент», «Поставки» — для автосебеса (Excel Заказов Китай уже импортируется через `/products/costs`)
-- **Установить `CRON_SHARED_SECRET`** в Supabase Secrets + `ALTER DATABASE postgres SET app.settings.cron_shared_secret = '<тот же>'` — после мерджа PR #146 (см. `docs/CRONS.md`)
+- **После мерджа PR #146** — установить `CRON_SHARED_SECRET` в Supabase Secrets (см. `docs/CRONS.md` + `docs/SECURITY_PLAN.md`)
 
 ---
 
 ## 🔵 Перспектива (записано, не делать без явного запроса)
 
 - Google Sheets sync — на паузе по решению владелицы
+- Полный multi-tenant (sign-up + billing + org-isolation) — см. `docs/MULTI_TENANT_PLAN.md`
