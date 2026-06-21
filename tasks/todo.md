@@ -14,8 +14,8 @@
 
 ## ⏸ Требует решения владелицы
 
-- **`verify_jwt = true` на edge functions** — альтернатива X-Cron-Secret из PR #146. Требует service_role JWT в pg_cron + app.settings.* в БД.
-- **Реальная Auth для API routes** (`/api/costs`, `/api/demo/clear`) — Supabase Auth session в middleware. Сейчас 2-уровневая Origin/Referer (PR #138).
+- **🔒 Макс. безопасность (3 пункта) + multi-tenant fork** — план собран в `docs/SECURITY_PLAN.md`. Решение владелицы (21.06): «сделать максимально безопасно». Готов к запуску агентов (A: verify_jwt+JWT в pg_cron, B: Supabase Auth magic-link + middleware + /login). После их PR'ов — 15-минутная сессия владелицы в Supabase Dashboard (5 шагов в `SECURITY_PLAN.md`). Ждёт «делай». **Триггерные фразы для выдачи плана: «безопасность», «план по безопасности», «друзьям предложить», «Dashboard сессия».**
+- **Multi-tenant fork** (если когда-нибудь подключать друзей) — 3 варианта (A/B/C) + 5 вопросов в `docs/SECURITY_PLAN.md`. Рекомендация по умолчанию: Вариант A + параллельный `docs/MULTI_TENANT_PLAN.md`.
 
 ---
 
