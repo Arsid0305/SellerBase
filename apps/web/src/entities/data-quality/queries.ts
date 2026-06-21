@@ -82,7 +82,7 @@ export async function fetchDataQuality(): Promise<DataQualityReport> {
   const since30 = iso(new Date(todayUtc.getTime() - 30 * 86_400_000));
   const todayIso = iso(todayUtc);
 
-  const [catalogRes, salesFactRes, stocksRes, cronRes, salesByChannelRes, reportsFactDatesRes] =
+  const [catalogRes, salesFactRes, stocksRes, cronRes, channelGapsRes] =
     await Promise.all([
       supabase
         .from('sku_catalog')
@@ -100,16 +100,9 @@ export async function fetchDataQuality(): Promise<DataQualityReport> {
         .eq('status', 'ok')
         .order('started_at', { ascending: false })
         .range(0, 2000),
-      supabase
-        .from('wb_sales_fact')
-        .select('sale_dt')
-        .gte('sale_dt', since30)
-        .range(0, 200_000),
-      supabase
-        .from('wb_reports_fact')
-        .select('rr_dt')
-        .gte('rr_dt', since30)
-        .range(0, 50_000),
+      // Заменено: было два .range(0, 200_000)/50_000 на wb_sales_fact.sale_dt и wb_reports_fact.rr_dt.
+      // Теперь один RPC возвращает distinct даты по обоим каналам — ≤60 строк вместо до 250k.
+      supabase.rpc('get_channel_gap_dates', { p_since: since30 }),
     ]);
 
   if (catalogRes.error) console.error('[fetchDataQuality] catalog', catalogRes.error);
@@ -118,7 +111,7 @@ export async function fetchDataQuality(): Promise<DataQualityReport> {
   if (cronRes.error && cronRes.error.code !== '42P01') {
     console.error('[fetchDataQuality] ingestion_log', cronRes.error);
   }
-  if (salesByChannelRes.error) console.error('[fetchDataQuality] wb_sales_fact', salesByChannelRes.error);
+  if (channelGapsRes.error) console.error('[fetchDataQuality] channel_gap_dates', channelGapsRes.error);
 
   const catalog = (catalogRes.data ?? []) as CatalogRow[];
 
@@ -293,13 +286,13 @@ export async function fetchDataQuality(): Promise<DataQualityReport> {
     cron.sort((a, b) => (b.hoursAgo ?? 0) - (a.hoursAgo ?? 0));
   }
 
-  // 10. Дни без продаж по каналам
-  const wbReportsDates = new Set(
-    ((reportsFactDatesRes.data ?? []) as { rr_dt: string }[]).map((r) => r.rr_dt),
-  );
-  const wbSalesDates = new Set(
-    ((salesByChannelRes.data ?? []) as { sale_dt: string }[]).map((r) => r.sale_dt),
-  );
+  // 10. Дни без продаж по каналам — distinct даты приходят одним RPC.
+  const wbSalesDates = new Set<string>();
+  const wbReportsDates = new Set<string>();
+  for (const r of (channelGapsRes.data ?? []) as { source: string; dt: string }[]) {
+    if (r.source === 'wb_sales') wbSalesDates.add(r.dt);
+    else if (r.source === 'wb_reports') wbReportsDates.add(r.dt);
+  }
 
   function daysWithoutSales(dates: Set<string>): { days: number; lastDate: string | null } {
     let lastDate: string | null = null;
