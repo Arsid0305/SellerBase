@@ -9,13 +9,15 @@ function toNumber(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-type FactRow = {
+type DailyAggRow = {
   rr_dt: string;
   nm_id: number | null;
   sa_name: string | null;
   barcode: string | null;
-  quantity: number | null;
-  retail_amount: number | null;
+  orders: number | null;
+  units: number | string | null;
+  revenue: number | string | null;
+  cancellations: number | null;
 };
 
 type Bucket = { orders: number; unitsSold: number; revenue: number; cancellations: number };
@@ -60,12 +62,11 @@ export async function fetchSalesReportAll(
   range: PeriodRange,
 ): Promise<Record<SalesGrouping, SalesReportRow[]>> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('wb_reports_fact')
-    .select('rr_dt, nm_id, sa_name, barcode, quantity, retail_amount')
-    .gte('rr_dt', range.from)
-    .lte('rr_dt', range.to)
-    .range(0, 200_000);
+  // Заменено: .range(0, 200_000) на wb_reports_fact — теперь агрегат по (rr_dt, nm_id, sa_name, barcode) в БД.
+  const { data, error } = await supabase.rpc('get_sales_report_daily', {
+    p_from: range.from,
+    p_to: range.to,
+  });
 
   const empty: Record<SalesGrouping, SalesReportRow[]> = {
     day: [],
@@ -78,7 +79,7 @@ export async function fetchSalesReportAll(
     console.error('[fetchSalesReportAll] error', error);
     return empty;
   }
-  const rows = (data ?? []) as FactRow[];
+  const rows = (data ?? []) as DailyAggRow[];
   if (rows.length === 0) return empty;
 
   const dayMap = new Map<string, Bucket>();
@@ -88,18 +89,16 @@ export async function fetchSalesReportAll(
   const channelBucket: Bucket = emptyBucket();
 
   for (const r of rows) {
-    const qty = toNumber(r.quantity);
-    const amount = toNumber(r.retail_amount);
-    const isCancellation = qty < 0;
+    const orders = toNumber(r.orders);
+    const units = toNumber(r.units);
+    const revenue = toNumber(r.revenue);
+    const cancellations = toNumber(r.cancellations);
 
     const addToBucket = (b: Bucket) => {
-      if (isCancellation) {
-        b.cancellations += 1;
-      } else if (qty > 0) {
-        b.orders += 1;
-        b.unitsSold += qty;
-        b.revenue += amount;
-      }
+      b.orders += orders;
+      b.unitsSold += units;
+      b.revenue += revenue;
+      b.cancellations += cancellations;
     };
 
     // Day
