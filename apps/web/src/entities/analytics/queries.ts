@@ -90,10 +90,10 @@ type PnlDb = {
   net_profit_rub: number | null;
 };
 
-type FactDb = {
+type DailyUnitsDb = {
   nm_id: number | null;
   rr_dt: string;
-  quantity: number | null;
+  units: number | string | null;
 };
 
 type StockDb = {
@@ -123,12 +123,8 @@ export async function fetchAnalytics(): Promise<{
       .eq('is_active', true)
       .range(0, 5000),
     supabase.rpc('get_full_pnl_by_period', { p_from: fromIso, p_to: toIso }),
-    supabase
-      .from('wb_reports_fact')
-      .select('nm_id, rr_dt, quantity')
-      .gte('rr_dt', fromIso)
-      .lte('rr_dt', toIso)
-      .range(0, 200_000),
+    // Заменено: .range(0, 200_000) на wb_reports_fact — теперь дневной агрегат через RPC.
+    supabase.rpc('get_analytics_daily_units', { p_from: fromIso, p_to: toIso }),
   ]);
 
   const catalog = (catalogResult.data ?? []) as CatalogDb[];
@@ -137,7 +133,7 @@ export async function fetchAnalytics(): Promise<{
   }
 
   const pnlRows = (pnlResult.data ?? []) as PnlDb[];
-  const facts = (factsResult.data ?? []) as FactDb[];
+  const daily = (factsResult.data ?? []) as DailyUnitsDb[];
 
   const nmIds = [...new Set(catalog.map((c) => c.wb_article).filter((v): v is number => v != null))];
   const stocksResult = nmIds.length > 0
@@ -162,15 +158,15 @@ export async function fetchAnalytics(): Promise<{
     days.push(iso(d));
   }
 
-  // Продажи по SKU и дню
+  // Продажи по SKU и дню — приходят уже агрегированные RPC.
   const dailyByNm = new Map<number, Map<string, number>>();
-  for (const f of facts) {
-    if (f.nm_id == null) continue;
-    const q = toNumber(f.quantity);
+  for (const r of daily) {
+    if (r.nm_id == null) continue;
+    const q = toNumber(r.units);
     if (q <= 0) continue;
-    const dayMap = dailyByNm.get(f.nm_id) ?? new Map<string, number>();
-    dayMap.set(f.rr_dt, (dayMap.get(f.rr_dt) ?? 0) + q);
-    dailyByNm.set(f.nm_id, dayMap);
+    const dayMap = dailyByNm.get(r.nm_id) ?? new Map<string, number>();
+    dayMap.set(r.rr_dt, (dayMap.get(r.rr_dt) ?? 0) + q);
+    dailyByNm.set(r.nm_id, dayMap);
   }
 
   const enriched = catalog.map((c) => {
