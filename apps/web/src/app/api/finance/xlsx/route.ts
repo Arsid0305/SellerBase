@@ -14,27 +14,15 @@ export async function GET(req: Request) {
     ? yearParam
     : new Date().getUTCFullYear();
 
-  const { data: facts } = await supabase
-    .from('wb_reports_fact')
-    .select('rr_dt, quantity')
-    .gte('rr_dt', `${year}-01-01`)
-    .lte('rr_dt', `${year}-12-31`)
-    .gt('quantity', 0)
-    .range(0, 200_000);
+  // Заменено: .range(0, 200_000) на wb_reports_fact — теперь недельный агрегат в БД через RPC.
+  const { data: weekly } = await supabase.rpc('get_xlsx_weekly_units', { p_year: year });
 
   const wbByWeek = new Map<number, number>();
-  for (const f of facts ?? []) {
-    if (!f.rr_dt || !f.quantity) continue;
-    const d = new Date(`${f.rr_dt}T00:00:00Z`);
-    const target = new Date(d);
-    target.setUTCDate(d.getUTCDate() + 3 - (d.getUTCDay() || 7));
-    const week1 = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
-    const week =
-      1 +
-      Math.round(
-        ((target.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getUTCDay() || 7) - 1)) / 7,
-      );
-    wbByWeek.set(week, (wbByWeek.get(week) ?? 0) + f.quantity);
+  for (const r of (weekly ?? []) as { week: number | null; qty: number | string | null }[]) {
+    if (r.week == null || r.qty == null) continue;
+    const q = typeof r.qty === 'number' ? r.qty : Number(r.qty);
+    if (!Number.isFinite(q)) continue;
+    wbByWeek.set(r.week, (wbByWeek.get(r.week) ?? 0) + q);
   }
 
   const templatePath = path.join(process.cwd(), 'templates/cf_pl_2026.xlsx');
