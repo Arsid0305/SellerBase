@@ -1,69 +1,62 @@
 # Supabase local config. Используется CLI при деплое функций.
 project_id = "hcebwgjgppwaguqittpi"
 
+# verify_jwt = true — Supabase сам проверяет Authorization: Bearer <JWT> до того
+# как функция запустится. Cron jobs шлют service_role JWT из Vault (см. миграцию
+# 20260621100001_cron_with_service_role_jwt.sql). Внутри функции ещё одна
+# проверка X-Cron-Secret (см. _shared/auth.ts) — два слоя защиты.
+#
+# Исключения с verify_jwt = false:
+#   • telegram-webhook — Telegram шлёт свой апдейт, JWT отсутствует.
+
 [functions.fetch-wb-stocks]
-# pg_cron обращается внутри Supabase — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.sync-sheets]
-verify_jwt = false
+verify_jwt = true
 
 [functions.telegram-webhook]
 # Telegram присылает свой апдейт, Supabase JWT отсутствует.
 verify_jwt = false
 
 [functions.send-notification]
-# Вызывается из pg_cron / других функций — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-funnel]
-# pg_cron daily — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-funnel-aggregate]
-# pg_cron daily — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-promotions]
-# pg_cron daily — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-tariffs]
-# pg_cron daily — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-report]
-# pg_cron daily/manual — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.telegram-alerts]
-# pg_cron daily — JWT не нужен (вызывается изнутри Supabase).
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-content]
-# pg_cron weekly — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-sales]
-# pg_cron every 30 min — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-goods-returns]
-# pg_cron daily — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-commissions]
-# pg_cron weekly — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-orders]
-# pg_cron every 30 min — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.detect-anomalies]
-# pg_cron hourly — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
 
 [functions.fetch-wb-ads]
-# pg_cron hourly — JWT не нужен.
-verify_jwt = false
+verify_jwt = true
