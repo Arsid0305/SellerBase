@@ -7,6 +7,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { paginateByLastChangeDate, wbGet } from "../_shared/wb-client.ts";
 
 const JOB_NAME = "fetch-wb-orders";
 const WB_BASE = "https://statistics-api.wildberries.ru";
@@ -72,103 +73,72 @@ async function upsertInBatches(
   }
 }
 
-async function fetchPage(token: string, dateFrom: string): Promise<WbOrderRow[]> {
-  const url = `${WB_BASE}/api/v1/supplier/orders?dateFrom=${encodeURIComponent(dateFrom)}`;
-  const res = await fetch(url, {
-    headers: { Authorization: token, "Content-Type": "application/json" },
-  });
-  if (res.status === 429) {
-    const retry = parseInt(res.headers.get("x-ratelimit-retry") ?? "10", 10);
-    await new Promise((r) => setTimeout(r, (retry + 1) * 1000));
-    return fetchPage(token, dateFrom);
-  }
-  if (!res.ok) throw new Error(`wb orders api ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
-}
-
 async function run(supabase: SupabaseClient, jobId: number, dateFromStart: string) {
   const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
   if (!token) throw new Error("WB_TOKEN_READ / WB_API_TOKEN not set");
 
-  let dateFrom = dateFromStart;
-  let totalIn = 0;
   let totalOut = 0;
-  const seen = new Set<string>();
 
-  for (let loop = 0; loop < MAX_LOOPS; loop++) {
-    const rows = await fetchPage(token, dateFrom);
-    if (rows.length === 0) break;
-    totalIn += rows.length;
-
-    const uniqueRows: WbOrderRow[] = [];
-    for (const r of rows) {
-      const key = `${r.gNumber}|${r.date}`;
-      if (r.gNumber && r.date && !seen.has(key)) {
-        seen.add(key);
-        uniqueRows.push(r);
+  const { totalSeen, pages } = await paginateByLastChangeDate<WbOrderRow>({
+    initialDateFrom: dateFromStart,
+    pageLimit: 80_000,
+    maxPages: MAX_LOOPS,
+    fetchPage: async (dateFrom) => {
+      const url = `${WB_BASE}/api/v1/supplier/orders?dateFrom=${encodeURIComponent(dateFrom)}`;
+      const data = await wbGet(url, token);
+      return Array.isArray(data) ? (data as WbOrderRow[]) : [];
+    },
+    getLastChangeDate: (r) => r.lastChangeDate,
+    getDedupKey: (r) => (r.gNumber && r.date ? `${r.gNumber}|${r.date}` : ""),
+    onPage: async (uniqueRows) => {
+      const dbRows = uniqueRows.map((r) => ({
+        g_number: r.gNumber,
+        date: r.date,
+        last_change_date: r.lastChangeDate,
+        warehouse_name: r.warehouseName ?? null,
+        nm_id: r.nmId,
+        subject: r.subject ?? null,
+        category: r.category ?? null,
+        brand: r.brand ?? null,
+        tech_size: r.techSize ?? null,
+        barcode: r.barcode ?? null,
+        total_price: toNum(r.totalPrice),
+        discount_percent: toNum(r.discountPercent),
+        spp: toNum(r.spp),
+        price_with_disc: toNum(r.priceWithDisc),
+        finished_price: toNum(r.finishedPrice),
+        for_pay: toNum(r.forPay),
+        oblast: r.oblast ?? null,
+        country_name: r.countryName ?? null,
+        income_id: r.incomeID ?? null,
+        number: r.number ?? null,
+        is_supply: r.isSupply ?? null,
+        is_realization: r.isRealization ?? null,
+        is_cancel: r.isCancel ?? false,
+        cancel_dt: r.cancel_dt && r.cancel_dt.length > 0 ? r.cancel_dt : null,
+        fetched_at: new Date().toISOString(),
+      }));
+      if (dbRows.length > 0) {
+        await upsertInBatches(supabase, dbRows);
+        totalOut += dbRows.length;
       }
-    }
-    const dbRows = uniqueRows.map((r) => ({
-      g_number: r.gNumber,
-      date: r.date,
-      last_change_date: r.lastChangeDate,
-      warehouse_name: r.warehouseName ?? null,
-      nm_id: r.nmId,
-      subject: r.subject ?? null,
-      category: r.category ?? null,
-      brand: r.brand ?? null,
-      tech_size: r.techSize ?? null,
-      barcode: r.barcode ?? null,
-      total_price: toNum(r.totalPrice),
-      discount_percent: toNum(r.discountPercent),
-      spp: toNum(r.spp),
-      price_with_disc: toNum(r.priceWithDisc),
-      finished_price: toNum(r.finishedPrice),
-      for_pay: toNum(r.forPay),
-      oblast: r.oblast ?? null,
-      country_name: r.countryName ?? null,
-      income_id: r.incomeID ?? null,
-      number: r.number ?? null,
-      is_supply: r.isSupply ?? null,
-      is_realization: r.isRealization ?? null,
-      is_cancel: r.isCancel ?? false,
-      cancel_dt: r.cancel_dt && r.cancel_dt.length > 0 ? r.cancel_dt : null,
-      fetched_at: new Date().toISOString(),
-    }));
-
-    if (dbRows.length > 0) {
-      await upsertInBatches(supabase, dbRows);
-      totalOut += dbRows.length;
-    }
-
-    // Курсор: max(lastChangeDate). Если страница < 80k — следующая будет пустой.
-    let maxLast = dateFrom;
-    for (const r of rows) {
-      if (r.lastChangeDate && r.lastChangeDate > maxLast) maxLast = r.lastChangeDate;
-    }
-    if (maxLast === dateFrom || rows.length < 80000) break;
-    // следующий dateFrom = maxLast + 1 сек
-    const t = new Date(maxLast);
-    t.setSeconds(t.getSeconds() + 1);
-    dateFrom = t.toISOString().replace(/\.\d{3}Z$/, "");
-
-    // мягкая пауза
-    await new Promise((r) => setTimeout(r, 1000));
-  }
+      // мягкая пауза между страницами
+      await new Promise((r) => setTimeout(r, 1000));
+    },
+  });
 
   await supabase
     .from("ingestion_log")
     .update({
       status: "ok",
       finished_at: new Date().toISOString(),
-      rows_in: totalIn,
+      rows_in: totalSeen,
       rows_out: totalOut,
-      meta: { dateFromStart },
+      meta: { dateFromStart, pages },
     })
     .eq("id", jobId);
 
-  return { totalIn, totalOut };
+  return { totalIn: totalSeen, totalOut };
 }
 
 Deno.serve(async (req) => {
