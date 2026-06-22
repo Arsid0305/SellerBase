@@ -26,7 +26,7 @@
 
 **Что делает Claude (агент A после согласования):**
 - Меняет `supabase/config.toml` → `verify_jwt = true` для всех 16 функций.
-- Переписывает pg_cron-команды: добавляет `Authorization: Bearer <service_role_jwt>` через `current_setting('app.settings.service_role_key', true)`.
+- Переписывает pg_cron-команды: добавляет `Authorization: Bearer <service_role_jwt>` через `(SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'service_role_key')` (Supabase Vault, **не** `current_setting('app.settings.*')` — это требует superuser и в Supabase запрещено).
 - `X-Cron-Secret` уже в PR #146 — остаётся.
 
 ### (2) API routes — Supabase Auth + middleware
@@ -59,11 +59,12 @@
    ```
    Hex сгенерирует Claude и пришлёт в чат.
 
-2. **SQL Editor** — 2 ALTER DATABASE:
+2. **SQL Editor** — две команды в Supabase Vault (`ALTER DATABASE postgres SET app.settings.*` **не работает** — требует superuser, недоступен в Supabase):
    ```sql
-   ALTER DATABASE postgres SET app.settings.cron_shared_secret = '<тот же hex>';
-   ALTER DATABASE postgres SET app.settings.service_role_key = '<service_role JWT из Settings → API>';
+   SELECT vault.create_secret('<тот же hex>', 'cron_shared_secret');
+   SELECT vault.create_secret('<service_role JWT из Settings → API>', 'service_role_key');
    ```
+   Проверка: `SELECT name FROM vault.decrypted_secrets WHERE name IN ('cron_shared_secret', 'service_role_key');` — должно вернуть 2 строки.
 
 3. **Auth → Providers → Email**:
    - Email = on
@@ -78,7 +79,14 @@
    - Email = твой email
    - Без пароля (magic-link)
 
-**Зафиксировать риск:** при ротации service_role JWT в Supabase нужно обновить `app.settings.service_role_key` в БД, иначе все cron упадут одновременно. Поставить напоминание раз в полгода / при ротации.
+**Зафиксировать риск:** при ротации service_role JWT в Supabase нужно обновить Vault-секрет: `UPDATE vault.secrets SET secret = '<новый JWT>' WHERE name = 'service_role_key';` — иначе все cron упадут одновременно. Поставить напоминание раз в полгода / при ротации.
+
+**Что фактически сделано (21.06.2026):**
+- ✅ `CRON_SHARED_SECRET` установлен в Edge Function Secrets (значение: hex 32 байта)
+- ✅ Vault `cron_shared_secret` = тот же hex
+- ✅ Vault `service_role_key` = текущий service_role JWT
+- ✅ Authentication в Dashboard настроена: Email magic-link ON, Sign-ups OFF, user `arsid0305@gmail.com` добавлен с auto-confirm, Site URL = `https://seller-base-web.vercel.app`, Redirect URLs = `/**`
+- ⏳ PR #146 (X-Cron-Secret guard) и PR #161 (verify_jwt + service_role JWT в cron + Supabase Auth + /login + middleware) — ждут CI и мержа
 
 ---
 
