@@ -5,6 +5,9 @@ import type {
   TurnoverSegment,
   TurnoverSegmentKey,
 } from '@/features/turnover/types';
+import { classifyTurnover } from './classifier';
+
+export { classifyTurnover };
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
@@ -14,18 +17,11 @@ function toNumber(v: unknown): number {
 }
 
 /**
- * Сегмент по оборачиваемости — простой прокси по «хватит на N дней» пока нет продвинутой XYZ-классификации по вариации.
- *
- *  Stable    — здоровый товарооборот (хватит 30–90 дней)
- *  Medium    — выходит из зоны комфорта (7–30 или 90–180)
- *  Unstable  — критика: мало остатков (<7), избыточный сток (>180) или нет продаж
+ * @deprecated Используй `classifyTurnover` из `./classifier`.
+ * Оставлено как локальный алиас для обратной совместимости — будет удалено.
  */
 function classify(daysToOos: number, unitsPerDay: number): Exclude<TurnoverSegmentKey, 'all'> {
-  if (unitsPerDay <= 0) return 'unstable';
-  if (daysToOos < 7) return 'unstable';
-  if (daysToOos > 180) return 'unstable';
-  if (daysToOos >= 30 && daysToOos <= 90) return 'stable';
-  return 'medium';
+  return classifyTurnover(daysToOos, unitsPerDay);
 }
 
 const SEGMENT_LABEL: Record<TurnoverSegmentKey, string> = {

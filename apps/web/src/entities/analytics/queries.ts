@@ -10,6 +10,9 @@ import type {
   StabilityTier,
 } from '@/features/analytics/types';
 import type { ProductTagKind } from '@/shared/ui/domain/product-tag-badge';
+import { classifyProfit, classifySales, classifyStability } from './classifiers';
+
+export { classifyProfit, classifySales, classifyStability };
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
@@ -20,55 +23,6 @@ function toNumber(v: unknown): number {
 
 function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
-}
-
-/**
- * Profit tier по марже в %.
- * PPP > 30%, PP 15–30%, P 0–15%, -P < 0
- */
-function classifyProfit(marginPct: number): ProfitTier {
-  if (marginPct >= 30) return 'PPP';
-  if (marginPct >= 15) return 'PP';
-  if (marginPct >= 0) return 'P';
-  return '-P';
-}
-
-/**
- * XYZ по коэффициенту вариации продаж за 30 дней.
- * Массив daily — продажи по дням, включая нули в дни без продаж.
- * X: cv < 0.10 (стабильная), Y: cv 0.10–0.25, Z: cv > 0.25 или мало данных.
- */
-function classifyStability(daily: number[]): StabilityTier {
-  if (daily.length < 7) return 'Z';
-  const mean = daily.reduce((a, b) => a + b, 0) / daily.length;
-  if (mean <= 0) return 'Z';
-  const variance = daily.reduce((acc, v) => acc + (v - mean) ** 2, 0) / daily.length;
-  const cv = Math.sqrt(variance) / mean;
-  if (cv < 0.1) return 'X';
-  if (cv < 0.25) return 'Y';
-  return 'Z';
-}
-
-/**
- * ABC по накопленной доле выручки: A — верхние 80%, B — следующие 15%, C — последние 5%.
- */
-function classifySales(skus: { id: number; revenue: number }[]): Map<number, SalesTier> {
-  const sorted = [...skus].sort((a, b) => b.revenue - a.revenue);
-  const total = sorted.reduce((acc, s) => acc + s.revenue, 0);
-  const map = new Map<number, SalesTier>();
-  if (total <= 0) {
-    for (const s of sorted) map.set(s.id, 'C');
-    return map;
-  }
-  let cumulative = 0;
-  for (const s of sorted) {
-    cumulative += s.revenue;
-    const pct = (cumulative / total) * 100;
-    if (pct <= 80) map.set(s.id, 'A');
-    else if (pct <= 95) map.set(s.id, 'B');
-    else map.set(s.id, 'C');
-  }
-  return map;
 }
 
 type CatalogDb = {
