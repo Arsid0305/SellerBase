@@ -1,5 +1,5 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { fetchCostRows, fetchCurrentCargoTariff } from '@/entities/costs';
+import { fetchCostRows, fetchCurrentCargoTariff, fetchCurrentFulfillmentTariff } from '@/entities/costs';
 import { fetchCostBreakdown } from '@/entities/cost-breakdown';
 import { CostsExplorer } from '@/features/costs/costs-explorer';
 
@@ -8,9 +8,10 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function CostsPage() {
-  const [rows, cargoTariff, breakdown] = await Promise.all([
+  const [rows, cargoTariff, ffTariff, breakdown] = await Promise.all([
     fetchCostRows(),
     fetchCurrentCargoTariff(),
+    fetchCurrentFulfillmentTariff(),
     fetchCostBreakdown(),
   ]);
   return (
@@ -19,7 +20,7 @@ export default async function CostsPage() {
         title="Себестоимость"
         description="Ручное управление cost_price с историей версий"
       />
-      <CostsExplorer rows={rows} cargoTariff={cargoTariff} breakdown={breakdown} />
+      <CostsExplorer rows={rows} cargoTariff={cargoTariff} ffTariff={ffTariff} breakdown={breakdown} />
       <p className="text-xs text-muted-foreground">
         · Источник: `sku_catalog` + `sku_cost_history`. Сохранение создаёт новую запись и автоматически закрывает предыдущую через триггер.
       </p>
