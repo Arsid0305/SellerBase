@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { wbPhotoUrl } from '@/shared/lib/wb-photo';
-import { TURNOVER_PROMO } from '@/shared/lib/business-rules';
+import { classifyCellLight, classifyRecommendation, type CellLight } from './math';
+
+export type { CellLight };
 
 export type MatrixPromo = {
   promotionId: number;
@@ -9,8 +11,6 @@ export type MatrixPromo = {
   startAt: string;
   endAt: string;
 };
-
-export type CellLight = 'green' | 'yellow' | 'red' | 'unknown';
 
 export type MatrixCell = {
   inPromo: boolean;
@@ -76,45 +76,6 @@ type MarginDb = {
   margin_at_promo_pct: number | null;
   user_participate: boolean | null;
 };
-
-function classifyRecommendation(
-  turnoverDays: number | null,
-  marginPromoPct: number | null,
-): boolean {
-  if (turnoverDays == null) return false;
-  if (turnoverDays > TURNOVER_PROMO.urgentSell) return true;
-  if (
-    turnoverDays >= TURNOVER_PROMO.promoBenefit &&
-    marginPromoPct != null &&
-    marginPromoPct >= TURNOVER_PROMO.minPromoMargin
-  )
-    return true;
-  return false;
-}
-
-/**
- * Светофор per (SKU × акция): стоит ли участвовать.
- *  🟢 green   — маржа после акции ≥25% (хорошо) ИЛИ срочно сливать (>90д) и маржа ≥10%
- *  🟡 yellow  — маржа 10-25% и оборачиваемость в норме / на грани
- *  🔴 red     — маржа после акции <10% (невыгодно даже на оборот) ИЛИ оборачиваемость <7д (нечего сливать)
- *  ⚪ unknown — нет данных по марже
- */
-function classifyCellLight(
-  turnoverDays: number | null,
-  marginPromoPct: number | null,
-): CellLight {
-  if (marginPromoPct == null) return 'unknown';
-  // Жёсткий стоп: остатков почти нет — товар скоро закончится, акция = упустить выручку
-  if (turnoverDays != null && turnoverDays < 7) return 'red';
-  // Маржа после акции совсем плохая — отказаться
-  if (marginPromoPct < TURNOVER_PROMO.minPromoMargin) return 'red';
-  // Маржа хорошая (≥25%) — однозначно зелёный
-  if (marginPromoPct >= 0.25) return 'green';
-  // Срочно сливать (>90д) и маржа хотя бы покрывает — зелёный (даже при низкой марже)
-  if (turnoverDays != null && turnoverDays > TURNOVER_PROMO.urgentSell) return 'green';
-  // Промежуток: маржа 10-25% или оборачиваемость на грани — жёлтый
-  return 'yellow';
-}
 
 export async function fetchPromoMatrix(): Promise<{
   promos: MatrixPromo[];
