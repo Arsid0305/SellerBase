@@ -9,10 +9,15 @@ import { Button } from '@/shared/ui/button';
 import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
-import type { CostRow, CostHistoryEntry, CargoTariff } from '@/entities/costs';
+import type { CostRow, CostHistoryEntry, CargoTariff, FulfillmentTariff } from '@/entities/costs';
 import type { CostBreakdown } from '@/entities/cost-breakdown';
 
-type Props = { rows: CostRow[]; cargoTariff?: CargoTariff | null; breakdown?: CostBreakdown[] };
+type Props = {
+  rows: CostRow[];
+  cargoTariff?: CargoTariff | null;
+  ffTariff?: FulfillmentTariff | null;
+  breakdown?: CostBreakdown[];
+};
 
 const SOURCE_LABEL: Record<CostBreakdown['source'], string> = {
   unit_import: 'unit_import',
@@ -122,7 +127,7 @@ function EditCell({ row, onSaved }: EditCellProps) {
   );
 }
 
-export function CostsExplorer({ rows, cargoTariff = null, breakdown = [] }: Props) {
+export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, breakdown = [] }: Props) {
   const router = useRouter();
   const breakdownBySku = useMemo(() => {
     const map = new Map<number, CostBreakdown>();
@@ -175,6 +180,14 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [] }: Prop
   const [cargoSubmitting, setCargoSubmitting] = useState(false);
   const [cargoError, setCargoError] = useState<string | null>(null);
   const [currentCargoTariff, setCurrentCargoTariff] = useState<CargoTariff | null>(cargoTariff);
+
+  const [ffOpen, setFfOpen] = useState(false);
+  const [ffRubPerUnit, setFfRubPerUnit] = useState('');
+  const [ffEffectiveFrom, setFfEffectiveFrom] = useState(todayIso());
+  const [ffComment, setFfComment] = useState('');
+  const [ffSubmitting, setFfSubmitting] = useState(false);
+  const [ffError, setFfError] = useState<string | null>(null);
+  const [currentFfTariff, setCurrentFfTariff] = useState<FulfillmentTariff | null>(ffTariff);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -421,6 +434,50 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [] }: Prop
     }
   }, [cargoCnyRate, cargoUsdRate, cargoDeliveryPerKg, cargoEffectiveFrom, cargoComment, router]);
 
+  const resetFfForm = useCallback(() => {
+    setFfRubPerUnit('');
+    setFfEffectiveFrom(todayIso());
+    setFfComment('');
+    setFfError(null);
+  }, []);
+
+  const submitFfTariff = useCallback(async () => {
+    const rub = Number(ffRubPerUnit.replace(',', '.').trim());
+    if (!Number.isFinite(rub) || rub < 0) {
+      setFfError('Укажите корректную стоимость ₽/единицу');
+      return;
+    }
+    setFfSubmitting(true);
+    setFfError(null);
+    try {
+      const res = await fetch('/api/fulfillment-tariffs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          rub_per_unit: rub,
+          effective_from: ffEffectiveFrom || todayIso(),
+          comment: ffComment.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFfError(String(data.error ?? res.statusText));
+        return;
+      }
+      setCurrentFfTariff({
+        rub_per_unit: rub,
+        effective_from: data.effective_from ?? (ffEffectiveFrom || todayIso()),
+        comment: ffComment.trim() || null,
+      });
+      setFfOpen(false);
+      startTransition(() => router.refresh());
+    } catch {
+      setFfError('Ошибка сети');
+    } finally {
+      setFfSubmitting(false);
+    }
+  }, [ffRubPerUnit, ffEffectiveFrom, ffComment, router]);
+
   const columns = useMemo<ColumnDef<CostRow>[]>(
     () => [
       { accessorKey: 'barcode', header: 'Штрихкод', cell: (info) => <span className="font-mono text-xs">{info.getValue<string>() || '—'}</span> },
@@ -565,6 +622,16 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [] }: Prop
           >
             Тарифы Карго
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetFfForm();
+              setFfOpen(true);
+            }}
+          >
+            Тариф ФФ
+          </Button>
         </div>
       </div>
 
@@ -573,6 +640,14 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [] }: Prop
           Текущий курс юаня: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_rate_rub)}₽</span>
           {' · '}Доставка: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_delivery_per_kg)}¥/кг</span>
           {' · '}Действует с <span className="font-medium text-foreground tabular-nums">{fmtDateRu(currentCargoTariff.effective_from)}</span>
+        </p>
+      )}
+
+      {currentFfTariff && (
+        <p className="text-xs text-muted-foreground">
+          Тариф ФФ: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentFfTariff.rub_per_unit)}₽/ед</span>
+          {' · '}Действует с <span className="font-medium text-foreground tabular-nums">{fmtDateRu(currentFfTariff.effective_from)}</span>
+          {currentFfTariff.comment && <> {' · '}<span className="italic">{currentFfTariff.comment}</span></>}
         </p>
       )}
 
@@ -932,6 +1007,74 @@ export function CostsExplorer({ rows, cargoTariff = null, breakdown = [] }: Prop
                   disabled={cargoSubmitting || !cargoCnyRate || !cargoDeliveryPerKg}
                 >
                   {cargoSubmitting ? 'Сохранение...' : 'Сохранить'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ffOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setFfOpen(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-card shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold">Тариф ФФ (фулфилмент, ₽/единицу)</h3>
+              <Button variant="ghost" size="sm" onClick={() => setFfOpen(false)}>
+                ✕
+              </Button>
+            </div>
+            <div className="flex flex-col gap-3 p-4">
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Стоимость услуг ФФ на единицу (₽)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={ffRubPerUnit}
+                  onChange={(e) => setFfRubPerUnit(e.target.value)}
+                  placeholder="напр. 14.00"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <span className="text-[10px] text-muted-foreground">
+                  Сумма всех услуг (приёмка + сортировка + упаковка + маркировка + ...) из колонки BG листа «ТЗ_ФФ»
+                </span>
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Дата действия</span>
+                <input
+                  type="date"
+                  value={ffEffectiveFrom}
+                  onChange={(e) => setFfEffectiveFrom(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Комментарий (опционально)</span>
+                <input
+                  type="text"
+                  value={ffComment}
+                  onChange={(e) => setFfComment(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </label>
+
+              {ffError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {ffError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setFfOpen(false)}>
+                  Закрыть
+                </Button>
+                <Button size="sm" onClick={submitFfTariff} disabled={ffSubmitting || !ffRubPerUnit}>
+                  {ffSubmitting ? 'Сохранение...' : 'Сохранить'}
                 </Button>
               </div>
             </div>

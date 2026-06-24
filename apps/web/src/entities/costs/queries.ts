@@ -117,6 +117,28 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+export type FulfillmentTariff = {
+  rub_per_unit: number;
+  effective_from: string;
+  comment: string | null;
+};
+
+export async function fetchCurrentFulfillmentTariff(): Promise<FulfillmentTariff | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('fulfillment_costs')
+    .select('rub_per_unit, effective_from, comment')
+    .lte('effective_from', todayIso())
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn('[fetchCurrentFulfillmentTariff] error (table may not exist yet)', error.message);
+    return null;
+  }
+  return (data as FulfillmentTariff | null) ?? null;
+}
+
 export async function fetchCostHistory(skuId: number): Promise<CostHistoryEntry[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
