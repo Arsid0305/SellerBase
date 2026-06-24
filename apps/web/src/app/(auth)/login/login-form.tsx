@@ -1,51 +1,108 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/shared/lib/supabase/client';
 import { Button } from '@/shared/ui/button';
 
 export function LoginForm() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function requestCode(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
       const supabase = createClient();
-      const origin = window.location.origin;
       const { error: authError } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${origin}/auth/callback` },
+        options: { shouldCreateUser: false },
       });
       if (authError) {
         setError(authError.message);
       } else {
-        setSent(true);
+        setStep('code');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось отправить ссылку');
+      setError(err instanceof Error ? err.message : 'Не удалось отправить код');
     } finally {
       setLoading(false);
     }
   }
 
-  if (sent) {
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.verifyOtp({
+        email,
+        token: code.trim(),
+        type: 'email',
+      });
+      if (authError) {
+        setError(authError.message);
+      } else {
+        router.replace('/');
+        router.refresh();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось проверить код');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (step === 'code') {
     return (
-      <div className="rounded-lg border border-border bg-card p-6 text-center">
-        <p className="text-sm">
-          Письмо отправлено на <span className="font-medium">{email}</span>. Проверьте почту и
-          кликните по ссылке, чтобы войти.
+      <form onSubmit={verifyCode} className="flex flex-col gap-4">
+        <p className="text-sm text-muted-foreground">
+          Письмо отправлено на <span className="font-medium text-foreground">{email}</span>.
+          Введи 6-значный код из письма.
         </p>
-      </div>
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="text-muted-foreground">Код из письма</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            required
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            className="h-12 rounded-md border border-input bg-background px-3 text-center font-mono text-2xl tracking-[0.5em] shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            placeholder="123456"
+          />
+        </label>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button type="submit" disabled={loading || code.length !== 6}>
+          {loading ? 'Проверка…' : 'Войти'}
+        </Button>
+        <button
+          type="button"
+          onClick={() => {
+            setStep('email');
+            setCode('');
+            setError(null);
+          }}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          ← Изменить email
+        </button>
+      </form>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={requestCode} className="flex flex-col gap-4">
       <label className="flex flex-col gap-2 text-sm">
         <span className="text-muted-foreground">Email</span>
         <input
@@ -61,7 +118,7 @@ export function LoginForm() {
       </label>
       {error && <p className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={loading || !email}>
-        {loading ? 'Отправка…' : 'Прислать magic-link'}
+        {loading ? 'Отправка…' : 'Прислать код'}
       </Button>
     </form>
   );
