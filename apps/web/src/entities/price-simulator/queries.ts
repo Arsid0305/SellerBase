@@ -37,16 +37,6 @@ type CatalogRow = {
   cost_price_rub: number | null;
 };
 
-type ReportRow = {
-  nm_id: number | null;
-  retail_price: number | null;
-  commission_rub: number | null;
-  delivery_rub: number | null;
-  storage_fee: number | null;
-  acquiring_fee: number | null;
-  quantity: number | null;
-};
-
 type Agg = {
   priceSum: number;
   priceCount: number;
@@ -59,65 +49,51 @@ type Agg = {
   returnsCount: number;
 };
 
-function emptyAgg(): Agg {
-  return {
-    priceSum: 0,
-    priceCount: 0,
-    commissionRub: 0,
-    deliveryRub: 0,
-    storageRub: 0,
-    acquiringRub: 0,
-    unitsSold: 0,
-    ordersCount: 0,
-    returnsCount: 0,
-  };
-}
-
 export async function fetchPriceSimulatorRows(): Promise<PriceSimulatorRow[]> {
   const supabase = createAdminClient();
   const since30 = iso(new Date(Date.now() - 30 * 86_400_000));
 
-  const [catalogRes, reportsRes] = await Promise.all([
+  const [catalogRes, aggRes] = await Promise.all([
     supabase
       .from('sku_catalog')
       .select('id, my_article, wb_article, barcode, title, photo_url, cost_price_rub')
       .range(0, 10_000),
-    supabase
-      .from('wb_reports_fact')
-      .select('nm_id, retail_price, commission_rub, delivery_rub, storage_fee, acquiring_fee, quantity')
-      .gte('rr_dt', since30)
-      .range(0, 200_000),
+    // Заменено: .range(0, 200_000) на wb_reports_fact — теперь агрегат в БД через RPC.
+    supabase.rpc('get_price_simulator_agg', { p_since: since30 }),
   ]);
 
   if (catalogRes.error) console.error('[fetchPriceSimulatorRows] sku_catalog', catalogRes.error);
-  if (reportsRes.error) console.error('[fetchPriceSimulatorRows] wb_reports_fact', reportsRes.error);
+  if (aggRes.error) console.error('[fetchPriceSimulatorRows] price_simulator_agg', aggRes.error);
 
   const catalog = (catalogRes.data ?? []) as CatalogRow[];
-  const reports = (reportsRes.data ?? []) as ReportRow[];
+  type AggRow = {
+    nm_id: number;
+    price_sum: number | string | null;
+    price_count: number | null;
+    commission_rub: number | string | null;
+    delivery_rub: number | string | null;
+    storage_rub: number | string | null;
+    acquiring_rub: number | string | null;
+    units_sold: number | string | null;
+    returns_count: number | string | null;
+  };
+  const aggRows = (aggRes.data ?? []) as AggRow[];
 
   const aggByNm = new Map<number, Agg>();
-  for (const r of reports) {
-    if (r.nm_id == null) continue;
-    const agg = aggByNm.get(r.nm_id) ?? emptyAgg();
-    const qty = toNumber(r.quantity);
-
-    if (qty > 0) {
-      agg.unitsSold += qty;
-      agg.ordersCount += qty;
-      if (r.retail_price != null) {
-        agg.priceSum += toNumber(r.retail_price);
-        agg.priceCount += 1;
-      }
-    } else if (qty < 0) {
-      agg.returnsCount += Math.abs(qty);
-    }
-
-    agg.commissionRub += toNumber(r.commission_rub);
-    agg.deliveryRub += toNumber(r.delivery_rub);
-    agg.storageRub += toNumber(r.storage_fee);
-    agg.acquiringRub += toNumber(r.acquiring_fee);
-
-    aggByNm.set(r.nm_id, agg);
+  for (const a of aggRows) {
+    if (a.nm_id == null) continue;
+    const unitsSold = toNumber(a.units_sold);
+    aggByNm.set(a.nm_id, {
+      priceSum: toNumber(a.price_sum),
+      priceCount: toNumber(a.price_count),
+      commissionRub: toNumber(a.commission_rub),
+      deliveryRub: toNumber(a.delivery_rub),
+      storageRub: toNumber(a.storage_rub),
+      acquiringRub: toNumber(a.acquiring_rub),
+      unitsSold,
+      ordersCount: unitsSold,
+      returnsCount: toNumber(a.returns_count),
+    });
   }
 
   const rows: PriceSimulatorRow[] = [];
