@@ -55,6 +55,20 @@ function matchesSearch(sku: MatrixSku, q: string): boolean {
   );
 }
 
+const CELL_LIGHT_BG: Record<'green' | 'yellow' | 'red' | 'unknown', string> = {
+  green: 'bg-emerald-50 dark:bg-emerald-950/20 border-l-2 border-l-emerald-500',
+  yellow: 'bg-amber-50 dark:bg-amber-950/15 border-l-2 border-l-amber-500',
+  red: 'bg-rose-50 dark:bg-rose-950/15 border-l-2 border-l-rose-500',
+  unknown: '',
+};
+
+const CELL_LIGHT_TITLE: Record<'green' | 'yellow' | 'red' | 'unknown', string> = {
+  green: 'Можно в акцию: маржа после скидки ≥25% или срочно сливать (>90д) с маржой ≥10%',
+  yellow: 'На грани: маржа 10–25%, оборачиваемость нормальная',
+  red: 'Не выгодно: маржа после акции <10% или остатков <7 дней (упустишь выручку)',
+  unknown: 'Нет данных по марже',
+};
+
 function turnoverColor(days: number | null) {
   if (days == null) return 'text-muted-foreground';
   if (days > 90) return 'text-red-600';
@@ -388,8 +402,9 @@ function SkuMatrixRow({
             key={p.promotionId}
             className={cn(
               'border-r border-border px-3 py-2 align-middle',
-              cell.recommended && 'bg-amber-50/40 dark:bg-amber-950/10',
+              CELL_LIGHT_BG[cell.light],
             )}
+            title={CELL_LIGHT_TITLE[cell.light]}
           >
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs">

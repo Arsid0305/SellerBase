@@ -118,7 +118,11 @@ Deno.serve(async (req: Request) => {
     let totalItems = 0;
     for (const promo of promos) {
       const debugRaws: Record<string, unknown> = {};
-      for (const inAction of [true]) {
+      // Тянем И inAction=true (уже выбранные), И inAction=false (доступные, но не выбранные).
+      // Без false-варианта матрица в /promo пустая — владелица не видит SKU которые МОЖЕТ добавить.
+      // Авто-акции (type='auto'): WB сам назначает SKU, inAction=false отдаёт 422 — пропускаем.
+      const variants: boolean[] = promo.type === "auto" ? [true] : [true, false];
+      for (const inAction of variants) {
         const nUrl = `${WB_BASE}/api/v1/calendar/promotions/nomenclatures`
           + `?promotionID=${promo.id}`
           + `&inAction=${inAction}`
@@ -145,7 +149,8 @@ Deno.serve(async (req: Request) => {
         const itemRows = nomenclatures.map((n) => ({
           promotion_id: promo.id,
           nm_id: n.id,
-          in_action: !!n.inAction || inAction,
+          // in_action — фактический статус: true=участвует на витрине, false=доступен но не выбран
+          in_action: typeof n.inAction === "boolean" ? n.inAction : inAction,
           current_price: n.price ?? null,
           plan_price: n.planPrice ?? null,
           current_discount: n.discount ?? null,
