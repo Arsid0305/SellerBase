@@ -94,21 +94,14 @@ async function fetchRevenueOrders(
   date: string,
 ): Promise<{ revenue: number; orders: number }> {
   const from = shiftDays(date, -29);
-  const { data, error } = await supabase
-    .from('wb_reports_fact')
-    .select('retail_amount, quantity')
-    .gte('rr_dt', from)
-    .lte('rr_dt', date)
-    .gt('quantity', 0)
-    .range(0, 200_000);
-  if (error) return { revenue: 0, orders: 0 };
-  let revenue = 0;
-  let orders = 0;
-  for (const row of data ?? []) {
-    revenue += toNum((row as { retail_amount: unknown }).retail_amount);
-    orders += toNum((row as { quantity: unknown }).quantity);
-  }
-  return { revenue, orders };
+  const { data, error } = await supabase.rpc('get_snapshot_revenue_orders', {
+    p_from: from,
+    p_date: date,
+  });
+  if (error || !data) return { revenue: 0, orders: 0 };
+  const row = (data as { revenue: number | string | null; orders: number | string | null }[])[0];
+  if (!row) return { revenue: 0, orders: 0 };
+  return { revenue: toNum(row.revenue), orders: toNum(row.orders) };
 }
 
 async function fetchOpenGoals(
@@ -215,24 +208,13 @@ async function fetchTopSkus(
   date: string,
 ): Promise<SnapshotTopSku[]> {
   const from = shiftDays(date, -29);
-  const factsRes = await supabase
-    .from('wb_reports_fact')
-    .select('nm_id, retail_amount, quantity')
-    .gte('rr_dt', from)
-    .lte('rr_dt', date)
-    .gt('quantity', 0)
-    .range(0, 200_000);
-  if (factsRes.error) return [];
-  const agg = new Map<number, { revenue: number; orders: number }>();
-  for (const row of factsRes.data ?? []) {
-    const r = row as { nm_id: number | null; retail_amount: unknown; quantity: unknown };
-    if (r.nm_id == null) continue;
-    const cur = agg.get(r.nm_id) ?? { revenue: 0, orders: 0 };
-    cur.revenue += toNum(r.retail_amount);
-    cur.orders += toNum(r.quantity);
-    agg.set(r.nm_id, cur);
-  }
-  const top = [...agg.entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 10);
+  const topRes = await supabase.rpc('get_snapshot_top_skus', { p_from: from, p_date: date });
+  if (topRes.error || !topRes.data) return [];
+  type TopRow = { nm_id: number; revenue: number | string | null; orders: number | string | null };
+  const top: [number, { revenue: number; orders: number }][] = (topRes.data as TopRow[]).map((r) => [
+    r.nm_id,
+    { revenue: toNum(r.revenue), orders: toNum(r.orders) },
+  ]);
   if (top.length === 0) return [];
   const nmIds = top.map(([id]) => id);
   const catalogRes = await supabase
@@ -266,16 +248,11 @@ async function fetchAnomaliesForDate(
   date: string,
 ): Promise<SnapshotAnomaly[]> {
   const from = shiftDays(date, -30);
-  const [factsRes, catalogRes] = await Promise.all([
-    supabase
-      .from('wb_reports_fact')
-      .select('nm_id, rr_dt, quantity')
-      .gte('rr_dt', from)
-      .lte('rr_dt', date)
-      .range(0, 200_000),
+  const [dailyRes, catalogRes] = await Promise.all([
+    supabase.rpc('get_snapshot_anomalies_daily', { p_from: from, p_date: date }),
     supabase.from('sku_catalog').select('wb_article, barcode, title').not('wb_article', 'is', null).range(0, 5000),
   ]);
-  if (factsRes.error) return [];
+  if (dailyRes.error) return [];
   const meta = new Map<number, { barcode: string; title: string }>();
   for (const c of (catalogRes.data ?? []) as {
     wb_article: number | null;
@@ -287,8 +264,8 @@ async function fetchAnomaliesForDate(
     }
   }
   const bySku = new Map<number, Map<string, number>>();
-  for (const row of (factsRes.data ?? []) as { nm_id: number; rr_dt: string; quantity: unknown }[]) {
-    const q = toNum(row.quantity);
+  for (const row of (dailyRes.data ?? []) as { nm_id: number; rr_dt: string; units: number | string | null }[]) {
+    const q = toNum(row.units);
     if (q <= 0) continue;
     let days = bySku.get(row.nm_id);
     if (!days) {
