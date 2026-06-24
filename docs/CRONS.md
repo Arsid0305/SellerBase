@@ -68,14 +68,43 @@ supabase functions invoke fetch-wb-sales --no-verify-jwt
 
 ## Требуемые секреты в Supabase
 
+### Edge Function Secrets (Deno.env)
+
 Без них edge functions падают с 500. Установить:
 ```bash
 supabase secrets set WB_TOKEN_READ='<единый токен на чтение всех API>'
 supabase secrets set TELEGRAM_BOT_TOKEN='<токен бота от @BotFather>'
 supabase secrets set TELEGRAM_CHAT_ID='<chat_id владелицы>'
+supabase secrets set CRON_SHARED_SECRET='<long-random-hex>'  # сравнение X-Cron-Secret в _shared/auth.ts
 ```
 
 Системные (ставятся автоматически): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`.
+
+### Supabase Vault (для pg_cron → net.http_post)
+
+`ALTER DATABASE postgres SET app.settings.*` в Supabase **недоступен** (нужен superuser).
+Все секреты для cron'ов хранятся в Vault и читаются через
+`(SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = '...')`.
+
+| Имя в Vault          | Что это                                            | Кто использует                         |
+|----------------------|----------------------------------------------------|----------------------------------------|
+| `cron_shared_secret` | Тот же hex что `CRON_SHARED_SECRET` в Edge Secrets | Заголовок `X-Cron-Secret` в cron jobs  |
+| `service_role_key`   | Полный service_role JWT (Settings → API)           | Заголовок `Authorization: Bearer ...` для `verify_jwt=true` |
+
+Добавить (Supabase Dashboard → SQL Editor):
+```sql
+SELECT vault.create_secret('<long-random-hex>',         'cron_shared_secret');
+SELECT vault.create_secret('<service_role JWT>',        'service_role_key');
+```
+
+Ротация service_role JWT (обновляется в Dashboard → Settings → API → Reset):
+```sql
+-- Обновить значение в Vault после ротации
+UPDATE vault.secrets SET secret = vault.encrypted_secret('<новый JWT>')
+WHERE name = 'service_role_key';
+-- Проще: Dashboard → Project Settings → Vault → edit
+```
+Если не обновить — все cron'ы начнут падать с 401 (verify_jwt отвергнет старый JWT).
 
 ---
 
