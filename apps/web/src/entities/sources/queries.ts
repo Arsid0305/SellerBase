@@ -30,32 +30,28 @@ export async function fetchSourcesByPeriod(
   range: PeriodRange,
 ): Promise<{ rows: SourceRow[]; summary: SourcesSummary }> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('wb_reports_fact')
-    .select('warehouse_name, quantity, retail_amount')
-    .gte('rr_dt', range.from)
-    .lte('rr_dt', range.to)
-    .not('warehouse_name', 'is', null)
-    .range(0, 200_000);
+  // Заменено: .range(0, 200_000) на wb_reports_fact — теперь агрегат в БД через RPC.
+  const { data, error } = await supabase.rpc('get_sources_by_period', {
+    p_from: range.from,
+    p_to: range.to,
+  });
 
   if (error || !data) {
     console.error('[fetchSourcesByPeriod] error', error);
     return { rows: [], summary: emptySummary() };
   }
 
-  type Row = { warehouse_name: string | null; quantity: number | null; retail_amount: number | null };
-  const facts = data as Row[];
+  type AggRow = { warehouse_name: string; orders: number; units: number | string | null; revenue: number | string | null };
+  const aggRows = data as AggRow[];
 
   const map = new Map<string, { orders: number; units: number; revenue: number }>();
-  for (const f of facts) {
-    if (!f.warehouse_name) continue;
-    const q = toNumber(f.quantity);
-    if (q <= 0) continue; // игнорируем возвраты
-    const cur = map.get(f.warehouse_name) ?? { orders: 0, units: 0, revenue: 0 };
-    cur.orders += 1;
-    cur.units += q;
-    cur.revenue += toNumber(f.retail_amount);
-    map.set(f.warehouse_name, cur);
+  for (const r of aggRows) {
+    if (!r.warehouse_name) continue;
+    map.set(r.warehouse_name, {
+      orders: toNumber(r.orders),
+      units: toNumber(r.units),
+      revenue: toNumber(r.revenue),
+    });
   }
 
   const totalRevenue = [...map.values()].reduce((acc, v) => acc + v.revenue, 0);
