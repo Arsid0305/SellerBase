@@ -10,7 +10,7 @@ export const config = {
 const ALLOWED_HOSTS = ['seller-base.vercel.app', 'localhost:3000', 'localhost', 'arsid.vercel.app'];
 
 // Публичные пути — доступны без сессии.
-const PUBLIC_PATHS = ['/login', '/signup', '/auth/callback', '/api/health', '/api/signup'];
+const PUBLIC_PATHS = ['/login', '/auth/callback', '/api/health'];
 
 function hasAllowedHost(value: string | null): boolean {
   if (!value) return false;
