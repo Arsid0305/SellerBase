@@ -8,6 +8,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkCronSecret } from "../_shared/auth.ts";
 
 const BASE_URL = "https://seller-base.vercel.app";
 
@@ -696,6 +697,9 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const gate = checkCronSecret(req);
+  if (!gate.ok) return gate.response;
 
   const json = (b: unknown, status = 200) =>
     new Response(JSON.stringify(b), {

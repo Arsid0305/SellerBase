@@ -4,6 +4,7 @@
 // По умолчанию: last 30 days (совпадает с окном WB-кабинета, % выкупа ~83%).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkCronSecret } from "../_shared/auth.ts";
 
 const JOB_NAME = "fetch-wb-funnel-aggregate";
 const WB_BASE = "https://seller-analytics-api.wildberries.ru";
@@ -33,6 +34,9 @@ function toNum(v: unknown): number | null {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const gate = checkCronSecret(req);
+  if (!gate.ok) return gate.response;
 
   const supabase = adminClient();
   const url = new URL(req.url);
