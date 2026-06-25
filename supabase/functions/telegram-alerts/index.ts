@@ -686,6 +686,77 @@ async function checkAnomalies(supabase: SupabaseClient): Promise<CheckResult> {
   };
 }
 
+// ============================================================
+// Заказы вчера — сумма + кол-во
+// ============================================================
+async function checkYesterdayOrders(supabase: SupabaseClient): Promise<CheckResult> {
+  const today = new Date();
+  const y = new Date(today.getTime() - 86_400_000);
+  const dayStart = `${dateStr(y)}T00:00:00Z`;
+  const dayEnd = `${dateStr(today)}T00:00:00Z`;
+
+  const { data, error } = await supabase
+    .from("wb_orders_fact")
+    .select("price_with_disc, is_cancel")
+    .gte("date", dayStart)
+    .lt("date", dayEnd);
+
+  if (error) {
+    return {
+      name: "yesterday_orders",
+      ok: true,
+      severity: "yellow",
+      summary: "Заказы вчера: не удалось посчитать",
+      message: null,
+    };
+  }
+  const rows = (data ?? []) as Array<{ price_with_disc: number | null; is_cancel: boolean | null }>;
+  const active = rows.filter((r) => !r.is_cancel);
+  const sum = active.reduce((s, r) => s + Number(r.price_with_disc ?? 0), 0);
+  const cnt = active.length;
+  const rub = Math.round(sum).toLocaleString("ru-RU");
+  return {
+    name: "yesterday_orders",
+    ok: true,
+    severity: "green",
+    summary: `Заказы вчера: ${rub} ₽ (${cnt} шт)`,
+    message: null,
+  };
+}
+
+// ============================================================
+// Выкупы вчера — сумма + кол-во
+// ============================================================
+async function checkYesterdayBuyouts(supabase: SupabaseClient): Promise<CheckResult> {
+  const yIso = dateStr(new Date(Date.now() - 86_400_000));
+  const { data, error } = await supabase
+    .from("wb_sales_fact")
+    .select("price_with_disc, is_storno")
+    .eq("sale_dt", yIso);
+
+  if (error) {
+    return {
+      name: "yesterday_buyouts",
+      ok: true,
+      severity: "yellow",
+      summary: "Выкупы вчера: не удалось посчитать",
+      message: null,
+    };
+  }
+  const rows = (data ?? []) as Array<{ price_with_disc: number | null; is_storno: boolean | null }>;
+  const active = rows.filter((r) => !r.is_storno);
+  const sum = active.reduce((s, r) => s + Number(r.price_with_disc ?? 0), 0);
+  const cnt = active.length;
+  const rub = Math.round(sum).toLocaleString("ru-RU");
+  return {
+    name: "yesterday_buyouts",
+    ok: true,
+    severity: "green",
+    summary: `Выкупы вчера: ${rub} ₽ (${cnt} шт)`,
+    message: null,
+  };
+}
+
 async function sendTelegram(token: string, chatId: string, text: string): Promise<boolean> {
   const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -727,6 +798,8 @@ Deno.serve(async (req: Request) => {
     const supabase = adminClient();
 
     const results = await Promise.all([
+      checkYesterdayOrders(supabase),
+      checkYesterdayBuyouts(supabase),
       checkMargin(supabase),
       checkBuyout(supabase),
       checkDeficit(supabase),
