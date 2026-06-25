@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const cronCheck = checkCronSecret(req);
-  if (cronCheck) return cronCheck;
+  if (!cronCheck.ok) return cronCheck.response;
 
   const supabase = adminClient();
   const url = new URL(req.url);
