@@ -526,6 +526,36 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
         },
       },
       {
+        id: 'ff_service',
+        header: () => (
+          <span className="inline-flex items-center gap-1">
+            Тариф ФФ (₽)
+            <TooltipIcon text="Стоимость услуг фулфилмента на единицу. Берётся из таблицы fulfillment_costs (последний действующий тариф). Один и тот же для всех SKU." />
+          </span>
+        ),
+        cell: ({ row }) => {
+          const b = breakdownBySku.get(row.original.sku_id);
+          const v = b?.ffServiceRubPerUnit;
+          if (v == null) return <span className="text-xs text-muted-foreground">—</span>;
+          return <span className="tabular-nums">{fmtRub(v)}</span>;
+        },
+      },
+      {
+        id: 'total_with_extras',
+        header: () => (
+          <span className="inline-flex items-center gap-1">
+            Итого с ФФ (₽)
+            <TooltipIcon text="Сумма current cost + тариф ФФ. То что реально стоит каждая единица товара перед отгрузкой на ВБ." />
+          </span>
+        ),
+        cell: ({ row }) => {
+          const b = breakdownBySku.get(row.original.sku_id);
+          const v = b?.totalWithExtrasRubPerUnit;
+          if (v == null) return <span className="text-xs text-muted-foreground">—</span>;
+          return <span className="font-medium tabular-nums">{fmtRub(v)}</span>;
+        },
+      },
+      {
         accessorKey: 'valid_from',
         header: 'Действует с',
         cell: (info) => <span className="text-muted-foreground tabular-nums">{info.getValue<string | null>() ?? '—'}</span>,
