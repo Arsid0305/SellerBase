@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Sun, AlertCircle, ListChecks, Search, Lightbulb } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
+import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import type { DashboardBrief } from '@/entities/dashboard-brief';
 
 function fmtMoney(v: number): string {
@@ -44,7 +45,10 @@ export function MorningBrief({
 
       <div className="mb-3 grid grid-cols-2 gap-3">
         <div className="rounded-md border border-border/60 p-3">
-          <div className="text-xs text-muted-foreground">Количество</div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Выкуплено</span>
+            <TooltipIcon text="Количество единиц товара, выкупленных покупателями за день (доставленных, не возвращённых). Не путать с заказами — заказы могут быть отменены/возвращены." />
+          </div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">
             {brief.yesterday.units.toLocaleString('ru-RU')}
           </div>
@@ -54,7 +58,10 @@ export function MorningBrief({
           href="/pnl"
           className="block rounded-md border border-border/60 p-3 hover:bg-muted/40"
         >
-          <div className="text-xs text-muted-foreground">Сумма</div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Сумма выкупов</span>
+            <TooltipIcon text="Сумма по выкупленным товарам (продажи) за день. Источник: wb_reports_fact (финотчёт WB, если есть) или wb_sales_fact." />
+          </div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">
             {fmtMoney(brief.yesterday.revenue)}
           </div>
