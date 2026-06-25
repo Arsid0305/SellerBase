@@ -13,11 +13,23 @@ export type DashboardBrief = {
     revenue: number;
     profit: number;
     units: number;
+    /** Сумма заказов вчера (wb_orders_fact, без отменённых). */
+    ordersRevenue: number;
+    /** Количество заказов вчера (шт). */
+    ordersCount: number;
     date: string;
     /** true → есть полный финотчёт (комиссия+логистика), profit достоверный. false → только продажи. */
     hasFullReport: boolean;
   };
-  dayBefore: { revenue: number; profit: number; units: number; date: string; hasFullReport: boolean };
+  dayBefore: {
+    revenue: number;
+    profit: number;
+    units: number;
+    ordersRevenue: number;
+    ordersCount: number;
+    date: string;
+    hasFullReport: boolean;
+  };
   /** Последняя дата с финотчётом (для подсказки "маржа доступна до N"). */
   lastReportDate: string | null;
   /** Последняя дата с продажами (для подсказки "свежие данные до N"). */
@@ -89,11 +101,13 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
   const yHasFull = reportDates.has(yIso);
   const dbHasFull = reportDates.has(dbIso);
 
-  const [pnlY, pnlDb, salesY, salesDb, lifecycleRes, criticalListRes, tasksRes, problemsRes] = await Promise.all([
+  const [pnlY, pnlDb, salesY, salesDb, ordersY, ordersDb, lifecycleRes, criticalListRes, tasksRes, problemsRes] = await Promise.all([
     supabase.rpc('get_full_pnl_by_period', { p_from: yIso, p_to: yIso }),
     supabase.rpc('get_full_pnl_by_period', { p_from: dbIso, p_to: dbIso }),
     supabase.from('v_daily_sales').select('sale_dt, units_sold, units_returned, revenue_rub').eq('sale_dt', yIso).maybeSingle(),
     supabase.from('v_daily_sales').select('sale_dt, units_sold, units_returned, revenue_rub').eq('sale_dt', dbIso).maybeSingle(),
+    supabase.from('wb_orders_fact').select('total_price, is_cancel').gte('date', `${yIso}T00:00:00`).lt('date', `${yIso}T23:59:59.999`),
+    supabase.from('wb_orders_fact').select('total_price, is_cancel').gte('date', `${dbIso}T00:00:00`).lt('date', `${dbIso}T23:59:59.999`),
     supabase
       .from('v_sku_lifecycle')
       .select('sku_id, lifecycle')
@@ -144,12 +158,28 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
     return { revenue: Math.round(toNumber(r.revenue_rub)), units };
   };
 
+  const ordersFor = (
+    res: { data: Array<{ total_price: number | null; is_cancel: boolean | null }> | null } | { data: null },
+  ): { revenue: number; count: number } => {
+    const rows = (res?.data ?? []) as Array<{ total_price: number | null; is_cancel: boolean | null }>;
+    let revenue = 0;
+    let count = 0;
+    for (const r of rows) {
+      if (r.is_cancel) continue;
+      revenue += toNumber(r.total_price);
+      count += 1;
+    }
+    return { revenue: Math.round(revenue), count };
+  };
+
   const buildAgg = (
     iso: string,
     hasFull: boolean,
     pnlRes: typeof pnlY,
     salesRes: typeof salesY,
+    ordersRes: typeof ordersY,
   ) => {
+    const o = ordersFor(ordersRes);
     if (hasFull && !pnlRes.error) {
       const p = sumPnl(pnlRes.data);
       const s = salesForDay(salesRes);
@@ -157,16 +187,26 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
         revenue: p.revenue || s.revenue,
         profit: p.profit,
         units: s.units,
+        ordersRevenue: o.revenue,
+        ordersCount: o.count,
         date: iso,
         hasFullReport: true,
       };
     }
     const s = salesForDay(salesRes);
-    return { revenue: s.revenue, profit: 0, units: s.units, date: iso, hasFullReport: false };
+    return {
+      revenue: s.revenue,
+      profit: 0,
+      units: s.units,
+      ordersRevenue: o.revenue,
+      ordersCount: o.count,
+      date: iso,
+      hasFullReport: false,
+    };
   };
 
-  const yesterdayAgg = buildAgg(yIso, yHasFull, pnlY, salesY);
-  const dayBeforeAgg = buildAgg(dbIso, dbHasFull, pnlDb, salesDb);
+  const yesterdayAgg = buildAgg(yIso, yHasFull, pnlY, salesY, ordersY);
+  const dayBeforeAgg = buildAgg(dbIso, dbHasFull, pnlDb, salesDb, ordersDb);
 
   const criticalCount = lifecycleRes.error
     ? 0
