@@ -203,7 +203,14 @@ export function buildCatalogSummary(rows: CatalogProduct[]): CatalogSummary {
   const noSales30d = rows.filter((r) => r.sales30dUnits === 0 || r.lastSaleDaysAgo > 14).length;
   const excess = rows.filter((r) => r.daysOfStock > 90).length;
   const totalSales = rows.reduce((acc, r) => acc + r.sales30dRub, 0);
-  const totalMarginValue = rows.reduce((acc, r) => acc + r.margin, 0);
+  // Средняя маржа = взвешенная по выручке: sum(profit) / sum(revenue) × 100.
+  // Не простое среднее процентов — те бы дали скошенный результат если у одного SKU
+  // маржа 100% и нет продаж, а у остальных 15% с большой выручкой.
+  // Источник margin: 0-100 (проценты). Учитываем только SKU с положительной выручкой.
+  const totalProfit = rows.reduce((acc, r) => {
+    if (r.sales30dRub > 0) return acc + (r.sales30dRub * r.margin) / 100;
+    return acc;
+  }, 0);
   return {
     totalCount: rows.length,
     inStock,
@@ -211,6 +218,6 @@ export function buildCatalogSummary(rows: CatalogProduct[]): CatalogSummary {
     noSales30d,
     excessCount: excess,
     totalSales30dRub: totalSales,
-    avgMargin: rows.length > 0 ? totalMarginValue / rows.length : 0,
+    avgMargin: totalSales > 0 ? (totalProfit / totalSales) * 100 : 0,
   };
 }
