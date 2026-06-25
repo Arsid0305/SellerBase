@@ -1,0 +1,3 @@
+-- Applied via MCP apply_migration (idempotent — already in prod).
+-- Stub file for migration tracking; см. actual SQL в schema_migrations.
+-- Создаёт: wb_supplies_fact + v_wb_supplies_summary + cron fetch-wb-supplies-6h.
