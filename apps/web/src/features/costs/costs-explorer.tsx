@@ -20,9 +20,9 @@ type Props = {
 };
 
 const SOURCE_LABEL: Record<CostBreakdown['source'], string> = {
-  unit_import: 'unit_import',
-  cogs_calc: 'cogs_calc',
-  sku_catalog_legacy: 'legacy',
+  unit_import: 'Excel (импорт)',
+  cogs_calc: 'Расчёт по статьям',
+  sku_catalog_legacy: 'Старое значение',
   none: 'нет данных',
 };
 
@@ -298,7 +298,7 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
 
   const submitChinaImport = useCallback(async () => {
     if (!chinaFile) {
-      setChinaError('Выберите файл XLSX');
+      setChinaError('Выберите файл Excel');
       return;
     }
     if (!chinaOrderDate) {
@@ -342,7 +342,7 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
 
   const submitUnitImport = useCallback(async () => {
     if (!unitFile) {
-      setUnitError('Выберите файл XLSX');
+      setUnitError('Выберите файл Excel');
       return;
     }
     setUnitSubmitting(true);
@@ -500,8 +500,8 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
         accessorKey: 'current_cost',
         header: () => (
           <span className="inline-flex items-center gap-1">
-            Текущая cost (₽)
-            <TooltipIcon text="Себестоимость товара, действующая на сегодняшний день. Берётся из последней актуальной записи истории, либо из карточки SKU, если истории ещё нет." />
+            Текущая себестоимость (₽)
+            <TooltipIcon text="Себестоимость товара, действующая на сегодня. Берётся из последней актуальной записи истории, либо из карточки товара, если истории ещё нет." />
           </span>
         ),
         cell: ({ row, getValue }) => {
@@ -630,7 +630,7 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
               setChinaOpen(true);
             }}
           >
-            Импортировать заказ Китай (XLSX)
+            Импортировать заказ Китай (Excel)
           </Button>
           <Button
             variant="outline"
@@ -640,7 +640,7 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
               setUnitOpen(true);
             }}
           >
-            Импортировать себестоимость UNIT (XLSX)
+            Импортировать себестоимость (Excel)
           </Button>
           <Button
             variant="outline"
@@ -722,7 +722,7 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 z-10 border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
                     <tr>
-                      <th className="px-4 py-2 text-left">Cost (₽)</th>
+                      <th className="px-4 py-2 text-left">Себестоимость (₽)</th>
                       <th className="px-4 py-2 text-left">С</th>
                       <th className="px-4 py-2 text-left">По</th>
                       <th className="px-4 py-2 text-left">Источник</th>
@@ -755,14 +755,14 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h3 className="text-sm font-semibold">Импорт заказа Китай (1688) из XLSX</h3>
+              <h3 className="text-sm font-semibold">Импорт заказа Китай (1688) из Excel</h3>
               <Button variant="ghost" size="sm" onClick={() => setChinaOpen(false)}>
                 ✕
               </Button>
             </div>
             <div className="flex flex-col gap-3 p-4">
               <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs text-muted-foreground">Файл XLSX</span>
+                <span className="text-xs text-muted-foreground">Файл Excel</span>
                 <input
                   type="file"
                   accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -864,14 +864,14 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <h3 className="text-sm font-semibold">Импорт себестоимости «до ВБ» (UNIT) из XLSX</h3>
+              <h3 className="text-sm font-semibold">Импорт себестоимости «до ВБ» из Excel</h3>
               <Button variant="ghost" size="sm" onClick={() => setUnitOpen(false)}>
                 ✕
               </Button>
             </div>
             <div className="flex flex-col gap-3 p-4">
               <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs text-muted-foreground">Файл XLSX</span>
+                <span className="text-xs text-muted-foreground">Файл Excel</span>
                 <input
                   type="file"
                   accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
