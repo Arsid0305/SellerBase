@@ -1,3 +1,36 @@
+## 2026-06-25 — UX-багаудит + план поставок (manual) + #11 маржа в работе
+
+### Контекст
+Сессия началась с продолжения #11 (маржа 56-58%). Параллельно владелица гоняла визуальный аудит по всем разделам — за сессию накопилось **18 пунктов очереди UX-фиксов** в `tasks/todo.md`. Удалось зафиксировать схемы FBW Supplies API (полные скрины от пользователя с VPN). Лимит контекста на исходе — фиксируем точку возобновления.
+
+### Сделано
+- ✅ Список пунктов очереди UX (18 шт) с пометками 🟢/🔴, ничего не удаляли
+- ✅ Получены **полные схемы FBW Supplies API** (host `supplies-api.wildberries.ru`): POST `/api/v1/supplies` (body `{dates:[{from,till,type}], statusIDs:[]}`, query `limit/offset`), GET `/api/v1/supplies/{ID}` (SupplyDetails), GET `/api/v1/supplies/{ID}/goods` (массив GoodInSupply)
+- ✅ Решение владелицы: **поставки фетчить вручную**, без cron — раз в несколько месяцев
+- ✅ Подтверждение что токен `WB_TOKEN_READ` (read-only, все группы, до 4 дек 2026) подходит и для FBW
+- ✅ Поднят корень бага #11: в `get_full_pnl_by_period` отсутствуют статьи **хранение / приёмка / удержания / эквайринг** → маржа завышена
+
+### Открытые задачи (по приоритету)
+1. **#11 Маржа 56-58% завышена** — в работе. Подтверждено: `get_full_pnl_by_period` не учитывает `storage_rub`, `acceptance_rub`, `deduction_rub`, `acquiring`. Нужно: (а) execute_sql сверка 30 дней реальной маржи vs RPC, (б) обновить RPC, (в) PR.
+2. **Поставки v2 (manual)** — план готов. 1 миграция (новая схема `wb_supplies_fact` + `wb_supplies_items_fact`) + переписанный edge без cron + UI кнопка «Обновить» на `/supplies` + защита через Supabase Auth JWT (не cron-secret). Текущая `wb_supplies_fact` под старый API `/supplier/incomes` — переименовать в `wb_incomes_fact_archive`.
+3. Очередь #12-#18 (средний чек, отмены, /analytics/weekly пусто, /promo пусто, /deficit нелепые цифры, /feedback неверно, /tariffs cron понедельники, /expenses не работает) — по одному после #11 и поставок.
+
+### Следующие шаги (точка возобновления)
+1. Завершить #11: MCP `execute_sql` сверка + миграция `fix_get_full_pnl_add_missing_expenses.sql` + PR.
+2. Стартовать поставки v2 (manual):
+   - Migration: `<ts>_supplies_v2_schema.sql` (rename old + create new tables).
+   - Edge: переписать `supabase/functions/fetch-wb-supplies/index.ts` под FBW Supplies API.
+   - UI: добавить кнопку «Обновить из WB» на `/supplies` + индикатор last sync.
+   - Защита: убрать `checkCronSecret`, добавить JWT-проверку владельца.
+3. После — по очереди из todo.md.
+
+### Заметки
+- Схемы FBW API — пользователь скринил с VPN. Если потеряются, повторить через `https://dev.wildberries.ru/swagger/orders-fbw`.
+- Rate-limit Personal 30 req/min — sleep 2.1с между батчами.
+- Type filter values для POST /supplies: `factDate | createDate | supplyDate | updatedDate`. Использовать `updatedDate` для инкрементальной синхронизации.
+
+---
+
 ## 2026-06-19/20 — Backlog финиш + критичный аудит
 
 ### Контекст
