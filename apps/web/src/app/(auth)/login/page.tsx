@@ -11,7 +11,7 @@ export default function LoginPage({
 }) {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-8">
-      <PageHeader title="Вход в SellerBase" description="6-значный код на email" />
+      <PageHeader title="Вход в SellerBase" description="Email и пароль" />
       <Suspense fallback={null}>
         <ErrorBanner searchParams={searchParams} />
       </Suspense>
