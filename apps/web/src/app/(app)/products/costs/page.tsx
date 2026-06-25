@@ -18,7 +18,7 @@ export default async function CostsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Себестоимость"
-        description="Ручное управление cost_price с историей версий"
+        description="Ручное управление себестоимостью с историей версий"
       />
       <CostsExplorer rows={rows} cargoTariff={cargoTariff} ffTariff={ffTariff} breakdown={breakdown} />
       <p className="text-xs text-muted-foreground">
