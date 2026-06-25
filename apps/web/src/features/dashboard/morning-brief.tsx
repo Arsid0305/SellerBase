@@ -34,6 +34,8 @@ export function MorningBrief({
 }) {
   const delta = calcDelta(brief.yesterday.revenue, brief.dayBefore.revenue);
   const deltaSign = delta > 0 ? '+' : '';
+  const ordersDelta = calcDelta(brief.yesterday.ordersRevenue, brief.dayBefore.ordersRevenue);
+  const ordersDeltaSign = ordersDelta > 0 ? '+' : '';
 
   return (
     <Card className="border-l-4 border-l-emerald-500 p-4">
@@ -43,11 +45,51 @@ export function MorningBrief({
         <span className="text-muted-foreground">· {fmtDataDate(brief.yesterday.date)}</span>
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-3">
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Link
+          href="/sales-report?grouping=channel"
+          className="block rounded-md border border-border/60 p-3 hover:bg-muted/40"
+        >
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Заказано</span>
+            <TooltipIcon text="Количество заказов за день (wb_orders_fact, без отменённых). До выкупа может пройти 1-7 дней." />
+          </div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">
+            {brief.yesterday.ordersCount.toLocaleString('ru-RU')}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">шт</div>
+        </Link>
+        <Link
+          href="/sales-report?grouping=channel"
+          className="block rounded-md border border-border/60 p-3 hover:bg-muted/40"
+        >
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Сумма заказов</span>
+            <TooltipIcon text="Сумма заказов за день (totalPrice WB, без отменённых). Часть из них дойдёт до выкупа, часть отменится." />
+          </div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">
+            {fmtMoney(brief.yesterday.ordersRevenue)}
+          </div>
+          <div className="mt-1 flex items-baseline gap-1 text-xs">
+            <span className="text-muted-foreground">vs {fmtShortDate(brief.dayBefore.date)}</span>
+            <span
+              className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${
+                ordersDelta > 0
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                  : ordersDelta < 0
+                    ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
+                    : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {ordersDeltaSign}
+              {ordersDelta}%
+            </span>
+          </div>
+        </Link>
         <div className="rounded-md border border-border/60 p-3">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>Выкуплено</span>
-            <TooltipIcon text="Количество единиц товара, выкупленных покупателями за день (доставленных, не возвращённых). Не путать с заказами — заказы могут быть отменены/возвращены." />
+            <TooltipIcon text="Количество единиц товара, выкупленных покупателями за день (доставленных, не возвращённых)." />
           </div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">
             {brief.yesterday.units.toLocaleString('ru-RU')}
@@ -60,7 +102,7 @@ export function MorningBrief({
         >
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>Сумма выкупов</span>
-            <TooltipIcon text="Сумма по выкупленным товарам (продажи) за день. Источник: wb_reports_fact (финотчёт WB, если есть) или wb_sales_fact." />
+            <TooltipIcon text="Сумма выкупленных товаров за день. Источник: wb_reports_fact (финотчёт WB, если есть) или wb_sales_fact." />
           </div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">
             {fmtMoney(brief.yesterday.revenue)}
