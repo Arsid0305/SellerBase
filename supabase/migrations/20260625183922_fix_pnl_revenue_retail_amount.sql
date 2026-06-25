@@ -1,0 +1,7 @@
+-- Applied via MCP apply_migration. Stub for tracking.
+-- Фикс get_pnl_by_period + get_catalog_sales_daily:
+-- 1) get_pnl_by_period: SUM(retail_price × qty) → SUM(retail_amount), unified rr_dt окно,
+--    фильтр doc_type IN ('Продажа','Возврат').
+-- 2) get_catalog_sales_daily: добавлены COGS + tax(6%), фильтр doc_type_name.
+-- 
+-- Эффект: Сводка/PnL revenue 295 742 → 194 488 ₽ (теперь совпадает с Мои товары / Отчёт по продажам).
