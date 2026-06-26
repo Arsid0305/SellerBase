@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { PnlAggregate, PnlSkuRow, DailyRevenuePoint, PeriodRange } from './types';
-import type { ExpenseCategory, ProfitMarginPoint } from '@/features/pnl/types';
+import type { ExpenseCategory, PnlKpis, ProfitMarginPoint } from '@/features/pnl/types';
 
 function toNumber(v: unknown): number {
   if (v == null) return 0;
@@ -427,7 +427,7 @@ export async function fetchTopProductsByRevenue(
 export async function fetchPnlKpis(
   range: PeriodRange,
   comparison: PeriodRange,
-): Promise<import('@/features/pnl/types').PnlKpis> {
+): Promise<PnlKpis> {
   const [curr, prev, series] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
