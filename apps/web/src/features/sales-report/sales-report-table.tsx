@@ -26,8 +26,8 @@ const CSV_COLUMNS: CsvColumn<SalesReportRow>[] = [
   { key: 'unitsSold', label: 'Продано шт' },
   { key: 'revenue', label: 'Выручка ₽' },
   { key: 'avgCheck', label: 'Ср. чек' },
-  { key: 'cancellations', label: 'Отмены' },
-  { key: 'cancelRate', label: '% отмен' },
+  { key: 'cancellations', label: 'Возвраты' },
+  { key: 'cancelRate', label: '% возвратов' },
 ];
 
 export function SalesReportExplorer({
