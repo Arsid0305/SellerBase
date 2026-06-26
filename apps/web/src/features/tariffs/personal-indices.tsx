@@ -11,7 +11,11 @@ export function PersonalIndicesSection() {
   const distributionTone = p.salesDistributionIndex <= 1 ? 'positive' : 'negative';
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div className="flex flex-col gap-3">
+      <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+        ⚠ Личные индексы — демо-значения. Реальные индексы локализации и распределения WB пока не интегрированы (нет публичного API).
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <CategoryCard title="Индекс локализации" tone="emerald" icon={Activity}>
         <StatList
           rows={[
@@ -46,6 +50,7 @@ export function PersonalIndicesSection() {
           ]}
         />
       </CategoryCard>
+      </div>
     </div>
   );
 }
