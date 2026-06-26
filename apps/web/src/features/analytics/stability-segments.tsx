@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { cn } from '@/shared/lib/utils';
 import type { StabilitySegment } from './types';
@@ -17,27 +18,39 @@ export function StabilitySegments({ segments }: { segments: StabilitySegment[] }
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {segments.map((s) => (
-            <div
-              key={s.tier}
-              className={cn(
-                'flex flex-col gap-2 rounded-lg border p-4 transition-colors hover:brightness-105',
-                TIER_COLOR[s.tier],
-              )}
-            >
-              <div className="flex items-baseline justify-between">
-                <span className="inline-flex size-7 items-center justify-center rounded-full bg-background/60 text-sm font-semibold">
-                  {s.tier}
-                </span>
-                <span className="text-sm font-medium">{s.label}</span>
+          {segments.map((s) => {
+            const cardClass = cn(
+              'flex flex-col gap-2 rounded-lg border p-4 transition-colors hover:brightness-105',
+              TIER_COLOR[s.tier],
+            );
+            const body = (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="inline-flex size-7 items-center justify-center rounded-full bg-background/60 text-sm font-semibold">
+                    {s.tier}
+                  </span>
+                  <span className="text-sm font-medium">{s.label}</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-semibold tabular-nums">{s.count} шт.</span>
+                  <span className="text-sm opacity-80">{s.share.toFixed(1)}%</span>
+                </div>
+                <span className="text-[11px] opacity-80">{s.description}</span>
+              </>
+            );
+            if (s.count > 0) {
+              return (
+                <Link key={s.tier} href={`/analytics/group?stability=${s.tier}`} className={cardClass}>
+                  {body}
+                </Link>
+              );
+            }
+            return (
+              <div key={s.tier} className={cardClass}>
+                {body}
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-semibold tabular-nums">{s.count} шт.</span>
-                <span className="text-sm opacity-80">{s.share.toFixed(1)}%</span>
-              </div>
-              <span className="text-[11px] opacity-80">{s.description}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
