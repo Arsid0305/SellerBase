@@ -13,6 +13,8 @@ export interface CostBreakdown {
   customsRubPerUnit: number | null;
   packagingRubPerUnit: number | null;
   ffServiceRubPerUnit: number | null;
+  /** true → ffServiceRubPerUnit взят из ручного override (sku_catalog.manual_ff_tariff_rub) */
+  ffIsManualOverride: boolean;
   totalWithExtrasRubPerUnit: number | null;
   effectiveFrom: string | null;
   source: CostBreakdownSource;
@@ -42,31 +44,49 @@ function toNumberOrNull(v: number | string | null): number | null {
 
 export async function fetchCostBreakdown(): Promise<CostBreakdown[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('v_sku_cost_breakdown')
-    .select(
-      'sku_id, wb_article, my_article, title, total_cost_rub_per_unit, purchase_rub_per_unit, cargo_rub_per_unit, customs_rub_per_unit, packaging_rub_per_unit, ff_service_rub_per_unit, total_with_extras_rub_per_unit, effective_from, source',
-    )
-    .order('my_article', { ascending: true });
+  const [viewRes, overridesRes] = await Promise.all([
+    supabase
+      .from('v_sku_cost_breakdown')
+      .select(
+        'sku_id, wb_article, my_article, title, total_cost_rub_per_unit, purchase_rub_per_unit, cargo_rub_per_unit, customs_rub_per_unit, packaging_rub_per_unit, ff_service_rub_per_unit, total_with_extras_rub_per_unit, effective_from, source',
+      )
+      .order('my_article', { ascending: true }),
+    supabase.from('sku_catalog').select('id, manual_ff_tariff_rub').not('manual_ff_tariff_rub', 'is', null),
+  ]);
 
-  if (error) {
-    console.error('[fetchCostBreakdown] error', error);
+  if (viewRes.error) {
+    console.error('[fetchCostBreakdown] error', viewRes.error);
     return [];
   }
 
-  return ((data ?? []) as ViewRow[]).map((r) => ({
-    skuId: r.sku_id,
-    wbArticle: r.wb_article,
-    myArticle: r.my_article,
-    title: r.title,
-    totalCostRubPerUnit: Number(r.total_cost_rub_per_unit) || 0,
-    purchaseRubPerUnit: toNumberOrNull(r.purchase_rub_per_unit),
-    cargoRubPerUnit: toNumberOrNull(r.cargo_rub_per_unit),
-    customsRubPerUnit: toNumberOrNull(r.customs_rub_per_unit),
-    packagingRubPerUnit: toNumberOrNull(r.packaging_rub_per_unit),
-    ffServiceRubPerUnit: toNumberOrNull(r.ff_service_rub_per_unit),
-    totalWithExtrasRubPerUnit: toNumberOrNull(r.total_with_extras_rub_per_unit),
-    effectiveFrom: r.effective_from,
-    source: r.source,
-  }));
+  const overrideMap = new Map<number, number>();
+  for (const r of (overridesRes.data ?? []) as { id: number; manual_ff_tariff_rub: number | string | null }[]) {
+    const v = toNumberOrNull(r.manual_ff_tariff_rub);
+    if (v != null) overrideMap.set(r.id, v);
+  }
+
+  return ((viewRes.data ?? []) as ViewRow[]).map((r) => {
+    const override = overrideMap.get(r.sku_id);
+    const ffFromView = toNumberOrNull(r.ff_service_rub_per_unit);
+    const ffEffective = override ?? ffFromView;
+    const totalCost = Number(r.total_cost_rub_per_unit) || 0;
+    const totalWithExtras =
+      override != null ? totalCost + override : toNumberOrNull(r.total_with_extras_rub_per_unit);
+    return {
+      skuId: r.sku_id,
+      wbArticle: r.wb_article,
+      myArticle: r.my_article,
+      title: r.title,
+      totalCostRubPerUnit: totalCost,
+      purchaseRubPerUnit: toNumberOrNull(r.purchase_rub_per_unit),
+      cargoRubPerUnit: toNumberOrNull(r.cargo_rub_per_unit),
+      customsRubPerUnit: toNumberOrNull(r.customs_rub_per_unit),
+      packagingRubPerUnit: toNumberOrNull(r.packaging_rub_per_unit),
+      ffServiceRubPerUnit: ffEffective,
+      ffIsManualOverride: override != null,
+      totalWithExtrasRubPerUnit: totalWithExtras,
+      effectiveFrom: r.effective_from,
+      source: r.source,
+    };
+  });
 }
