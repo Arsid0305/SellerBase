@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { cn } from '@/shared/lib/utils';
 import type { ProfitabilityCell, ProfitTier, SalesTier } from './types';
@@ -84,18 +85,32 @@ function RowGroup({
       {cols.map((col) => {
         const count = lookup.get(`${row.tier}_${col.tier}`) ?? 0;
         const colorKey = `${row.tier}_${col.tier}` as keyof typeof ZONE_COLOR;
-        return (
-          <div
-            key={col.tier}
-            className={cn(
-              'flex aspect-[2/1] flex-col items-center justify-center rounded-lg border text-center transition-colors',
-              count > 0
-                ? `${ZONE_COLOR[colorKey]} cursor-pointer hover:brightness-110`
-                : 'border-dashed border-border bg-muted/30 text-muted-foreground',
-            )}
-          >
+        const baseClass = cn(
+          'flex aspect-[2/1] flex-col items-center justify-center rounded-lg border text-center transition-colors',
+          count > 0
+            ? `${ZONE_COLOR[colorKey]} hover:brightness-110`
+            : 'border-dashed border-border bg-muted/30 text-muted-foreground',
+        );
+        const content = (
+          <>
             <span className="text-2xl font-semibold tabular-nums">{count}</span>
             <span className="text-[10px] uppercase tracking-wider opacity-80">шт.</span>
+          </>
+        );
+        if (count > 0) {
+          return (
+            <Link
+              key={col.tier}
+              href={`/analytics/group?profit=${encodeURIComponent(row.tier)}&sales=${col.tier}`}
+              className={baseClass}
+            >
+              {content}
+            </Link>
+          );
+        }
+        return (
+          <div key={col.tier} className={baseClass}>
+            {content}
           </div>
         );
       })}
