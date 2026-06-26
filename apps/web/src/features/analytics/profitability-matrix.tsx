@@ -31,7 +31,15 @@ const ZONE_COLOR: Record<`${ProfitTier}_${SalesTier}`, string> = {
   '-P_C': 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/15',
 };
 
-export function ProfitabilityMatrix({ cells }: { cells: ProfitabilityCell[] }) {
+export function ProfitabilityMatrix({
+  cells,
+  selectedProfit = null,
+  selectedSales = null,
+}: {
+  cells: ProfitabilityCell[];
+  selectedProfit?: ProfitTier | null;
+  selectedSales?: SalesTier | null;
+}) {
   const lookup = new Map(cells.map((c) => [`${c.profit}_${c.sales}`, c.count]));
   const total = cells.reduce((acc, c) => acc + c.count, 0);
 
@@ -57,7 +65,14 @@ export function ProfitabilityMatrix({ cells }: { cells: ProfitabilityCell[] }) {
           ))}
 
           {PROFIT_ROWS.map((row) => (
-            <RowGroup key={row.tier} row={row} cols={SALES_COLS} lookup={lookup} />
+            <RowGroup
+              key={row.tier}
+              row={row}
+              cols={SALES_COLS}
+              lookup={lookup}
+              selectedProfit={selectedProfit}
+              selectedSales={selectedSales}
+            />
           ))}
         </div>
       </CardContent>
@@ -69,10 +84,14 @@ function RowGroup({
   row,
   cols,
   lookup,
+  selectedProfit,
+  selectedSales,
 }: {
   row: { tier: ProfitTier; label: string; description: string };
   cols: { tier: SalesTier; label: string; description: string }[];
   lookup: Map<string, number>;
+  selectedProfit: ProfitTier | null;
+  selectedSales: SalesTier | null;
 }) {
   return (
     <>
@@ -85,11 +104,13 @@ function RowGroup({
       {cols.map((col) => {
         const count = lookup.get(`${row.tier}_${col.tier}`) ?? 0;
         const colorKey = `${row.tier}_${col.tier}` as keyof typeof ZONE_COLOR;
+        const isSelected = selectedProfit === row.tier && selectedSales === col.tier;
         const baseClass = cn(
           'flex aspect-[2/1] flex-col items-center justify-center rounded-lg border text-center transition-colors',
           count > 0
             ? `${ZONE_COLOR[colorKey]} hover:brightness-110`
             : 'border-dashed border-border bg-muted/30 text-muted-foreground',
+          isSelected && 'ring-2 ring-offset-2 ring-foreground/60',
         );
         const content = (
           <>
@@ -101,7 +122,8 @@ function RowGroup({
           return (
             <Link
               key={col.tier}
-              href={`/analytics/group?profit=${encodeURIComponent(row.tier)}&sales=${col.tier}`}
+              href={`/analytics?profit=${encodeURIComponent(row.tier)}&sales=${col.tier}#group`}
+              scroll
               className={baseClass}
             >
               {content}

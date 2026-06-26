@@ -9,7 +9,13 @@ const TIER_COLOR: Record<StabilitySegment['tier'], string> = {
   Z: 'bg-rose-500/15 border-rose-500/30 text-rose-700 dark:text-rose-300',
 };
 
-export function StabilitySegments({ segments }: { segments: StabilitySegment[] }) {
+export function StabilitySegments({
+  segments,
+  selectedStability = null,
+}: {
+  segments: StabilitySegment[];
+  selectedStability?: StabilitySegment['tier'] | null;
+}) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -19,9 +25,11 @@ export function StabilitySegments({ segments }: { segments: StabilitySegment[] }
       <CardContent>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {segments.map((s) => {
+            const isSelected = selectedStability === s.tier;
             const cardClass = cn(
               'flex flex-col gap-2 rounded-lg border p-4 transition-colors hover:brightness-105',
               TIER_COLOR[s.tier],
+              isSelected && 'ring-2 ring-offset-2 ring-foreground/60',
             );
             const body = (
               <>
@@ -40,7 +48,7 @@ export function StabilitySegments({ segments }: { segments: StabilitySegment[] }
             );
             if (s.count > 0) {
               return (
-                <Link key={s.tier} href={`/analytics/group?stability=${s.tier}`} className={cardClass}>
+                <Link key={s.tier} href={`/analytics?stability=${s.tier}#group`} scroll className={cardClass}>
                   {body}
                 </Link>
               );
