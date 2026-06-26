@@ -140,7 +140,7 @@ export function MorningBrief({
               <AlertCircle className="size-4 text-rose-500" />
             </span>
             <div className="min-w-0">
-              <Link href="/products?status=critical" className="font-medium hover:underline">
+              <Link href="/products/critical" className="font-medium hover:underline">
                 Критичных SKU: {brief.criticalCount}
               </Link>
               {brief.criticalTop.length > 0 && (
