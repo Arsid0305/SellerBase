@@ -424,6 +424,33 @@ export async function fetchTopProductsByRevenue(
     .slice(0, limit);
 }
 
+export async function fetchPnlKpis(
+  range: PeriodRange,
+  comparison: PeriodRange,
+): Promise<import('@/features/pnl/types').PnlKpis> {
+  const [curr, prev, series] = await Promise.all([
+    fetchPnlAggregate(range),
+    fetchPnlAggregate(comparison),
+    fetchDailyRevenue(range),
+  ]);
+  const currExpenses = curr.mainExpenses + curr.extraExpenses;
+  const prevExpenses = prev.mainExpenses + prev.extraExpenses;
+  const revenueSeries = series.map((p) => p.revenue);
+  const expensesSeries = series.map((p) => p.expenses);
+  const profitSeries = series.map((p) => p.revenue - p.expenses);
+  const marginSeries = series.map((p) => p.marginPct);
+  return {
+    revenue: { value: Math.round(curr.revenue), delta: Math.round(curr.revenue - prev.revenue), series: revenueSeries },
+    expenses: { value: Math.round(currExpenses), delta: Math.round(currExpenses - prevExpenses), series: expensesSeries },
+    profit: { value: Math.round(curr.profit), delta: Math.round(curr.profit - prev.profit), series: profitSeries },
+    margin: {
+      value: Math.round(curr.marginPct * 10) / 10,
+      delta: Math.round((curr.marginPct - prev.marginPct) * 10) / 10,
+      series: marginSeries,
+    },
+  };
+}
+
 export function shiftRangeBack(range: PeriodRange): PeriodRange {
   const from = new Date(`${range.from}T00:00:00Z`);
   const to = new Date(`${range.to}T00:00:00Z`);
