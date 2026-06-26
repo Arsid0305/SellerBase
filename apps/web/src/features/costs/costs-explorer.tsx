@@ -189,6 +189,117 @@ function InlineCostEdit({ skuId, currentValue, sourceLabel, tooltip, onSaved }: 
   );
 }
 
+type InlineFfEditProps = {
+  skuId: number;
+  currentValue: number | null;
+  isOverride: boolean;
+  onSaved: () => void;
+};
+
+function InlineFfEdit({ skuId, currentValue, isOverride, onSaved }: InlineFfEditProps) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const startEdit = () => {
+    setValue(currentValue != null ? String(currentValue) : '');
+    setEditing(true);
+  };
+
+  const cancel = () => {
+    setEditing(false);
+    setValue('');
+  };
+
+  const save = async () => {
+    const raw = value.replace(',', '.').trim();
+    const rub: number | null = raw === '' ? null : Number(raw);
+    if (rub !== null && (!Number.isFinite(rub) || rub < 0)) {
+      cancel();
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/costs/ff-tariff', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sku_id: skuId, rub_per_unit: rub }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert('Ошибка: ' + (err.error ?? res.statusText));
+      } else {
+        setEditing(false);
+        onSaved();
+      }
+    } catch {
+      alert('Ошибка сети');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              save();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              cancel();
+            }
+          }}
+          disabled={saving}
+          placeholder="пусто = сброс"
+          className="h-7 w-24 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        {saving && <span className="text-xs text-muted-foreground">...</span>}
+      </div>
+    );
+  }
+
+  if (currentValue == null) {
+    return (
+      <button
+        type="button"
+        onClick={startEdit}
+        className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+      >
+        — · задать
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={startEdit}
+      className="flex flex-col items-start gap-0.5 hover:underline"
+      title={isOverride ? 'Ручной override · клик чтобы изменить' : 'Общий тариф · клик чтобы задать индивидуальный'}
+    >
+      <span className="tabular-nums">{fmtRub(currentValue)}</span>
+      {isOverride && <span className="text-[10px] text-amber-600 dark:text-amber-400">ручной</span>}
+    </button>
+  );
+}
+
 type EditCellProps = {
   row: CostRow;
   onSaved: () => void;
@@ -650,14 +761,19 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
         header: () => (
           <span className="inline-flex items-center gap-1">
             Тариф ФФ (₽)
-            <TooltipIcon text="Стоимость услуг фулфилмента на единицу. Берётся из таблицы fulfillment_costs (последний действующий тариф). Один и тот же для всех SKU." />
+            <TooltipIcon text="Стоимость услуг фулфилмента на единицу. По умолчанию — общий тариф из «Тариф ФФ». Кликни значение чтобы задать индивидуальное per-SKU. Пустая строка + Enter — сброс." />
           </span>
         ),
         cell: ({ row }) => {
           const b = breakdownBySku.get(row.original.sku_id);
-          const v = b?.ffServiceRubPerUnit;
-          if (v == null) return <span className="text-xs text-muted-foreground">—</span>;
-          return <span className="tabular-nums">{fmtRub(v)}</span>;
+          return (
+            <InlineFfEdit
+              skuId={row.original.sku_id}
+              currentValue={b?.ffServiceRubPerUnit ?? null}
+              isOverride={b?.ffIsManualOverride ?? false}
+              onSaved={onSaved}
+            />
+          );
         },
       },
       {
