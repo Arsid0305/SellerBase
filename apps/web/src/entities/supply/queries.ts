@@ -102,12 +102,23 @@ export async function fetchSupplyRecommendation(): Promise<DeficitRow[]> {
   });
 }
 
+/** Порог "реального дефицита" в днях — товары с daysLeft <= этого попадают в раздел. */
+export const DEFICIT_DAYS_THRESHOLD = 14;
+
 export function buildDeficitSummary(rows: DeficitRow[]): DeficitSummary {
+  const outOfStock = rows.filter((r) => r.stock <= 0).length;
+  const critical = rows.filter((r) => r.daysLeft < 3 && r.stock > 0).length;
+  const warning = rows.filter((r) => r.daysLeft >= 3 && r.daysLeft <= 7).length;
   return {
     totalLostRevenue: rows.reduce((acc, r) => acc + r.lostRevenue, 0),
-    outOfStockCount: rows.filter((r) => r.stock <= 0).length,
-    criticalCount: rows.filter((r) => r.daysLeft < 3).length,
-    warningCount: rows.filter((r) => r.daysLeft >= 3 && r.daysLeft <= 7).length,
-    totalRows: rows.length,
+    outOfStockCount: outOfStock,
+    criticalCount: critical,
+    warningCount: warning,
+    totalRows: outOfStock + critical + warning,
   };
+}
+
+/** Только товары, реально требующие поставки (≤14 дней запаса или закончились). */
+export function filterRealDeficit(rows: DeficitRow[]): DeficitRow[] {
+  return rows.filter((r) => r.stock <= 0 || r.daysLeft <= DEFICIT_DAYS_THRESHOLD);
 }
