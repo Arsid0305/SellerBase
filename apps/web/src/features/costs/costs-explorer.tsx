@@ -63,6 +63,132 @@ function matchesSearch(row: CostRow, q: string): boolean {
   );
 }
 
+type InlineCostEditProps = {
+  skuId: number;
+  currentValue: number | null;
+  sourceLabel?: string;
+  tooltip?: string;
+  onSaved: () => void;
+};
+
+function InlineCostEdit({ skuId, currentValue, sourceLabel, tooltip, onSaved }: InlineCostEditProps) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const startEdit = () => {
+    setValue(currentValue ? String(currentValue) : '');
+    setEditing(true);
+  };
+
+  const cancel = () => {
+    setEditing(false);
+    setValue('');
+  };
+
+  const save = async () => {
+    const raw = value.replace(',', '.').trim();
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num < 0) {
+      cancel();
+      return;
+    }
+    if (num === currentValue) {
+      cancel();
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/costs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sku_id: skuId,
+          cost_rub: num,
+          valid_from: new Date().toISOString().slice(0, 10),
+          source: 'manual',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert('Ошибка: ' + (err.error ?? res.statusText));
+      } else {
+        setEditing(false);
+        onSaved();
+      }
+    } catch {
+      alert('Ошибка сети');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              save();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              cancel();
+            }
+          }}
+          disabled={saving}
+          className="h-7 w-24 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        {saving && <span className="text-xs text-muted-foreground">...</span>}
+      </div>
+    );
+  }
+
+  if (!currentValue) {
+    return (
+      <button
+        type="button"
+        onClick={startEdit}
+        className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+      >
+        нет данных · ввести
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <button
+        type="button"
+        onClick={startEdit}
+        className="tabular-nums text-left hover:underline"
+        title={tooltip ? `${tooltip} · клик чтобы изменить` : 'клик чтобы изменить'}
+      >
+        {fmtRub(currentValue)}
+      </button>
+      {sourceLabel && (
+        <span className="text-[10px] text-muted-foreground" title={tooltip}>
+          источник: {sourceLabel}
+        </span>
+      )}
+    </div>
+  );
+}
+
 type EditCellProps = {
   row: CostRow;
   onSaved: () => void;
@@ -501,27 +627,21 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
         header: () => (
           <span className="inline-flex items-center gap-1">
             Текущая себестоимость (₽)
-            <TooltipIcon text="Себестоимость товара, действующая на сегодня. Берётся из последней актуальной записи истории, либо из карточки товара, если истории ещё нет." />
+            <TooltipIcon text="Себестоимость товара, действующая на сегодня. Кликни значение чтобы изменить — Enter сохраняет, Escape отменяет." />
           </span>
         ),
         cell: ({ row, getValue }) => {
           const value = getValue<number>();
-          if (!value) {
-            return <span className="text-xs text-muted-foreground">нет данных</span>;
-          }
           const b = breakdownBySku.get(row.original.sku_id);
           const tooltip = b ? breakdownTooltip(b) : undefined;
           return (
-            <div className="flex flex-col gap-0.5">
-              <span className="tabular-nums" title={tooltip}>
-                {fmtRub(value)}
-              </span>
-              {b && (
-                <span className="text-[10px] text-muted-foreground" title={tooltip}>
-                  источник: {SOURCE_LABEL[b.source]}
-                </span>
-              )}
-            </div>
+            <InlineCostEdit
+              skuId={row.original.sku_id}
+              currentValue={value}
+              sourceLabel={b ? SOURCE_LABEL[b.source] : undefined}
+              tooltip={tooltip}
+              onSaved={onSaved}
+            />
           );
         },
       },
