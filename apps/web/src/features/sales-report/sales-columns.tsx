@@ -40,7 +40,7 @@ export const salesColumns: ColumnDef<SalesReportRow, unknown>[] = [
   },
   {
     accessorKey: 'cancellations',
-    header: 'Отмены',
+    header: 'Возвраты',
     cell: ({ row }) => (
       <span className={cn('tabular-nums', row.original.cancellations > 0 && 'text-rose-600 dark:text-rose-400')}>
         {formatInt(row.original.cancellations)}
@@ -49,7 +49,7 @@ export const salesColumns: ColumnDef<SalesReportRow, unknown>[] = [
   },
   {
     accessorKey: 'cancelRate',
-    header: '% отмен',
+    header: '% возвратов',
     cell: ({ row }) => {
       const v = row.original.cancelRate;
       return (

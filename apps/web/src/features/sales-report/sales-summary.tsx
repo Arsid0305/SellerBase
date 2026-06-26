@@ -29,9 +29,9 @@ export function SalesSummaryCards({ summary }: { summary: SalesSummary }) {
     {
       icon: XCircle,
       tone: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-      label: 'Отменено',
+      label: 'Возвраты',
       value: `${summary.cancellationRate.toFixed(1)}%`,
-      hint: 'доля отменённых заказов',
+      hint: 'доля возвратов от заказов',
     },
   ];
 
