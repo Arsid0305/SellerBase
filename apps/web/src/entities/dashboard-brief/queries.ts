@@ -58,13 +58,15 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
   const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   const todayIso = iso(todayUtc);
 
-  // Окно: последние 14 дней. Собираем два независимых набора дат:
-  // 1) последние даты с финотчётом (wb_reports_fact) — для полной маржи
-  // 2) последние даты с продажами (wb_sales_fact) — для свежих KPI
-  // "Вчера" = последний день, где есть хотя бы один источник (sales > reports).
+  // Строго "вчера" = CURRENT_DATE - 1 (независимо от того, есть ли уже данные за сегодня).
+  // Раньше бралась «последняя дата с данными», что подмешивало неполный текущий день,
+  // и цифры за неполный день сравнивались с позавчерашним финотчётом → путаница.
+  const yIso = iso(new Date(todayUtc.getTime() - 86400000));
+  const dbIso = iso(new Date(todayUtc.getTime() - 2 * 86400000));
   const fourteenAgo = new Date(todayUtc);
   fourteenAgo.setUTCDate(fourteenAgo.getUTCDate() - 14);
 
+  // Оставляем сбор last dates только для подсказок "свежие данные до N" / "маржа доступна до N".
   const [reportDatesRes, salesDatesRes] = await Promise.all([
     supabase
       .from('wb_reports_fact')
@@ -88,16 +90,10 @@ export async function fetchDashboardBrief(): Promise<DashboardBrief> {
   for (const r of (salesDatesRes.data ?? []) as { sale_dt: string | null }[]) {
     if (r.sale_dt) salesDates.add(r.sale_dt);
   }
-  const allDates = [...new Set([...reportDates, ...salesDates])].sort((a, b) =>
-    a < b ? 1 : a > b ? -1 : 0,
-  );
   const lastReportDate =
     [...reportDates].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))[0] ?? null;
   const lastSalesDate =
     [...salesDates].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))[0] ?? null;
-
-  const yIso = allDates[0] ?? iso(new Date(todayUtc.getTime() - 86400000));
-  const dbIso = allDates[1] ?? iso(new Date(todayUtc.getTime() - 2 * 86400000));
   const yHasFull = reportDates.has(yIso);
   const dbHasFull = reportDates.has(dbIso);
 
