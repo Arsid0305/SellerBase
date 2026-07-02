@@ -55,9 +55,11 @@ export async function fetchPnlBreakdown(
   range: PeriodRange,
   previousRange?: PeriodRange,
 ): Promise<{ revenue: number; categories: ExpenseCategory[] }> {
-  const [rows, prevRows] = await Promise.all([
+  const [rows, prevRows, wbExtras, wbExtrasPrev] = await Promise.all([
     fetchFullPnlRows(range),
     previousRange ? fetchFullPnlRows(previousRange) : Promise.resolve([] as PnlSkuRow[]),
+    fetchWbExtraExpenses(range),
+    previousRange ? fetchWbExtraExpenses(previousRange) : Promise.resolve({ storage: 0, deduction: 0, penalty: 0 }),
   ]);
 
   const sums = sumByCategory(rows);
@@ -83,11 +85,34 @@ export async function fetchPnlBreakdown(
     make('commission', 'Комиссия МП', sums.commission, prevSums.commission, 'mp'),
     make('cost', 'Себестоимость', sums.cogs, prevSums.cogs, 'product'),
     make('logistics', 'Логистика', sums.logistics, prevSums.logistics, 'logistics'),
+    make('storage', 'Хранение', wbExtras.storage, wbExtrasPrev.storage, 'logistics'),
+    make('deduction', 'Платная приёмка / удержания', wbExtras.deduction, wbExtrasPrev.deduction, 'other'),
+    make('penalty', 'Штрафы', wbExtras.penalty, wbExtrasPrev.penalty, 'penalty'),
     make('marketing', 'Маркетинг', sums.marketing, prevSums.marketing, 'marketing'),
     make('tax', 'Налоги', sums.tax, prevSums.tax, 'finance'),
   ];
 
   return { revenue, categories: categories.filter((c) => c.amount !== 0 || c.delta !== 0) };
+}
+
+async function fetchWbExtraExpenses(
+  range: PeriodRange,
+): Promise<{ storage: number; deduction: number; penalty: number }> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc('get_wb_extra_expenses_by_period', {
+    p_from: range.from,
+    p_to: range.to,
+  });
+  if (error || !data) {
+    return { storage: 0, deduction: 0, penalty: 0 };
+  }
+  const rows = (data ?? []) as Array<{ storage_rub: number; deduction_rub: number; penalty_rub: number }>;
+  const r = rows[0] ?? { storage_rub: 0, deduction_rub: 0, penalty_rub: 0 };
+  return {
+    storage: toNumber(r.storage_rub),
+    deduction: toNumber(r.deduction_rub),
+    penalty: toNumber(r.penalty_rub),
+  };
 }
 
 function sumByCategory(rows: PnlSkuRow[]): {
@@ -333,15 +358,47 @@ export async function fetchPnlByCategory(range: PeriodRange): Promise<CategoryPn
   return out;
 }
 
-export async function fetchPnlSkuTable(range: PeriodRange) {
+export type PnlOrphanTotals = {
+  logistics: number;
+  cogs: number;
+  tax: number;
+  profit: number;
+};
+
+export async function fetchPnlSkuTable(range: PeriodRange): Promise<{
+  skuRows: Array<{
+    skuId: number;
+    title: string;
+    myArticle: string | null;
+    wbArticle: number | null;
+    photoUrl: string | null;
+    unitsSold: number;
+    revenue: number;
+    commission: number;
+    logistics: number;
+    cogs: number;
+    marketing: number;
+    tax: number;
+    profit: number;
+    marginPct: number;
+  }>;
+  orphanTotals: PnlOrphanTotals;
+}> {
   const rows = await fetchFullPnlRows(range);
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return { skuRows: [], orphanTotals: { logistics: 0, cogs: 0, tax: 0, profit: 0 } };
   const supabase = createAdminClient();
-  const skuIds = rows.map((r) => r.sku_id);
-  const { data: cat } = await supabase
-    .from('sku_catalog')
-    .select('id, title, my_article, wb_article, photo_url')
-    .in('id', skuIds);
+
+  // Отделяем orphan-строки (nm_id без привязки к sku_catalog — общехозяйственные расходы WB)
+  const skuBoundRows = rows.filter((r) => r.sku_id != null);
+  const orphanRows = rows.filter((r) => r.sku_id == null);
+
+  const skuIds = skuBoundRows.map((r) => r.sku_id);
+  const { data: cat } = skuIds.length > 0
+    ? await supabase
+        .from('sku_catalog')
+        .select('id, title, my_article, wb_article, photo_url')
+        .in('id', skuIds)
+    : { data: [] };
   const meta = new Map<number, { title: string; myArticle: string | null; wbArticle: number | null; photoUrl: string | null }>();
   for (const c of (cat ?? []) as { id: number; title: string | null; my_article: string | null; wb_article: number | null; photo_url: string | null }[]) {
     meta.set(c.id, {
@@ -351,7 +408,8 @@ export async function fetchPnlSkuTable(range: PeriodRange) {
       photoUrl: c.photo_url ?? wbPhotoUrl(c.wb_article),
     });
   }
-  return rows.map((r) => {
+
+  const skuRows = skuBoundRows.map((r) => {
     const m = meta.get(r.sku_id);
     return {
       skuId: r.sku_id,
@@ -370,6 +428,18 @@ export async function fetchPnlSkuTable(range: PeriodRange) {
       marginPct: Math.round(toNumber(r.margin_pct) * 10) / 10,
     };
   });
+
+  const orphanTotals: PnlOrphanTotals = orphanRows.reduce(
+    (acc, r) => ({
+      logistics: acc.logistics + toNumber(r.logistics_rub),
+      cogs: acc.cogs + toNumber(r.cogs_rub),
+      tax: acc.tax + toNumber(r.tax_rub),
+      profit: acc.profit + toNumber(r.net_profit_rub),
+    }),
+    { logistics: 0, cogs: 0, tax: 0, profit: 0 },
+  );
+
+  return { skuRows, orphanTotals };
 }
 
 export type TopProductRow = {
