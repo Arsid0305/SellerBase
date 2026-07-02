@@ -2,6 +2,29 @@ import { createAdminClient } from '@/shared/lib/supabase/admin';
 import type { PeriodRange } from '@/entities/pnl';
 import type { SalesGrouping, SalesReportRow } from '@/features/sales-report/types';
 
+export type OrdersCancelStats = {
+  totalOrders: number;
+  cancelled: number;
+  cancelRatePct: number;
+};
+
+/** Реальные отмены заказа из wb_orders_fact за период (по полю date, не rr_dt). */
+export async function fetchOrdersCancelStats(range: PeriodRange): Promise<OrdersCancelStats> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc('get_orders_cancel_stats', {
+    p_from: range.from,
+    p_to: range.to,
+  });
+  if (error || !data) return { totalOrders: 0, cancelled: 0, cancelRatePct: 0 };
+  const row = (data as Array<{ total_orders: number; cancelled: number; cancel_rate_pct: number }>)[0];
+  if (!row) return { totalOrders: 0, cancelled: 0, cancelRatePct: 0 };
+  return {
+    totalOrders: Number(row.total_orders) || 0,
+    cancelled: Number(row.cancelled) || 0,
+    cancelRatePct: Number(row.cancel_rate_pct) || 0,
+  };
+}
+
 function toNumber(v: unknown): number {
   if (v == null) return 0;
   if (typeof v === 'number') return v;
