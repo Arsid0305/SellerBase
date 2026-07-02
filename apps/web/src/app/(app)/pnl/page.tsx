@@ -43,13 +43,16 @@ export default async function PnLPage({ searchParams }: { searchParams: SearchPa
   const range = parseRange(sp);
   const comparison = shiftRangeBack(range);
 
-  const [breakdown, skuRows, dailySeries, kpis, incomeByCategory] = await Promise.all([
+  const [breakdown, skuTable, dailySeries, kpis, incomeByCategory] = await Promise.all([
     fetchPnlBreakdown(range, comparison),
     fetchPnlSkuTable(range),
     fetchDailyRevenue(range),
     fetchPnlKpis(range, comparison),
     fetchPnlByCategory(range),
   ]);
+  const { skuRows, orphanTotals } = skuTable;
+  const hasOrphan =
+    orphanTotals.logistics !== 0 || orphanTotals.cogs !== 0 || orphanTotals.tax !== 0 || orphanTotals.profit !== 0;
 
   const year = new Date().getUTCFullYear();
 
@@ -98,6 +101,43 @@ export default async function PnLPage({ searchParams }: { searchParams: SearchPa
       </div>
 
       <PnlSkuTable rows={skuRows} />
+
+      {hasOrphan && (
+        <div className="rounded-md border border-border bg-card p-4 text-sm">
+          <div className="mb-2 flex items-center gap-2 font-medium">
+            🏛 Общехозяйственные расходы WB
+            <span className="text-xs font-normal text-muted-foreground">
+              не привязаны к конкретному товару (хранение, удержания, платная приёмка)
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <div className="text-xs text-muted-foreground">Логистика</div>
+              <div className="tabular-nums">{orphanTotals.logistics.toLocaleString('ru-RU')} ₽</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Cogs</div>
+              <div className="tabular-nums">{orphanTotals.cogs.toLocaleString('ru-RU')} ₽</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Налог</div>
+              <div className="tabular-nums">{orphanTotals.tax.toLocaleString('ru-RU')} ₽</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Влияние на прибыль</div>
+              <div
+                className={
+                  orphanTotals.profit < 0
+                    ? 'tabular-nums font-medium text-rose-600 dark:text-rose-400'
+                    : 'tabular-nums'
+                }
+              >
+                {orphanTotals.profit.toLocaleString('ru-RU')} ₽
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground">
         · Данные из RPC `get_full_pnl_by_period` (per-SKU разбивка) + шаблон `CF_PL_2026.xlsx` (выгрузка по неделям).
