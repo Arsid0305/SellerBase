@@ -18,9 +18,15 @@ function fmtShortDate(isoDate: string): string {
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
-function calcDelta(curr: number, prev: number): number {
-  if (prev === 0) return curr === 0 ? 0 : 100;
-  return Math.round(((curr - prev) / Math.abs(prev)) * 100);
+const DELTA_MIN_BASE = 1000; // если prev < 1000₽ — относительный % бессмыслен, скрываем.
+
+function calcDelta(curr: number, prev: number): number | null {
+  if (Math.abs(prev) < DELTA_MIN_BASE) return null;
+  const pct = ((curr - prev) / Math.abs(prev)) * 100;
+  // Clamp экстремальных значений — читаемо и не путает («−41970%»).
+  if (pct > 999) return 999;
+  if (pct < -99) return -99;
+  return Math.round(pct);
 }
 
 export function MorningBrief({
@@ -33,9 +39,23 @@ export function MorningBrief({
   insights?: string[];
 }) {
   const delta = calcDelta(brief.yesterday.revenue, brief.dayBefore.revenue);
-  const deltaSign = delta > 0 ? '+' : '';
   const ordersDelta = calcDelta(brief.yesterday.ordersRevenue, brief.dayBefore.ordersRevenue);
-  const ordersDeltaSign = ordersDelta > 0 ? '+' : '';
+
+  function renderDelta(pct: number | null): { text: string; tone: 'up' | 'down' | 'flat' | 'hidden' } {
+    if (pct === null) return { text: 'н/д', tone: 'hidden' };
+    if (pct === 0) return { text: '0%', tone: 'flat' };
+    const sign = pct > 0 ? '+' : '';
+    return { text: `${sign}${pct}%`, tone: pct > 0 ? 'up' : 'down' };
+  }
+
+  const deltaRender = renderDelta(delta);
+  const ordersDeltaRender = renderDelta(ordersDelta);
+  const toneClass = (t: 'up' | 'down' | 'flat' | 'hidden'): string =>
+    t === 'up'
+      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+      : t === 'down'
+        ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
+        : 'bg-muted text-muted-foreground';
 
   return (
     <Card className="border-l-4 border-l-emerald-500 p-4">
@@ -73,16 +93,11 @@ export function MorningBrief({
           <div className="mt-1 flex items-baseline gap-1 text-xs">
             <span className="text-muted-foreground">vs {fmtShortDate(brief.dayBefore.date)}</span>
             <span
-              className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${
-                ordersDelta > 0
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                  : ordersDelta < 0
-                    ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
-                    : 'bg-muted text-muted-foreground'
-              }`}
+              className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${toneClass(
+                ordersDeltaRender.tone,
+              )}`}
             >
-              {ordersDeltaSign}
-              {ordersDelta}%
+              {ordersDeltaRender.text}
             </span>
           </div>
         </Link>
@@ -110,16 +125,11 @@ export function MorningBrief({
           <div className="mt-1 flex items-baseline gap-1 text-xs">
             <span className="text-muted-foreground">vs {fmtShortDate(brief.dayBefore.date)}</span>
             <span
-              className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${
-                delta > 0
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                  : delta < 0
-                    ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400'
-                    : 'bg-muted text-muted-foreground'
-              }`}
+              className={`inline-flex items-baseline rounded px-1.5 py-0.5 font-semibold tabular-nums ${toneClass(
+                deltaRender.tone,
+              )}`}
             >
-              {deltaSign}
-              {delta}%
+              {deltaRender.text}
             </span>
           </div>
         </Link>

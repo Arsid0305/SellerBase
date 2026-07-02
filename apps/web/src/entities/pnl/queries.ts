@@ -494,6 +494,16 @@ export async function fetchTopProductsByRevenue(
     .slice(0, limit);
 }
 
+/** Относительная разница в %. Clamp экстремальных значений + скрытие при малой базе (< 1000₽). */
+function relPct(curr: number, prev: number): number {
+  const KPI_MIN_BASE = 1000;
+  if (Math.abs(prev) < KPI_MIN_BASE) return 0;
+  const pct = ((curr - prev) / Math.abs(prev)) * 100;
+  if (pct > 999) return 999;
+  if (pct < -99) return -99;
+  return Math.round(pct);
+}
+
 export async function fetchPnlKpis(
   range: PeriodRange,
   comparison: PeriodRange,
@@ -510,9 +520,9 @@ export async function fetchPnlKpis(
   const profitSeries = series.map((p) => p.revenue - p.expenses);
   const marginSeries = series.map((p) => p.marginPct);
   return {
-    revenue: { value: Math.round(curr.revenue), delta: Math.round(curr.revenue - prev.revenue), series: revenueSeries },
-    expenses: { value: Math.round(currExpenses), delta: Math.round(currExpenses - prevExpenses), series: expensesSeries },
-    profit: { value: Math.round(curr.profit), delta: Math.round(curr.profit - prev.profit), series: profitSeries },
+    revenue: { value: Math.round(curr.revenue), delta: relPct(curr.revenue, prev.revenue), series: revenueSeries },
+    expenses: { value: Math.round(currExpenses), delta: relPct(currExpenses, prevExpenses), series: expensesSeries },
+    profit: { value: Math.round(curr.profit), delta: relPct(curr.profit, prev.profit), series: profitSeries },
     margin: {
       value: Math.round(curr.marginPct * 10) / 10,
       delta: Math.round((curr.marginPct - prev.marginPct) * 10) / 10,

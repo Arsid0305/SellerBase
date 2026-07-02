@@ -47,9 +47,14 @@ function fmtPct(n: number): string {
 }
 
 function fmtPp(n: number): string {
-  // Отображаем как % хотя технически это процентные пункты (разница абсолютных процентов).
-  // Так понятнее владелице (запрошено явно).
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
+  // Процентные пункты (разница абсолютных %), а не относительный %. Пишем «п.п.» явно,
+  // чтобы не путать (запрос владелицы 2026-06-27).
+  return `${n >= 0 ? "+" : ""}${n.toFixed(1)} п.п.`;
+}
+
+// Для маржи: чистая абсолютная разница без «%» — «было 4.1% → стало 5.2%».
+function fmtMarginChange(prev: number, cur: number): string {
+  return `было ${prev.toFixed(1)}% → стало ${cur.toFixed(1)}%`;
 }
 
 function dateStr(d: Date): string {
@@ -133,10 +138,10 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: false,
       severity: "red",
-      summary: `Маржа упала: ${curMargin.toFixed(1)}% (Δ ${fmtPp(deltaPp)})`,
+      summary: `Маржа упала: ${fmtMarginChange(prevMargin, curMargin)}`,
       message:
         `🔴 *Маржа упала на ${fmtPp(deltaPp)}*\n` +
-        `За 7д: ${curMargin.toFixed(1)}% vs предыдущие 7д: ${prevMargin.toFixed(1)}%\n` +
+        `За 7д: ${fmtMarginChange(prevMargin, curMargin)}\n` +
         `Выручка: ${Math.round(prevRevenue).toLocaleString("ru-RU")}₽ → ${Math.round(curRevenue).toLocaleString("ru-RU")}₽\n` +
         `Прибыль: ${Math.round(prevProfit).toLocaleString("ru-RU")}₽ → ${Math.round(curProfit).toLocaleString("ru-RU")}₽\n` +
         `Топ-3 SKU где маржа упала: ${top3Str}\n` +
@@ -149,10 +154,10 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: true,
       severity: "orange",
-      summary: `Маржа: ${curMargin.toFixed(1)}% (Δ ${fmtPp(deltaPp)}) — внимание`,
+      summary: `Маржа: ${fmtMarginChange(prevMargin, curMargin)} — внимание`,
       message:
         `🟠 *Маржа снизилась на ${fmtPp(deltaPp)}*\n` +
-        `За 7д: ${curMargin.toFixed(1)}% vs предыдущие 7д: ${prevMargin.toFixed(1)}%\n` +
+        `За 7д: ${fmtMarginChange(prevMargin, curMargin)}\n` +
         `→ Открыть ${BASE_URL}/margin-analyzer`,
     };
   }
@@ -162,7 +167,7 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: true,
       severity: "yellow",
-      summary: `Маржа: ${curMargin.toFixed(1)}% (Δ ${fmtPp(deltaPp)})`,
+      summary: `Маржа: ${fmtMarginChange(prevMargin, curMargin)}`,
       message: null,
     };
   }
@@ -172,7 +177,7 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: true,
       severity: "green",
-      summary: `Маржа улучшилась: ${fmtPp(deltaPp)} (${curMargin.toFixed(1)}%)`,
+      summary: `Маржа выросла: ${fmtMarginChange(prevMargin, curMargin)}`,
       message: null,
     };
   }
