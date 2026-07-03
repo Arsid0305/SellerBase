@@ -1,6 +1,6 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
 import { SalesReportExplorer } from '@/features/sales-report';
-import { fetchSalesReportAll } from '@/entities/sales-report';
+import { fetchSalesReportAll, fetchOrdersCancelStats } from '@/entities/sales-report';
 import { lastNDaysRange, type PeriodRange } from '@/entities/pnl';
 
 export const metadata = { title: 'Отчёт по продажам' };
@@ -20,7 +20,10 @@ function parseRange(sp: { from?: string; to?: string }): PeriodRange {
 export default async function SalesReportPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const range = parseRange(sp);
-  const rowsByGrouping = await fetchSalesReportAll(range);
+  const [rowsByGrouping, cancelStats] = await Promise.all([
+    fetchSalesReportAll(range),
+    fetchOrdersCancelStats(range),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,7 +31,7 @@ export default async function SalesReportPage({ searchParams }: { searchParams: 
         title="Отчёт по продажам"
         description={`Pivot из wb_reports_fact с 5 группировками · Период выбирается в топбаре`}
       />
-      <SalesReportExplorer rowsByGrouping={rowsByGrouping} />
+      <SalesReportExplorer rowsByGrouping={rowsByGrouping} cancelStats={cancelStats} />
       <p className="text-xs text-muted-foreground">
         · Данные из `wb_reports_fact` за {range.from} — {range.to}. Заказ = строка с положительным quantity, отмена = строка с отрицательным quantity.
       </p>

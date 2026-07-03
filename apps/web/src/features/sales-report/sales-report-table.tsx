@@ -32,8 +32,10 @@ const CSV_COLUMNS: CsvColumn<SalesReportRow>[] = [
 
 export function SalesReportExplorer({
   rowsByGrouping,
+  cancelStats,
 }: {
   rowsByGrouping?: Record<SalesGrouping, SalesReportRow[]>;
+  cancelStats?: { totalOrders: number; cancelled: number; cancelRatePct: number };
 }) {
   const [grouping, setGrouping] = useState<SalesGrouping>('day');
   const rows = useMemo(
@@ -44,7 +46,7 @@ export function SalesReportExplorer({
 
   return (
     <div className="flex flex-col gap-6">
-      <SalesSummaryCards summary={summary} />
+      <SalesSummaryCards summary={summary} cancelStats={cancelStats} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 overflow-x-auto">
           <span className="shrink-0 pr-2 text-sm text-muted-foreground">Группировка:</span>

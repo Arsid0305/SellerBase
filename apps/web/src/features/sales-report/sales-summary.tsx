@@ -1,9 +1,15 @@
-import { ShoppingCart, Banknote, Receipt, XCircle } from 'lucide-react';
+import { ShoppingCart, Banknote, Receipt, XCircle, Ban } from 'lucide-react';
 import { Card, CardContent } from '@/shared/ui/card';
 import { formatRub, formatInt } from '@/shared/lib/format';
 import type { SalesSummary } from './types';
 
-export function SalesSummaryCards({ summary }: { summary: SalesSummary }) {
+export function SalesSummaryCards({
+  summary,
+  cancelStats,
+}: {
+  summary: SalesSummary;
+  cancelStats?: { totalOrders: number; cancelled: number; cancelRatePct: number };
+}) {
   const items = [
     {
       icon: ShoppingCart,
@@ -31,12 +37,22 @@ export function SalesSummaryCards({ summary }: { summary: SalesSummary }) {
       tone: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
       label: 'Возвраты',
       value: `${summary.cancellationRate.toFixed(1)}%`,
-      hint: 'доля возвратов от заказов',
+      hint: 'доля возвратов от выкупленных',
     },
   ];
 
+  if (cancelStats && cancelStats.totalOrders > 0) {
+    items.push({
+      icon: Ban,
+      tone: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+      label: 'Отменено заказов',
+      value: `${cancelStats.cancelRatePct.toFixed(1)}%`,
+      hint: `${formatInt(cancelStats.cancelled)} из ${formatInt(cancelStats.totalOrders)} (wb_orders_fact)`,
+    });
+  }
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       {items.map((item) => {
         const Icon = item.icon;
         return (
