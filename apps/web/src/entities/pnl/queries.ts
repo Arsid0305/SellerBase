@@ -32,7 +32,10 @@ export async function fetchPnlSkuRows(range: PeriodRange): Promise<PnlSkuRow[]> 
 }
 
 export async function fetchPnlAggregate(range: PeriodRange): Promise<PnlAggregate> {
-  const rows = await fetchFullPnlRows(range);
+  const [rows, manualTotal] = await Promise.all([
+    fetchFullPnlRows(range),
+    fetchManualExpensesTotal(range),
+  ]);
   const totals = rows.reduce<PnlAggregate>((acc, r) => {
     const commission = toNumber(r.commission_rub);
     const logistics = toNumber(r.logistics_rub);
@@ -46,20 +49,51 @@ export async function fetchPnlAggregate(range: PeriodRange): Promise<PnlAggregat
     acc.unitsSold += toNumber(r.units_sold);
     return acc;
   }, emptyAggregate());
+  totals.extraExpenses += manualTotal;
+  totals.profit -= manualTotal;
   totals.marginPct = totals.revenue > 0 ? (totals.profit / totals.revenue) * 100 : 0;
   return totals;
 }
+
+type ManualExpenseByCategory = { category: string; amount_rub: number };
+
+async function fetchManualExpensesByCategory(range: PeriodRange): Promise<ManualExpenseByCategory[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc('get_manual_expenses_by_period', {
+    p_from: range.from,
+    p_to: range.to,
+  });
+  if (error || !data) return [];
+  return (data as ManualExpenseByCategory[]).map((r) => ({
+    category: r.category,
+    amount_rub: toNumber(r.amount_rub),
+  }));
+}
+
+async function fetchManualExpensesTotal(range: PeriodRange): Promise<number> {
+  const rows = await fetchManualExpensesByCategory(range);
+  return rows.reduce((acc, r) => acc + r.amount_rub, 0);
+}
+
+const MANUAL_CATEGORY_GROUP: Record<string, ExpenseCategory['group']> = {
+  'Реклама вне WB': 'marketing',
+  'Упаковка': 'product',
+  'Зарплата': 'other',
+  'Прочее': 'other',
+};
 
 /** Разбивка расходов по статьям для таблицы P&L. */
 export async function fetchPnlBreakdown(
   range: PeriodRange,
   previousRange?: PeriodRange,
 ): Promise<{ revenue: number; categories: ExpenseCategory[] }> {
-  const [rows, prevRows, wbExtras, wbExtrasPrev] = await Promise.all([
+  const [rows, prevRows, wbExtras, wbExtrasPrev, manual, manualPrev] = await Promise.all([
     fetchFullPnlRows(range),
     previousRange ? fetchFullPnlRows(previousRange) : Promise.resolve([] as PnlSkuRow[]),
     fetchWbExtraExpenses(range),
     previousRange ? fetchWbExtraExpenses(previousRange) : Promise.resolve({ storage: 0, deduction: 0, penalty: 0 }),
+    fetchManualExpensesByCategory(range),
+    previousRange ? fetchManualExpensesByCategory(previousRange) : Promise.resolve([] as ManualExpenseByCategory[]),
   ]);
 
   const sums = sumByCategory(rows);
@@ -81,6 +115,18 @@ export async function fetchPnlBreakdown(
     group,
   });
 
+  const manualByCat = new Map(manual.map((r) => [r.category, r.amount_rub]));
+  const manualPrevByCat = new Map(manualPrev.map((r) => [r.category, r.amount_rub]));
+  const manualCategories: ExpenseCategory[] = [...new Set([...manualByCat.keys(), ...manualPrevByCat.keys()])].map(
+    (cat) => make(
+      `manual:${cat}`,
+      cat,
+      manualByCat.get(cat) ?? 0,
+      manualPrevByCat.get(cat) ?? 0,
+      MANUAL_CATEGORY_GROUP[cat] ?? 'other',
+    ),
+  );
+
   const categories: ExpenseCategory[] = [
     make('commission', 'Комиссия МП', sums.commission, prevSums.commission, 'mp'),
     make('cost', 'Себестоимость', sums.cogs, prevSums.cogs, 'product'),
@@ -90,6 +136,7 @@ export async function fetchPnlBreakdown(
     make('penalty', 'Штрафы', wbExtras.penalty, wbExtrasPrev.penalty, 'penalty'),
     make('marketing', 'Маркетинг', sums.marketing, prevSums.marketing, 'marketing'),
     make('tax', 'Налоги', sums.tax, prevSums.tax, 'finance'),
+    ...manualCategories,
   ];
 
   return { revenue, categories: categories.filter((c) => c.amount !== 0 || c.delta !== 0) };

@@ -33,6 +33,8 @@ export type MatrixSku = {
   stockUnits: number;
   turnoverDays: number | null;
   currentPrice: number | null;
+  discountPct: number | null;
+  priceHistory: { date: string; price: number }[];
   marginCurrentPct: number | null;
   cells: Record<number, MatrixCell>;
 };
@@ -110,21 +112,28 @@ export async function fetchPromoMatrix(): Promise<{
   const cat = (catalog ?? []) as CatalogDb[];
   const nmIds = cat.map((c) => c.wb_article).filter((v): v is number => v != null);
 
-  if (nmIds.length === 0 || promos.length === 0) {
+  if (nmIds.length === 0) {
     return { promos, skus: [] };
   }
 
   const promoIds = promos.map((p) => p.promotionId);
 
-  const [marginResult, stockResult, turnoverResult] = await Promise.all([
-    supabase
-      .from('v_promo_margin_calc')
-      .select(
-        'promotion_id, nm_id, current_price, plan_price, plan_discount, margin_current_pct, margin_at_promo_pct, user_participate',
-      )
-      .in('promotion_id', promoIds),
+  const [marginResult, stockResult, turnoverResult, wbPricesRes, wbPricesHistRes] = await Promise.all([
+    promoIds.length > 0
+      ? supabase
+          .from('v_promo_margin_calc')
+          .select(
+            'promotion_id, nm_id, current_price, plan_price, plan_discount, margin_current_pct, margin_at_promo_pct, user_participate',
+          )
+          .in('promotion_id', promoIds)
+      : Promise.resolve({ data: [] as MarginDb[] }),
     supabase.from('wb_stocks').select('nm_id, quantity').in('nm_id', nmIds),
     supabase.from('v_turnover_by_sku').select('nm_id, turnover_days').in('nm_id', nmIds),
+    supabase
+      .from('v_wb_prices_current')
+      .select('nm_id, final_price_rub, discount_pct')
+      .in('nm_id', nmIds),
+    supabase.rpc('get_wb_prices_history', { p_nm_ids: nmIds, p_days: 30 }),
   ]);
 
   const stockMap = new Map<number, number>();
@@ -135,6 +144,21 @@ export async function fetchPromoMatrix(): Promise<{
   const turnoverMap = new Map<number, number | null>();
   for (const t of (turnoverResult.data ?? []) as TurnoverDb[]) {
     if (t.nm_id != null) turnoverMap.set(t.nm_id, num(t.turnover_days));
+  }
+
+  const wbPriceByNm = new Map<number, { price: number; discount: number }>();
+  for (const p of (wbPricesRes.data ?? []) as Array<{ nm_id: number; final_price_rub: number | null; discount_pct: number | null }>) {
+    if (p.nm_id == null) continue;
+    const price = num(p.final_price_rub);
+    if (price != null) wbPriceByNm.set(p.nm_id, { price, discount: num(p.discount_pct) ?? 0 });
+  }
+  const historyByNm = new Map<number, { date: string; price: number }[]>();
+  for (const h of (wbPricesHistRes.data ?? []) as Array<{ nm_id: number; date: string; final_price_rub: number | null }>) {
+    if (h.nm_id == null) continue;
+    const arr = historyByNm.get(h.nm_id) ?? [];
+    const price = num(h.final_price_rub);
+    if (price != null) arr.push({ date: h.date, price });
+    historyByNm.set(h.nm_id, arr);
   }
 
   const marginIdx = new Map<string, MarginDb>();
@@ -189,7 +213,9 @@ export async function fetchPromoMatrix(): Promise<{
         photoUrl: c.photo_url ?? wbPhotoUrl(nmId),
         stockUnits: stockMap.get(nmId) ?? 0,
         turnoverDays,
-        currentPrice: currentPriceByNm.get(nmId) ?? null,
+        currentPrice: currentPriceByNm.get(nmId) ?? wbPriceByNm.get(nmId)?.price ?? null,
+        discountPct: wbPriceByNm.get(nmId)?.discount ?? null,
+        priceHistory: historyByNm.get(nmId) ?? [],
         marginCurrentPct: currentMarginByNm.get(nmId) ?? null,
         cells,
       };
