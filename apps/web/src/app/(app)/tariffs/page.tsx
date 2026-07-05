@@ -1,5 +1,5 @@
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { TariffsExplorer } from '@/features/tariffs';
+import { TariffsExplorer, PersonalIndicesSection } from '@/features/tariffs';
 import { fetchLatestBoxTariffs, fetchLatestReturnTariffs } from '@/entities/wb-tariffs';
 
 export const metadata = { title: 'Тарифы и коэффициенты' };
@@ -17,6 +17,7 @@ export default async function TariffsPage() {
         title="Тарифы и коэффициенты"
         description="Базовые тарифы WB по складам (Common Tariffs API), возврат, динамика коэф. и личные индексы продавца"
       />
+      <PersonalIndicesSection />
       <TariffsExplorer boxRows={boxRows} returnRows={returnRows} />
       <p className="text-xs text-muted-foreground">
         · Базовые тарифы и возврат — из `wb_tariffs_box` / `wb_tariffs_return` (обновляются ежедневно из WB Common API).
