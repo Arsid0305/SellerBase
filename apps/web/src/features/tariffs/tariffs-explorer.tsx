@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { PersonalIndicesSection } from './personal-indices';
 import { BaseLogisticsCard } from './base-logistics-card';
 import { TariffTabs } from './tariff-tabs';
 import { CommissionTable } from './commission-table';
@@ -27,10 +26,6 @@ export function TariffsExplorer({
 
   return (
     <div className="flex flex-col gap-6">
-      <PersonalIndicesSection />
-      <p className="text-xs text-muted-foreground">
-        · Индексы локализации и распределения продаж вводятся вручную, обновляются раз в неделю.
-      </p>
       <BaseLogisticsCard />
       <TariffTabs active={active} onSelect={setActive} />
       {active === 'wb-box' && <WbBoxTariffsTable rows={boxRows} />}
