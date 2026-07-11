@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Send, Check } from 'lucide-react';
+import { Loader2, Send, Check, Download } from 'lucide-react';
 
 type Props = {
   planId: number;
@@ -10,6 +10,22 @@ type Props = {
 };
 
 export function SendToWbButton({ planId, status }: Props) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <a
+        href={`/api/supplies/plan/${planId}/tz-ff.xlsx`}
+        download
+        className="inline-flex items-center gap-1.5 rounded border border-border px-4 py-2 text-sm hover:bg-accent"
+      >
+        <Download className="h-4 w-4" />
+        Скачать ТЗ-ФФ (xlsx)
+      </a>
+      <SendCore planId={planId} status={status} />
+    </div>
+  );
+}
+
+function SendCore({ planId, status }: Props) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ wb_supply_id?: string; items_sent?: number; goods_warning?: string | null } | null>(null);
