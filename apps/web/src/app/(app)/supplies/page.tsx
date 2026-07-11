@@ -66,12 +66,20 @@ export default async function SuppliesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <PageHeader title="Поставки" description="Планы закупок из Китая + FBW-поставки на WB с расчётом доставки на единицу" />
-        <Button asChild>
-          <Link href="/supplies/new" className="inline-flex items-center gap-2">
-            <Plus className="size-4" />
-            Новая поставка
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/supplies/china-order/new" className="inline-flex items-center gap-2">
+              <Plus className="size-4" />
+              Новый заказ Китая
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/supplies/new" className="inline-flex items-center gap-2">
+              <Plus className="size-4" />
+              Новая поставка
+            </Link>
+          </Button>
+        </div>
       </div>
       <SuppliesTabs plansSlot={plansSlot} fbwSlot={fbwSlot} />
     </div>
