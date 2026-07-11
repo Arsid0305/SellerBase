@@ -68,6 +68,11 @@ export default async function SuppliesPage() {
         <PageHeader title="Поставки" description="Планы закупок из Китая + FBW-поставки на WB с расчётом доставки на единицу" />
         <div className="flex items-center gap-2">
           <Button asChild variant="outline">
+            <Link href="/supplies/calculator" className="inline-flex items-center gap-2">
+              Калькулятор
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
             <Link href="/supplies/china-order/new" className="inline-flex items-center gap-2">
               <Plus className="size-4" />
               Новый заказ Китая
