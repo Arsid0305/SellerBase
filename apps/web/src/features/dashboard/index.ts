@@ -9,4 +9,5 @@ export { TopProductsCard } from './top-products-card';
 export { FunnelCard } from './funnel-card';
 export { RatingCard } from './rating-card';
 export { WbStyleChart } from './wb-style-chart';
+export { ConstantsTimelineCard, type ConstantPoint } from './constants-timeline';
 export type { DashboardSummary, DailyPoint, ChannelShare, DashboardKpi } from './types';

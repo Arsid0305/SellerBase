@@ -1,7 +1,8 @@
 import { Download, Info } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
-import { KpiGrid, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard, FunnelCard, RatingCard, WbStyleChart } from '@/features/dashboard';
+import { KpiGrid, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard, FunnelCard, RatingCard, WbStyleChart, ConstantsTimelineCard } from '@/features/dashboard';
+import { fetchConstantsTimeline } from '@/entities/constants-timeline';
 import { PnLChart } from '@/features/pnl';
 import type { DashboardKpi } from '@/features/dashboard/types';
 import {
@@ -64,7 +65,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   const weekAgoIso = weekAgo.toISOString().slice(0, 10);
 
-  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics, salesComparison, ordersComparison, adsComparison] = await Promise.all([
+  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics, salesComparison, ordersComparison, adsComparison, constantsTimeline] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
@@ -78,6 +79,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     fetchSalesComparison(),
     fetchOrdersHourlyComparison(),
     fetchAdsHourlyComparison(),
+    fetchConstantsTimeline(),
   ]);
 
   const revenueKpi: DashboardKpi = {
@@ -188,6 +190,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
         <TopProductsCard rows={topProducts} />
       </div>
       <LogisticsPulseCard current={coefNow} previous={coefPrev} />
+      <ConstantsTimelineCard points={constantsTimeline} />
       <p className="text-xs text-muted-foreground">
         · Данные из Supabase: RPC `get_full_pnl_by_period` + агрегация `wb_reports_fact`.
         Период выбирается в топбаре — цифры пересчитываются на сервере.

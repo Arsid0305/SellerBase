@@ -8,17 +8,31 @@ function isIsoDate(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(new Date(s).getTime());
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const auth = await requireAuth();
   if (auth instanceof NextResponse) return auth;
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const url = new URL(req.url);
+  const supplyId = url.searchParams.get('supply_id');
+  let q = supabase
     .from('delivery_to_wb_invoices')
     .select('id, supply_id, invoice_number, invoice_date, amount_rub, ff_name, comment, file_url, created_at')
     .order('invoice_date', { ascending: false })
     .limit(500);
+  if (supplyId) q = q.eq('supply_id', supplyId);
+  const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ rows: data ?? [] });
+  const rows = (data ?? []).map((r) => ({
+    id: r.id,
+    supplyId: r.supply_id,
+    invoiceNumber: r.invoice_number,
+    invoiceDate: r.invoice_date,
+    amountRub: Number(r.amount_rub),
+    ffName: r.ff_name,
+    comment: r.comment,
+    fileUrl: r.file_url,
+  }));
+  return NextResponse.json({ rows });
 }
 
 export async function POST(req: Request) {
