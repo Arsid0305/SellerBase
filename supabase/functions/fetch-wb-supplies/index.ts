@@ -1,18 +1,16 @@
-// fetch-wb-supplies — фетч приёмок (поставок) FBW из Statistics API.
-// /api/v1/supplier/incomes?dateFrom=YYYY-MM-DDThh:mm:ss
-// Одна строка = один barcode в одной поставке (incomeId).
-// UPSERT по (income_id, barcode). Пагинация через lastChangeDate (как в orders/sales).
-// Запуск: cron раз в 6 часов (см. миграцию).
+// fetch-wb-supplies v2 — FBW-поставки WB.
+// API: GET supplies-api.wildberries.ru/api/v1/supplies?limit=1000&next=<cursor>
+//      GET supplies-api.wildberries.ru/api/v1/supplies/{id}/goods
+// Категория токена: «Поставки» / FBW. Env: WB_TOKEN_READ ?? WB_API_TOKEN.
+// UPSERT в wb_supplies_v2 и wb_supply_items_v2.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkCronSecret } from "../_shared/auth.ts";
 
 const JOB_NAME = "fetch-wb-supplies";
-const WB_BASE = "https://statistics-api.wildberries.ru";
-const BATCH_SIZE = 1000;
-const MAX_LOOPS = 30;
-const DEFAULT_DAYS = 90;
+const WB_BASE = "https://supplies-api.wildberries.ru";
+const PAGE_LIMIT = 1000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,139 +24,125 @@ function adminClient(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-interface WbIncomeRow {
-  incomeId: number;
-  number: string;
-  date: string;
-  lastChangeDate: string;
-  supplierArticle?: string;
-  techSize?: string;
-  barcode?: string;
-  quantity: number;
-  totalPrice?: number;
-  dateClose?: string;
+interface WbSupply {
+  id: string;
+  name?: string;
+  dateCreated?: string;
+  warehouseId?: number;
   warehouseName?: string;
-  nmId?: number;
   status?: string;
+  boxesCount?: number;
 }
 
-async function fetchPage(token: string, dateFrom: string): Promise<WbIncomeRow[]> {
-  const url = `${WB_BASE}/api/v1/supplier/incomes?dateFrom=${encodeURIComponent(dateFrom)}`;
-  const resp = await fetch(url, { headers: { Authorization: token } });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`WB incomes ${resp.status}: ${text.slice(0, 500)}`);
-  }
-  const json = await resp.json();
-  if (!Array.isArray(json)) {
-    throw new Error(`WB incomes returned non-array: ${JSON.stringify(json).slice(0, 300)}`);
-  }
-  return json as WbIncomeRow[];
+interface WbSuppliesResponse {
+  next?: number;
+  supplies?: WbSupply[];
 }
 
-Deno.serve(async (req: Request) => {
+interface WbGood {
+  nmId?: number;
+  barcode?: string;
+  quantity?: number;
+  sizeName?: string;
+}
+
+interface WbGoodsResponse {
+  goods?: WbGood[];
+}
+
+async function fetchSuppliesPage(token: string, next: number): Promise<WbSuppliesResponse> {
+  const url = `${WB_BASE}/api/v1/supplies?limit=${PAGE_LIMIT}&next=${next}`;
+  const resp = await fetch(url, { method: "GET", headers: { Authorization: token } });
+  if (!resp.ok) throw new Error(`WB supplies ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
+  return (await resp.json()) as WbSuppliesResponse;
+}
+
+async function fetchGoods(token: string, supplyId: string): Promise<WbGood[]> {
+  const url = `${WB_BASE}/api/v1/supplies/${encodeURIComponent(supplyId)}/goods`;
+  const resp = await fetch(url, { method: "GET", headers: { Authorization: token } });
+  if (!resp.ok) throw new Error(`WB goods ${supplyId} ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+  const json = (await resp.json()) as WbGoodsResponse;
+  return json.goods ?? [];
+}
+
+async function upsertSupplies(sb: SupabaseClient, rows: WbSupply[]): Promise<void> {
+  if (rows.length === 0) return;
+  const payload = rows.map((s) => ({
+    id: s.id,
+    name: s.name ?? null,
+    date_created: s.dateCreated ?? null,
+    warehouse_id: s.warehouseId ?? null,
+    warehouse_name: s.warehouseName ?? null,
+    status: s.status ?? null,
+    boxes_count: s.boxesCount ?? null,
+  }));
+  const { error } = await sb.from("wb_supplies_v2").upsert(payload, { onConflict: "id" });
+  if (error) throw new Error(`upsert wb_supplies_v2: ${error.message}`);
+}
+
+async function upsertGoods(sb: SupabaseClient, supplyId: string, goods: WbGood[]): Promise<void> {
+  if (goods.length === 0) return;
+  await sb.from("wb_supply_items_v2").delete().eq("supply_id", supplyId);
+  const payload = goods.map((g) => ({
+    supply_id: supplyId,
+    nm_id: g.nmId ?? null,
+    barcode: g.barcode ?? null,
+    quantity: g.quantity ?? 0,
+    size_name: g.sizeName ?? null,
+  }));
+  const { error } = await sb.from("wb_supply_items_v2").insert(payload);
+  if (error) throw new Error(`insert wb_supply_items_v2 (${supplyId}): ${error.message}`);
+}
+
+async function logJob(sb: SupabaseClient, status: "success" | "error", rows: number, msg: string | null): Promise<void> {
+  await sb.from("integration_jobs").insert({ job_name: JOB_NAME, status, rows_affected: rows, message: msg });
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const cronCheck = checkCronSecret(req);
-  if (!cronCheck.ok) return cronCheck.response;
+  const cron = checkCronSecret(req);
+  if (!cron.ok) return cron.response;
 
   const supabase = adminClient();
-  const url = new URL(req.url);
-  const daysParam = Number(url.searchParams.get("days"));
-  const lookbackDays = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : DEFAULT_DAYS;
-
-  const { data: logRow, error: insErr } = await supabase
-    .from("ingestion_log")
-    .insert({ job_name: JOB_NAME, meta: { lookback_days: lookbackDays } })
-    .select("id")
-    .single();
-  if (insErr || !logRow) {
-    return new Response(
-      JSON.stringify({ ok: false, error: `Failed to open ingestion_log: ${insErr?.message}` }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
-  const jobId: number = logRow.id;
-
   try {
     const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
-    if (!token) throw new Error("WB_TOKEN_READ is not set in function secrets");
+    if (!token) throw new Error("WB_TOKEN_READ / WB_API_TOKEN not set");
 
-    const startDate = new Date(Date.now() - lookbackDays * 86_400_000);
-    let cursor = startDate.toISOString();
-    let totalUpserted = 0;
-    let loops = 0;
-    const seenIncomeIds = new Set<number>();
+    let next = 0;
+    let totalSupplies = 0;
+    let totalGoods = 0;
+    for (let page = 0; page < 50; page++) {
+      const resp = await fetchSuppliesPage(token, next);
+      const supplies = resp.supplies ?? [];
+      if (supplies.length === 0) break;
+      await upsertSupplies(supabase, supplies);
+      totalSupplies += supplies.length;
 
-    while (loops < MAX_LOOPS) {
-      loops += 1;
-      const rows = await fetchPage(token, cursor);
-      if (rows.length === 0) break;
-
-      const upsertRows = rows
-        .filter((r) => r.incomeId && r.barcode)
-        .map((r) => ({
-          income_id: r.incomeId,
-          number: r.number ?? null,
-          date: r.date,
-          last_change_date: r.lastChangeDate,
-          supplier_article: r.supplierArticle ?? null,
-          tech_size: r.techSize ?? null,
-          barcode: r.barcode!,
-          quantity: r.quantity ?? 0,
-          total_price: r.totalPrice ?? null,
-          date_close: r.dateClose ?? null,
-          warehouse_name: r.warehouseName ?? null,
-          nm_id: r.nmId ?? null,
-          status: r.status ?? null,
-          fetched_at: new Date().toISOString(),
-        }));
-
-      if (upsertRows.length > 0) {
-        const { error } = await supabase
-          .from("wb_supplies_fact")
-          .upsert(upsertRows, { onConflict: "income_id,barcode" });
-        if (error) throw new Error(`wb_supplies_fact upsert: ${error.message}`);
-        totalUpserted += upsertRows.length;
-        for (const r of rows) if (r.incomeId) seenIncomeIds.add(r.incomeId);
+      for (const s of supplies) {
+        try {
+          const goods = await fetchGoods(token, s.id);
+          await upsertGoods(supabase, s.id, goods);
+          totalGoods += goods.length;
+        } catch (e) {
+          console.error(`goods ${s.id}:`, e);
+        }
       }
 
-      // Пагинация: max(lastChangeDate) + 1 сек, как в orders/sales.
-      if (rows.length < BATCH_SIZE) break;
-      const maxLcd = rows.reduce((acc, r) => (r.lastChangeDate > acc ? r.lastChangeDate : acc), cursor);
-      if (maxLcd === cursor) break;
-      const nextDate = new Date(new Date(maxLcd).getTime() + 1000);
-      cursor = nextDate.toISOString();
+      if (typeof resp.next !== "number" || resp.next === next || supplies.length < PAGE_LIMIT) break;
+      next = resp.next;
     }
 
-    await supabase
-      .from("ingestion_log")
-      .update({
-        status: "ok",
-        finished_at: new Date().toISOString(),
-        rows_in: totalUpserted,
-        rows_out: totalUpserted,
-        meta: { lookback_days: lookbackDays, unique_supplies: seenIncomeIds.size, loops },
-      })
-      .eq("id", jobId);
-
+    await logJob(supabase, "success", totalSupplies, `goods=${totalGoods}`);
     return new Response(
-      JSON.stringify({ ok: true, rows: totalUpserted, supplies: seenIncomeIds.size }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({ ok: true, supplies: totalSupplies, goods: totalGoods }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    await supabase
-      .from("ingestion_log")
-      .update({
-        status: "error",
-        finished_at: new Date().toISOString(),
-        error_text: message,
-      })
-      .eq("id", jobId);
-    return new Response(
-      JSON.stringify({ ok: false, error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    const msg = e instanceof Error ? e.message : String(e);
+    await logJob(supabase, "error", 0, msg);
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

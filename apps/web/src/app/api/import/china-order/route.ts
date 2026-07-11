@@ -120,9 +120,58 @@ export async function POST(req: Request) {
     );
   }
 
+  // Заполняем sku_cost_history для FIFO: каждая партия = новая запись cost_rub на дату order_date.
+  let costHistoryInserted = 0;
+  if (cnyRate != null && cnyRate > 0) {
+    const bySku = new Map<number, { cost: number; qty: number }>();
+    for (const item of parsed.items) {
+      if (item.wb_article == null) continue;
+      const skuId = skuByWbArticle.get(item.wb_article);
+      if (skuId == null) continue;
+      const deliveryPerUnit = item.delivery_yuan != null && item.qty_ordered > 0 ? item.delivery_yuan / item.qty_ordered : 0;
+      const costPerUnit = (item.price_yuan + deliveryPerUnit) * cnyRate;
+      if (!Number.isFinite(costPerUnit) || costPerUnit <= 0) continue;
+      const prev = bySku.get(skuId);
+      if (prev) {
+        const totalQty = prev.qty + item.qty_ordered;
+        const weighted = totalQty > 0 ? (prev.cost * prev.qty + costPerUnit * item.qty_ordered) / totalQty : costPerUnit;
+        bySku.set(skuId, { cost: weighted, qty: totalQty });
+      } else {
+        bySku.set(skuId, { cost: costPerUnit, qty: item.qty_ordered });
+      }
+    }
+
+    if (bySku.size > 0) {
+      const skuIds = [...bySku.keys()];
+      // Закрываем предыдущие открытые записи для этих SKU (устанавливаем valid_to)
+      await supabase
+        .from('sku_cost_history')
+        .update({ valid_to: orderDate })
+        .in('sku_id', skuIds)
+        .is('valid_to', null)
+        .lt('valid_from', orderDate);
+
+      const historyRows = [...bySku.entries()].map(([sku_id, v]) => ({
+        sku_id,
+        cost_rub: Math.round(v.cost * 100) / 100,
+        valid_from: orderDate,
+        source: `china_order:${orderId}`,
+      }));
+      const { error: histError } = await supabase.from('sku_cost_history').insert(historyRows);
+      if (histError) {
+        warnings.push(`sku_cost_history insert failed: ${histError.message}`);
+      } else {
+        costHistoryInserted = historyRows.length;
+      }
+    }
+  } else {
+    warnings.push('cny_rate не задан — sku_cost_history не заполнена (FIFO не активирован для этого заказа)');
+  }
+
   return NextResponse.json({
     order_id: orderId,
     inserted_count: count ?? rowsToInsert.length,
+    cost_history_inserted: costHistoryInserted,
     warnings,
     unmatched_sku_count: unmatchedSkuCount,
   });
