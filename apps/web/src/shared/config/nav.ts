@@ -26,6 +26,7 @@ import {
   TrendingDown,
   ShieldCheck,
   Calculator,
+  Package,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -61,6 +62,8 @@ export const navItems: NavItem[] = [
   { title: 'Дефицит товаров', href: '/deficit', icon: AlertTriangle, group: 'operations' },
   { title: 'Остатки Дом/ФФ', href: '/products/stock', icon: Warehouse, group: 'operations' },
   { title: 'Поставки', href: '/supplies', icon: Truck, group: 'operations' },
+  { title: 'Заказ Китая', href: '/supplies/china-order/new', icon: Package, group: 'operations' },
+  { title: 'Калькулятор поставки', href: '/supplies/calculator', icon: Calculator, group: 'operations' },
   { title: 'Отзывы и оценки', href: '/reviews', icon: MessageSquare, group: 'operations' },
   { title: 'Реклама товаров', href: '/ads', icon: Megaphone, group: 'operations', badge: 'позже' },
   { title: 'Источники заказов', href: '/sources', icon: Network, group: 'operations', badge: 'скоро' },
