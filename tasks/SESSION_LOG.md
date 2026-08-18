@@ -1,3 +1,83 @@
+## 2026-08-18 — Кросс-репо аудит + инцидент блокировки GitHub-аккаунта
+
+### Контекст
+Начали с фикса правил «не описывать вслух свои технические действия» (одна точка входа — в `AI_OS/SYSTEM.md §4`). Дальше — аудит `AUDIT_PROMPT.md` через `@reviewer`, консолидация canon-файлов, аудиты 5 из 9 репо. В процессе всплыл **инцидент блокировки аккаунта Arsid0305** GitHub anti-abuse detection — переключились на диагностику и remediation.
+
+### Сделано
+
+**Единая точка входа для правил:**
+- `AI_OS/SYSTEM.md §4` — добавлено «не описывать вслух свои технические действия»
+- `AI_OS/SYSTEM.md §8bis` — «Аудит репо» триггеры + ссылки на canon
+- `AI_OS/SYSTEM.md §10` — GitHub Anti-Abuse hard limits (≥30 сек между PR, ≤5 PR/10мин, Co-Authored-By)
+- `AI_OS/CLAUDE.md` — сокращён 134 → 101 строк (audit §7)
+- `AI_OS/MEMORY/rules/active.md` — canon для активных правил + `sync-active-rules.sh`
+- `LLM_Wiki/wiki/audit-universal.md` — универсальный audit canon (10 секций + шаблон запуска)
+- `LLM_Wiki/wiki/workflow.md` — GitHub Anti-Abuse раздел (документирует инцидент #4535795)
+- `LLM_Wiki/wiki/lessons.md` — урок про burst-паттерн
+
+**AUDIT_PROMPT.md улучшения:**
+- Добавлены §20 CROSS-PLATFORM, §21 МЕТА-КАЧЕСТВО
+- 14 проверок из wiki lessons (verify_jwt, pg_advisory_lock, pull_request_target, deleteRef, файлы ≤500, CLAUDE.md ≤100, .bat CRLF)
+- Фикс BLOCKER + HIGH + MEDIUM + LOW из self-audit
+
+**Аудиты завершены (5 из 9 репо):**
+- AI_OS — engine ANTHROPIC_API_KEY fail-loud, orchestrator refactor 100→45 строк, drift guard, cleanup
+- TEMPLATE — audit prompt overlay
+- LLM_Wiki — canon-файлы синхронизированы
+- Technical-language — миграция `20260711_create_progress.sql` (RLS-guarded), progressService по device_id
+- Kino-app — submodule `kino-design-system` добавлен, CLAUDE.md 462→95 строк, `_shared/cors.ts`
+
+**Автомерж во всех 9 репо:**
+- Переведён на `pull_request_target` (API-created PR теперь триггерят workflow)
+- Добавлен `deleteRef` после merge
+- Fix BLOCKER: `ref: PR HEAD SHA` в checkout job (тестировал main вместо PR)
+
+**Инцидент Arsid0305 (GitHub abuse-detection flag):**
+- Диагноз: Obsidian Git плагин коммитил как `ArS <ArS>` (invalid email) каждые 10 мин + burst 30+ PR через Claude Code MCP за 2 часа + возможно Codex-агент → выглядит как бот-сеть под одним аккаунтом
+- Тикет GitHub Support #4535795 (7+ дней молчит) — обновлён комментарием со списком remediation
+- **Owner remediation (сегодня):**
+  - Отключён Obsidian Git плагин
+  - Удалены все PAT (в т.ч. classic без expiration)
+  - Uninstalled GitHub Apps: Manus, lovable.dev, Google AI Studio, Cursor, Claude Design Import, ChatGPT Codex Connector (Suspended). Остались только Claude + Vercel
+  - Revoked OAuth: ChatGPT Verification, Lovable, GitHub Desktop, VS Code. Остались GitHub CLI, GitHub iOS, Supabase
+  - Добавлен backup verified email
+  - Security log проверен — всё с одного IP (Brussels), 2FA цела, чужих sessions нет
+  - Заполнен profile: Name=Arina, bio, аватар
+  - Написан follow-up в тикет #4535795 с полным списком actions taken
+
+### Открытые задачи
+
+**Аудиты 4 репо (не начаты — deferred на следующую сессию):**
+- SellerBase
+- WB-Bot
+- Skincare-Guide
+- design-system
+
+**Supabase SellerBase — критический security alert (14 июля):**
+- Project ref: `hcebwgjgppwaguqittpi`
+- Таблицы с `rls_disabled_in_public` → публично доступны через anon key (read/write/delete)
+- **БЛОКЕР доступа:** Supabase-аккаунт привязан только к GitHub OAuth; из-за флага GitHub OAuth не работает; password reset заблокирован (аккаунт GitHub-linked, email/password недоступен)
+- Написано письмо в Supabase support (`support@supabase.com`) с просьбой временно активировать email login или прислать magic link. Пока не отправлено — owner готова к отправке
+
+**Ждём внешних ответов:**
+- GitHub Support #4535795 — reinstatement
+- Supabase support — доступ к dashboard для фикса RLS
+
+### Следующие шаги (точка возобновления)
+1. **Как только GitHub снимет флаг** — проверить `list_workflow_runs` возвращает не 0, снять из `Kino-app/CLAUDE.md` временный блок про заблокированные Actions
+2. **Как только Supabase даст доступ** — открыть https://supabase.com/dashboard/project/hcebwgjgppwaguqittpi/advisors/security, включить RLS на всех `public.*` таблицах SellerBase с корректными политиками (`auth.uid()`-based или service_role-only)
+3. Завершить аудиты 4 оставшихся репо (SellerBase, WB-Bot, Skincare-Guide, design-system) — по канону `llm_wiki/wiki/audit-universal.md` + локальный `docs/AUDIT_PROMPT.md`
+4. Owner следит за ответом в тикетах, при получении — сразу продолжаем
+
+### Правила на будущее (для новой сессии Claude)
+- **НЕ запускать burst PR** через MCP — минимум 30 сек между push/PR, максимум 5 PR/10 мин
+- Все AI-assisted коммиты — с `Co-Authored-By: Claude <noreply@anthropic.com>`
+- Fine-grained tokens с expiration only, никогда classic PAT без срока
+- При работе c SellerBase Supabase — только через MCP (нет CLI), миграции через `apply_migration`
+- Тикет #4535795 — не спамить, ждать ответа
+
+---
+
 ## 2026-07-11 — Марафон: 14 PR — всё крупное из плана закрыто
 
 ### Контекст
