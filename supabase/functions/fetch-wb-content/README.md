@@ -13,6 +13,9 @@
 - `rating` ← `card.rating`, если присутствует в ответе
 - `reviews_count` ← `card.reviewsCount`, если присутствует в ответе
 - `photo_url` ← `card.photos[0].big` (fallback: c516x688 → c246x328 → tm → square)
+- `description` ← `card.description` (полный текст описания карточки)
+- `characteristics` ← `card.characteristics` (массив `{id, name, value}` как есть в jsonb, GIN-индекс)
+- `dimensions` ← `card.dimensions` (`{length, width, height, weightBrutto}` как jsonb)
 - `last_content_sync_at` ← `now()`
 
 `rating` и `reviews_count` через `/content/v2/get/cards/list` обычно не приходят (нужен отдельный Feedbacks API) — на практике остаются NULL, но код готов их подхватить если WB начнёт отдавать эти поля.
