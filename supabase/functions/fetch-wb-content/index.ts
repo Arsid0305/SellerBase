@@ -30,6 +30,19 @@ interface WbPhoto {
   square?: string;
 }
 
+interface WbCharacteristic {
+  id?: number;
+  name?: string;
+  value?: unknown;
+}
+
+interface WbDimensions {
+  length?: number;
+  width?: number;
+  height?: number;
+  weightBrutto?: number;
+}
+
 interface WbCard {
   nmID: number;
   vendorCode?: string;
@@ -40,6 +53,8 @@ interface WbCard {
   rating?: number;
   reviewsCount?: number;
   photos?: WbPhoto[];
+  characteristics?: WbCharacteristic[];
+  dimensions?: WbDimensions;
   updatedAt?: string;
 }
 
@@ -109,6 +124,9 @@ Deno.serve(async (req: Request) => {
               rating: card.rating ?? null, // Content API обычно не отдаёт — останется null
               reviews_count: card.reviewsCount ?? null, // аналогично, обычно null без Feedbacks API
               photo_url: photoUrl,
+              description: card.description ?? null,
+              characteristics: card.characteristics ?? null,
+              dimensions: card.dimensions ?? null,
               last_content_sync_at: nowIso,
             },
             { count: "exact" },
