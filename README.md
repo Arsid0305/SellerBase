@@ -2,40 +2,57 @@
 
 Data-платформа для управления бизнесом на маркетплейсах. Замена Excel-комплекса (UNIT, ПОСТАВКА, CF/PL).
 
-**MVP:** Wildberries · Supabase + Edge Functions + Lovable.
+**MVP:** Wildberries · Supabase + Edge Functions · Next.js на Vercel.
 
 ## С чего начать
 
 | Я хочу… | Открыть |
 |---------|---------|
 | Возобновить работу с прошлой сессии | [tasks/SESSION_LOG.md](tasks/SESSION_LOG.md) (верхняя запись = точка входа) |
+| Понять, что в системе есть и что работает | [docs/PLAN.md](docs/PLAN.md) |
+| Текущие задачи и приоритеты | [tasks/todo.md](tasks/todo.md) |
+| Работать с карточками товаров и SEO | [docs/seo/README.md](docs/seo/README.md) |
+| Коды ТН ВЭД и «Честный ЗНАК» | [docs/marking/codes-marking.md](docs/marking/codes-marking.md) |
 | Понять правила работы ИИ в репо | [CLAUDE.md](CLAUDE.md) · [SYSTEM.md](SYSTEM.md) |
-| План разработки | [docs/PLAN.md](docs/PLAN.md) |
-| Текущие задачи | [tasks/todo.md](tasks/todo.md) |
 | Правила проекта | [tasks/rules.md](tasks/rules.md) |
 | Уроки/паттерны | [tasks/lessons.md](tasks/lessons.md) |
+| Расписания cron | [docs/CRONS.md](docs/CRONS.md) |
+| Провести аудит | [docs/AUDIT_PROMPT.md](docs/AUDIT_PROMPT.md) |
 | Безопасность | [SECURITY.md](SECURITY.md) |
 
 ## Стек
 
-- Frontend: Lovable / React (monorepo — `apps/`)
-- Backend: Supabase (PostgreSQL + Edge Functions)
-- Package manager: pnpm
-- SQL миграции: `sql/`, `supabase/`
+- Frontend: Next.js 15 / React 19, feature-sliced (`apps/web`), TanStack Query и Table, Tailwind
+- Backend: Supabase — PostgreSQL, Edge Functions, `pg_cron` + `pg_net`, Vault
+- Package manager: pnpm, монорепо
+- SQL: `sql/views/`, миграции в `supabase/migrations/`
+- Бот: `telegram-webhook` + `telegram-alerts`
 
 ## Структура
 
 ```
-apps/                 — приложения (frontend)
-sql/                  — SQL миграции и запросы
-supabase/             — Edge Functions, конфиг Supabase
+apps/web/             — фронтенд (Next.js): app, entities, features, widgets, shared
+sql/views/            — SQL-представления
+supabase/
+  functions/          — Edge Functions (24 шт.) + _shared
+  migrations/         — миграции
 scripts/              — вспомогательные скрипты
 branding/             — брендинг / assets
-docs/                 — план + документация
+docs/                 — состояние системы, аудиты, cron, SEO-контур, маркировка
 tasks/                — todo / SESSION_LOG / rules / lessons
 ```
 
 ## Инфраструктура
 
 - Репо: `github.com/Arsid0305/SellerBase`
-- CI: `.github/workflows/` — `automerge.yml` (native GitHub auto-merge), `web-ci.yml`, `db-tests.yml`, `migrate.yml`, `deploy.yml`
+- Supabase: проект `hcebwgjgppwaguqittpi`
+- Фронт: `seller-base.vercel.app`
+
+**GitHub Actions отключены с 11.07.2026** после срабатывания anti-abuse — workflow-файлы
+на месте, но не запускаются. Практические следствия:
+
+- PR мержатся вручную, `automerge.yml` не сработает
+- Edge Functions деплоятся через MCP `deploy_edge_function`, не через CI
+- миграции применяются через MCP `apply_migration`
+
+Подробности и способ ручного запуска функций — в [docs/PLAN.md](docs/PLAN.md).
