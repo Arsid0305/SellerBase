@@ -418,12 +418,14 @@ _Источник: SellerBase 2026-06-21 — рефакторинг 9 файло
 
 | Область | Где лежит |
 |---|---|
+| **Точка входа в контур карточек** | **`docs/seo/README.md`** |
 | Алгоритмы SEO площадок, правила описаний | `docs/SEO_MARKETPLACES.md` |
 | Словарь стоп-слов | `docs/seo/stop-words.md` |
 | SQL-сканер карточек | `docs/seo/scan-stop-words.sql` |
 | Коды ТН ВЭД / ОКПД 2 и маркировка ЧЗ по группам | `docs/marking/codes-marking.md` |
 | Данные карточек | Supabase `public.sku_catalog` |
 | Готовые описания | `docs/seo/descriptions/<группа>.md` |
+| Правки в кабинете (наименования, характеристики) | `docs/seo/checklist-kabinet.md` |
 
 **Порядок работы:**
 
