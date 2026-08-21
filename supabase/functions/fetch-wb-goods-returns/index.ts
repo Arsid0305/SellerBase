@@ -42,6 +42,12 @@ interface WbReturnRow {
   returnDate?: string;
   date?: string;
   status?: string;
+  // Формат seller-analytics-api на 2026-08: причина приходит в returnType,
+  // reason при этом пустой; даты — completedDt / readyToReturnDt / orderDt.
+  returnType?: string;
+  completedDt?: string;
+  readyToReturnDt?: string;
+  orderDt?: string;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -143,14 +149,16 @@ Deno.serve(async (req: Request) => {
       .map((r) => {
         const srid = r.srid ?? r.srId;
         if (!srid) return null;
-        const returnDate = r.returnDate ?? r.date ?? null;
+        const firstFilled = (...vals: (string | undefined)[]) =>
+          vals.find((v) => typeof v === "string" && v.trim() !== "") ?? null;
+        const returnDate = firstFilled(r.returnDate, r.date, r.completedDt, r.readyToReturnDt, r.orderDt);
         return {
           srid: String(srid),
           nm_id: r.nmId ?? r.nmID ?? null,
           supplier_article: r.supplierArticle ?? null,
           barcode: r.barcode ?? null,
           reason_code: r.reasonCode ?? null,
-          reason_text: r.reasonText ?? r.reason ?? null,
+          reason_text: firstFilled(r.reasonText, r.reason, r.returnType),
           return_date: returnDate,
           status: r.status ?? null,
           raw: r,

@@ -25,8 +25,33 @@
 | Python 3      | ✅ |
 | Node.js       | ✅ |
 | Supabase CLI  | ❌ (используем MCP `apply_migration`) |
-| Deno          | ❌ (Edge Functions деплоятся CI) |
+| Deno локально | ❌ (но деплой возможен — см. ниже) |
+| GitHub Actions| ❌ отключены с 11.07.2026 (anti-abuse). PR мержим вручную |
 | .env реальный | ❌ (секреты в GitHub Secrets / Supabase Vault) |
+
+### Деплой и запуск Edge Functions
+
+**Деплой — через MCP `mcp__Supabase__deploy_edge_function`.** CI не работает с 11.07,
+но это не значит, что деплоя нет. Передавать нужно и общие модули: для функции,
+импортирующей `../_shared/auth.ts`, файл передаётся в `files` под тем же относительным
+именем. `verify_jwt` — как в проде (`true` у всех, кроме `telegram-webhook`).
+
+**Запуск вручную — из SQL**, тем же способом, что и cron. Секреты берутся из Vault,
+знать их не нужно:
+
+```sql
+SELECT net.http_post(
+  url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/<имя>',
+  headers := jsonb_build_object(
+    'Content-Type','application/json',
+    'Authorization','Bearer '||(SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name='service_role_key'),
+    'X-Cron-Secret',(SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name='cron_shared_secret')),
+  body := '{}'::jsonb,
+  timeout_milliseconds := 180000);
+```
+
+Результат смотреть в `public.ingestion_log`, **не** в `cron.job_run_details`:
+pg_cron считает успехом постановку запроса, а не ответ функции.
 
 ### Миграции Supabase
 
@@ -34,6 +59,11 @@
 - Применять через MCP `mcp__Supabase__apply_migration` (нет CLI)
 - Для проверки данных — MCP `mcp__Supabase__execute_sql`
 - Имя файла — timestamp `YYYYMMDDHHMMSS_<snake_case_description>.sql`
+
+### Карточки товаров и SEO
+
+Весь контур — от точки входа: **`docs/seo/README.md`**. Там иерархия раздела, порядок
+действий и инструменты. Правило ведения — `tasks/rules.md` §17.
 
 ### Sверка при замене `.range()` на RPC
 

@@ -1,16 +1,32 @@
-# SellerBase — план разработки
+# SellerBase — состояние и план
+
+> Обновлено 2026-08-21 по факту: запросами к проекту `hcebwgjgppwaguqittpi` и разбором кода.
+> До этого документ описывал систему мая-июня и разошёлся с ней на несколько фаз —
+> из-за чего сессия 21.08 дважды приняла решения на неверных данных.
+>
+> **Правило:** этот файл описывает то, что есть. Планы и задачи — в `../tasks/todo.md`.
+
+---
 
 ## Контекст
 
-Цель: заменить Excel-комплекс единой data-платформой для управления бизнесом на WB.
+Цель: заменить Excel-комплекс (UNIT, ПОСТАВКА, CF/PL) единой data-платформой
+для управления бизнесом на маркетплейсах. MVP — Wildberries.
 
-Стек: Supabase + Edge Functions + Lovable. На старте фронт = Google Sheets sync + Lovable параллельно.
+**Стек по факту:**
+
+- Фронт: Next.js 15 / React 19, feature-sliced (`apps/web`), деплой на Vercel
+- Бэк: Supabase — PostgreSQL, Edge Functions, `pg_cron` + `pg_net`, Vault
+- Пакеты: pnpm, монорепо
+- Бот: `telegram-webhook` + `telegram-alerts`
 
 ---
 
 ## Принципы надёжности и расширяемости
 
-1. **Сырые данные отдельно от расчётных** (`*_raw` JSON из API → нормализатор → `*_fact`).
+Не менялись, остаются фундаментом. Проверка на соблюдение — в `AUDIT_PROMPT.md`.
+
+1. **Сырые данные отдельно от расчётных** (`raw` JSONB из API → нормализатор → `*_fact`).
 2. **Idempotent UPSERT** по бизнес-ключу.
 3. **`ingestion_log`** — здоровье системы.
 4. **Расчёты — только VIEW**.
@@ -21,31 +37,96 @@
 9. **Расширение через добавление**, не переписывание.
 10. **Edge Functions ловят ошибки в `ingestion_log`**.
 
+Соблюдаются не везде — расхождения зафиксированы в `AUDIT_2026-08-21_repo-vs-prod.md`.
+Главное: `raw` есть у 7 таблиц `wb_*` из 23, `try_job_lock` не вызывает ни одна функция.
+
 ---
 
-## Phase 1 — Bootstrap + initial schema ✅
+## Что построено
 
-7 таблиц + helpers + RLS. Seed `app_settings`.
+**База:** 60+ таблиц, 36 view, RPC-слой для тяжёлых агрегаций.
 
-## Phase 2 — Сбор данных WB — код готов, ждёт токен
+**Сбор данных:** 24 Edge Functions в репозитории, 19 задеплоено, 19 cron-задач
+(16 активных на 21.08). Расписания — `CRONS.md`.
 
-Edge Function `fetch-wb-stocks` в репо. После токена — деплой и cron.
-Дальше: `fetch-wb-report`, `fetch-wb-ads`.
+**Фронт:** 26 вкладок в `apps/web/src/app/(app)`: dashboard, analytics, pnl, products,
+data-quality, deficit, supplies, promo, turnover, tariffs, expenses, reviews, sources,
+compare, customers, goals, problems, scenarios, snapshot, price-simulator, sales-report,
+niche, ads, tasks, settings.
 
-## Phase 3 — Расчётный движок ✅
+**Модули:** P&L и юнит-экономика, COGS с FIFO и модулем Китай, поставки и дефицит,
+воронка продаж, промо, цены, детектор аномалий, уведомления в телеграм.
 
-10 view с `security_invoker=on`. На пустых данных всё пока пусто, кроме `v_data_quality` (7 SKU без cost_price).
+## Что реально собирается
 
-## Phase 4 — Модуль Китай/COGS ✅
+| Поток | Состояние на 21.08 |
+|---|---|
+| Продажи, заказы | ✅ каждые 30 минут, данные за сегодня |
+| Отчёты WB (еженедельные) | ✅ 186 819 строк, период по 16.08 |
+| Воронка продаж | ✅ 5 374 строки, отставание на день штатное |
+| Остатки, тарифы, комиссии | ✅ по расписанию |
+| Карточки товаров | ✅ еженедельно, 80 SKU |
+| Возвраты | ✅ почини 21.08 — не собирались ни дня до этого |
+| Реклама | ⏸ кампаний нет, cron отключён |
+| Поставки | ⏸ WB отвечает 405, cron отключён, разбор отложен |
+| Оборачиваемость | ❌ 404 с 11.06 |
+| Отзывы, цены | ❌ функции не задеплоены |
+| Расходы, себестоимость | ❌ вводятся вручную, таблицы пусты / заполнены наполовину |
 
-6 таблиц + `cost_price_at()`. Структура 1:1 с твоим Excel.
-Дальше: UI-форма в Lovable + импорт твоего файла.
+## Чего не хватает для сходимости
 
-## Phase 5 — Интерфейс
+P&L считается по тому, что есть, и молчит о том, чего нет:
 
-- `sync-sheets` Edge Function stub — ждёт `GOOGLE_SA_JSON` + `GOOGLE_SHEET_ID`.
-- Lovable web-дашборд — когда будут первые данные из WB.
+- расходы вне WB — `marketing_expenses`, `cash_flow`, `manual_expenses` пусты
+- себестоимость — у 40 SKU из 80
+- из-за этого отрицательная маржа у части SKU неотличима от артефакта
 
-## Phase 6 — Тестирование и переход
+---
 
-## Phase 7 — Ozon, AI, Telegram-бот, mobile.
+## Инфраструктура и ограничения
+
+**Деплой Edge Functions.** GitHub Actions отключены с 11.07.2026 после срабатывания
+anti-abuse (см. `llm_wiki/wiki/lessons.md`). Рабочий путь — MCP `deploy_edge_function`.
+С 11.07 по 21.08 доехала одна функция из восьми изменённых; 21.08 выложены ещё две.
+
+**Миграции.** Только через MCP `apply_migration`, CLI нет. Имя в
+`supabase_migrations.schema_migrations` задаётся вручную и с именем файла не совпадает —
+сверять состояние нужно по создаваемым объектам, а не по именам.
+
+**Запуск функций вручную.** Из SQL, как это делает cron:
+
+```sql
+SELECT net.http_post(
+  url := 'https://hcebwgjgppwaguqittpi.supabase.co/functions/v1/<имя>',
+  headers := jsonb_build_object(
+    'Content-Type','application/json',
+    'Authorization','Bearer '||(SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name='service_role_key'),
+    'X-Cron-Secret',(SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name='cron_shared_secret')),
+  body := '{}'::jsonb,
+  timeout_milliseconds := 180000);
+```
+
+Секреты берутся из Vault — знать их не нужно.
+
+**Токен WB.** `WB_TOKEN_READ` в Supabase Secrets. Права шире чтения: `set-wb-price`
+пишет через него в `discounts-prices-api`.
+
+---
+
+## Направления
+
+Приоритеты и конкретные задачи — в `../tasks/todo.md`, там же обоснование порядка.
+
+**Карточки и SEO** — приоритет с 21.08. Контур описан в `seo/README.md`:
+39 готовых описаний на 80 SKU, чеклист правок для кабинета, словарь стоп-слов,
+сканеры. Дальше — частотность запросов из WB, связь воронки с изменениями карточки,
+вкладка SEO-аналитики в платформе.
+
+**Восстановление сбора** — оборачиваемость, отзывы, цены, поставки.
+
+**Полнота учёта** — расходы и себестоимость. Не код, а ввод данных.
+
+**Мониторинг** — `telegram-alerts` пропускает функции, которые пишут `error`
+в `ingestion_log`.
+
+**Позже** — Ozon, мультитенантность (`MULTI_TENANT_PLAN.md`).

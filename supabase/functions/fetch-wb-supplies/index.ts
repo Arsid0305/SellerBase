@@ -94,8 +94,40 @@ async function upsertGoods(sb: SupabaseClient, supplyId: string, goods: WbGood[]
   if (error) throw new Error(`insert wb_supply_items_v2 (${supplyId}): ${error.message}`);
 }
 
-async function logJob(sb: SupabaseClient, status: "success" | "error", rows: number, msg: string | null): Promise<void> {
-  await sb.from("integration_jobs").insert({ job_name: JOB_NAME, status, rows_affected: rows, message: msg });
+// Логируем в ingestion_log — общий журнал всех ingestion-функций.
+// v2 изначально писала в integration_jobs, которой в схеме нет: запись падала,
+// а вместе с ней терялась и ошибка из catch. Плюс job не видели v_data_quality
+// и telegram-alerts, которые читают именно ingestion_log.
+async function openJob(sb: SupabaseClient): Promise<number> {
+  const { data, error } = await sb
+    .from("ingestion_log")
+    .insert({ job_name: JOB_NAME, meta: {} })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`ingestion_log open: ${error?.message}`);
+  return data.id as number;
+}
+
+async function closeJob(
+  sb: SupabaseClient,
+  jobId: number,
+  status: "ok" | "error",
+  rowsIn: number,
+  rowsOut: number,
+  errorText: string | null,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  await sb
+    .from("ingestion_log")
+    .update({
+      status,
+      finished_at: new Date().toISOString(),
+      rows_in: rowsIn,
+      rows_out: rowsOut,
+      error_text: errorText,
+      meta,
+    })
+    .eq("id", jobId);
 }
 
 Deno.serve(async (req) => {
@@ -105,6 +137,7 @@ Deno.serve(async (req) => {
   if (!cron.ok) return cron.response;
 
   const supabase = adminClient();
+  const jobId = await openJob(supabase);
   try {
     const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
     if (!token) throw new Error("WB_TOKEN_READ / WB_API_TOKEN not set");
@@ -133,14 +166,17 @@ Deno.serve(async (req) => {
       next = resp.next;
     }
 
-    await logJob(supabase, "success", totalSupplies, `goods=${totalGoods}`);
+    await closeJob(supabase, jobId, "ok", totalSupplies, totalGoods, null, {
+      supplies: totalSupplies,
+      goods: totalGoods,
+    });
     return new Response(
       JSON.stringify({ ok: true, supplies: totalSupplies, goods: totalGoods }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await logJob(supabase, "error", 0, msg);
+    await closeJob(supabase, jobId, "error", 0, 0, msg, {});
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
