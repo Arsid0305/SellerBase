@@ -418,6 +418,7 @@ _Источник: SellerBase 2026-06-21 — рефакторинг 9 файло
 
 | Область | Где лежит |
 |---|---|
+| **Точка входа в контур карточек** | **`docs/seo/README.md`** |
 | Алгоритмы SEO площадок, правила описаний | `docs/SEO_MARKETPLACES.md` |
 | Словарь стоп-слов | `docs/seo/stop-words.md` |
 | SQL-сканер карточек | `docs/seo/scan-stop-words.sql` |
