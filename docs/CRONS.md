@@ -39,7 +39,7 @@ LIMIT 50;
 
 ### Выключить cron временно
 ```sql
-SELECT cron.alter_job(jobid := (SELECT jobid FROM cron.job WHERE jobname = 'fetch-wb-sales-30min'), active := false);
+SELECT cron.alter_job(job_id := (SELECT jobid FROM cron.job WHERE jobname = 'fetch-wb-sales-30min'), active := false);
 ```
 
 ### Удалить cron
@@ -174,3 +174,33 @@ Cron в Supabase работает в **UTC**. Чтобы перевести в �
 ```sql
 -- Cron daily 04:00 UTC = 07:00 МСК — refresh last 60 days
 ```
+
+---
+
+## Отключено вручную 2026-08-21
+
+Чтобы не дёргать WB API впустую. Отключение обратимое — задачи на месте, `active = false`.
+
+| Cron job | Почему отключён |
+|---|---|
+| `fetch-wb-ads-hourly` | рекламных кампаний нет; 167 запусков зависли в статусе `running` |
+| `fetch-wb-supplies-6h` | эндпоинт WB отвечал 404, после деплоя v2 — 405 |
+| `fetch-wb-supplies-daily` | дубль предыдущей: поставки дёргали **две** задачи одновременно |
+
+Включить обратно:
+```sql
+SELECT cron.alter_job(job_id := jobid, active := true)
+FROM cron.job WHERE jobname = '<имя>';
+```
+
+## Не описано выше, но работает в проде
+
+Найдено сверкой 2026-08-21. Всего в базе 19 задач, в таблице выше — 12.
+
+`fetch-wb-feedback-daily`, `fetch-wb-prices-daily`, `fetch-wb-supplies-6h`,
+`detect-anomalies-hourly`, `fetch-wb-ads-hourly`, `telegram-indices-reminder-monday`,
+`refresh-sku-weekly-metrics-daily`.
+
+**Важно:** `cron.job_run_details.status = succeeded` не означает, что функция отработала.
+pg_cron считает успехом постановку HTTP-запроса в очередь. Достоверный источник —
+`public.ingestion_log`.
