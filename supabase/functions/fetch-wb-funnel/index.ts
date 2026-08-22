@@ -36,8 +36,9 @@ interface FunnelHistoryRow {
   date?: string;
   dt?: string;
   openCount?: number;
-  // WB отдаёт корзину как cartCount. Поля addToCartCount у него нет — из-за него
-  // add_to_cart_count лежал нулём с самого начала сбора. Оба имени на случай,
+  // WB отдаёт корзину как cartCount. Поля addToCartCount у него нет.
+  // До 13.06.2026 старое имя работало, потом WB его сменил — и корзина лежала
+  // нулём с 14.06 по 14.08, пока это не починили. Держим оба имени на случай,
   // если контракт снова поменяется.
   cartCount?: number;
   addToCartCount?: number;

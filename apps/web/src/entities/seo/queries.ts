@@ -27,7 +27,8 @@ export type SeoSkuRow = {
   charCount: number;
   views30d: number;
   orders30d: number;
-  crCartPct: number | null;
+  views7d: number;
+  crCart7dPct: number | null;
   crOrderPct: number | null;
   nRiskR: number;
   nRiskA: number;
@@ -89,7 +90,8 @@ type FunnelRow = {
   my_article: string | null;
   views_30d: number | null;
   orders_30d: number | null;
-  cr_cart_pct: number | string | null;
+  views_7d: number | null;
+  cr_cart_7d_pct: number | string | null;
   cr_order_pct: number | string | null;
 };
 
@@ -119,7 +121,7 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
       .range(0, 10_000),
     supabase
       .from('v_sku_seo_funnel_30d')
-      .select('my_article, views_30d, orders_30d, cr_cart_pct, cr_order_pct')
+      .select('my_article, views_30d, orders_30d, views_7d, cr_cart_7d_pct, cr_order_pct')
       .range(0, 10_000),
   ]);
 
@@ -151,7 +153,8 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
       charCount: chars,
       views30d: Number(funnel.get(c.my_article)?.views_30d ?? 0),
       orders30d: Number(funnel.get(c.my_article)?.orders_30d ?? 0),
-      crCartPct: num(funnel.get(c.my_article)?.cr_cart_pct),
+      views7d: Number(funnel.get(c.my_article)?.views_7d ?? 0),
+      crCart7dPct: num(funnel.get(c.my_article)?.cr_cart_7d_pct),
       crOrderPct: num(funnel.get(c.my_article)?.cr_order_pct),
       nRiskR: 0,
       nRiskA: 0,

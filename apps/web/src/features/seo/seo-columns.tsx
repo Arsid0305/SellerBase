@@ -13,7 +13,7 @@ const RISK_TOOLTIP =
   'R — меняет классификацию товара или требует разрешительных документов. A — довод против собственной карточки. G — рабочий ключ группы, его отсутствие само по себе дефект.';
 
 const TRAFFIC_TOOLTIP =
-  'Просмотры карточки за 30 дней и конверсия в корзину — из воронки WB. Чинить в первую очередь имеет смысл там, где карточку видят: правка описания у SKU без просмотров ничего не изменит.';
+  'Просмотры и заказы — за 30 дней, конверсия в корзину — за 7: с 14.06 по 14.08.2026 корзина не собиралась из-за ошибки имени поля WB, а глубже недели WB историю не отдаёт. Чинить в первую очередь имеет смысл там, где карточку видят: правка описания у SKU без просмотров ничего не изменит.';
 
 const LEN_TOOLTIP =
   'Целевая длина описания 1500–2000 знаков: короче — не хватает ключей, длиннее — WB режет выдачу в карточке.';
@@ -92,14 +92,14 @@ export function seoColumns(opts: {
         </span>
       ),
       cell: ({ row }) => {
-        const { views30d, orders30d, crCartPct } = row.original;
+        const { views30d, orders30d, crCart7dPct } = row.original;
         if (views30d === 0)
           return <span className="text-muted-foreground text-xs">нет показов</span>;
         return (
           <div className="flex flex-col items-end gap-0.5">
             <span className="font-medium tabular-nums">{formatInt(views30d)} просм.</span>
             <span className="text-muted-foreground text-[11px] tabular-nums">
-              {crCartPct != null ? `${crCartPct}% в корзину · ` : ''}
+              {crCart7dPct != null ? `${crCart7dPct}% в корзину (7д) · ` : ''}
               {formatInt(orders30d)} зак.
             </span>
           </div>

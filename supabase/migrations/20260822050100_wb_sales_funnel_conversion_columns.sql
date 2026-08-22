@@ -15,4 +15,4 @@ comment on column public.wb_sales_funnel.cart_to_order_conversion is
 comment on column public.wb_sales_funnel.buyout_percent is
   'Процент выкупа по данным WB (buyoutPercent).';
 comment on column public.wb_sales_funnel.add_to_cart_count is
-  'Добавления в корзину. Источник — поле WB cartCount. До 22.08.2026 функция читала несуществующее addToCartCount, поэтому данные за более ранние даты нулевые до перезабора.';
+  'Добавления в корзину. Источник — поле WB cartCount. С 14.06 по 14.08.2026 функция читала устаревшее addToCartCount, поэтому за эти даты стоят нули; перезабрать их нельзя — WB не отдаёт историю глубже недели. Достоверно с 15.08.2026.';

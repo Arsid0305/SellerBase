@@ -60,7 +60,7 @@ const CSV_COLUMNS: CsvColumn<SeoSkuRow>[] = [
   { key: 'subjectName', label: 'Предмет WB' },
   { key: 'views30d', label: 'Просмотры 30д' },
   { key: 'orders30d', label: 'Заказы 30д' },
-  { key: 'crCartPct', label: 'CR в корзину %' },
+  { key: 'crCart7dPct', label: 'CR в корзину 7д %' },
   { key: 'descLen', label: 'Длина описания' },
   { key: 'charCount', label: 'Характеристик' },
   { key: 'nRiskR', label: 'Высокий риск' },
