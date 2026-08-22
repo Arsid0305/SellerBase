@@ -13,11 +13,12 @@ import { SeoFindings } from './seo-findings';
 import { SeoSkuDetail } from './seo-detail';
 import { seoColumns } from './seo-columns';
 
-type StatusFilter = 'all' | 'risk-r' | 'risk-a' | 'missing-key' | 'clean';
+type StatusFilter = 'all' | 'risk-r' | 'with-traffic' | 'risk-a' | 'missing-key' | 'clean';
 
 const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'Все' },
   { key: 'risk-r', label: 'Высокий риск' },
+  { key: 'with-traffic', label: 'Есть трафик и замечания' },
   { key: 'risk-a', label: 'Средний риск' },
   { key: 'missing-key', label: 'Нет ключа' },
   { key: 'clean', label: 'Без замечаний' },
@@ -29,6 +30,8 @@ function matchesStatus(row: SeoSkuRow, f: StatusFilter): boolean {
       return true;
     case 'risk-r':
       return row.nRiskR > 0;
+    case 'with-traffic':
+      return row.views30d > 0 && row.nTotal > 0;
     case 'risk-a':
       return row.nRiskA > 0;
     case 'missing-key':
@@ -55,6 +58,9 @@ const CSV_COLUMNS: CsvColumn<SeoSkuRow>[] = [
   { key: 'wbArticle', label: 'Артикул WB' },
   { key: 'title', label: 'Наименование' },
   { key: 'subjectName', label: 'Предмет WB' },
+  { key: 'views30d', label: 'Просмотры 30д' },
+  { key: 'orders30d', label: 'Заказы 30д' },
+  { key: 'crCartPct', label: 'CR в корзину %' },
   { key: 'descLen', label: 'Длина описания' },
   { key: 'charCount', label: 'Характеристик' },
   { key: 'nRiskR', label: 'Высокий риск' },

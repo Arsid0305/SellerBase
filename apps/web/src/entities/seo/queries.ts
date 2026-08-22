@@ -25,6 +25,10 @@ export type SeoSkuRow = {
   photoUrl: string | null;
   descLen: number;
   charCount: number;
+  views30d: number;
+  orders30d: number;
+  crCartPct: number | null;
+  crOrderPct: number | null;
   nRiskR: number;
   nRiskA: number;
   nMissingG: number;
@@ -45,6 +49,7 @@ export type SeoOverview = {
   groups: SeoGroupRow[];
   totals: {
     skuCount: number;
+    viewsAtRisk: number;
     cleanCount: number;
     withRiskR: number;
     withRiskA: number;
@@ -80,6 +85,14 @@ type IssueRow = {
   suggestion: string;
 };
 
+type FunnelRow = {
+  my_article: string | null;
+  views_30d: number | null;
+  orders_30d: number | null;
+  cr_cart_pct: number | string | null;
+  cr_order_pct: number | string | null;
+};
+
 type CatalogRow = {
   my_article: string | null;
   wb_article: number | null;
@@ -93,7 +106,7 @@ type CatalogRow = {
 export async function fetchSeoOverview(): Promise<SeoOverview> {
   const supabase = createAdminClient();
 
-  const [issuesRes, catalogRes] = await Promise.all([
+  const [issuesRes, catalogRes, funnelRes] = await Promise.all([
     supabase
       .from('v_sku_seo_issues')
       .select('my_article, wb_article, subject_name, check_name, risk, finding, detail, suggestion')
@@ -104,13 +117,24 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
         'my_article, wb_article, subject_name, title, photo_url, description, characteristics',
       )
       .range(0, 10_000),
+    supabase
+      .from('v_sku_seo_funnel_30d')
+      .select('my_article, views_30d, orders_30d, cr_cart_pct, cr_order_pct')
+      .range(0, 10_000),
   ]);
 
   if (issuesRes.error) console.error('[fetchSeoOverview] v_sku_seo_issues', issuesRes.error);
   if (catalogRes.error) console.error('[fetchSeoOverview] sku_catalog', catalogRes.error);
+  if (funnelRes.error) console.error('[fetchSeoOverview] v_sku_seo_funnel_30d', funnelRes.error);
 
   const issues = (issuesRes.data ?? []) as IssueRow[];
   const catalog = (catalogRes.data ?? []) as CatalogRow[];
+  const funnel = new Map<string, FunnelRow>();
+  for (const f of (funnelRes.data ?? []) as FunnelRow[]) {
+    if (f.my_article) funnel.set(f.my_article, f);
+  }
+  const num = (v: number | string | null | undefined): number | null =>
+    v == null ? null : typeof v === 'number' ? v : Number(v);
 
   const byArticle = new Map<string, SeoSkuRow>();
 
@@ -125,6 +149,10 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
       photoUrl: c.photo_url ?? wbPhotoUrl(c.wb_article),
       descLen: c.description?.length ?? 0,
       charCount: chars,
+      views30d: Number(funnel.get(c.my_article)?.views_30d ?? 0),
+      orders30d: Number(funnel.get(c.my_article)?.orders_30d ?? 0),
+      crCartPct: num(funnel.get(c.my_article)?.cr_cart_pct),
+      crOrderPct: num(funnel.get(c.my_article)?.cr_order_pct),
       nRiskR: 0,
       nRiskA: 0,
       nMissingG: 0,
@@ -169,8 +197,11 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
     }
   }
 
+  // Порядок: сначала высокий риск, внутри него — где больше просмотров.
+  // Чинить надо там, где карточку видят, а не там, где просто больше замечаний.
   const skus = [...byArticle.values()].sort((a, b) => {
     if (b.nRiskR !== a.nRiskR) return b.nRiskR - a.nRiskR;
+    if (b.views30d !== a.views30d) return b.views30d - a.views30d;
     if (b.nTotal !== a.nTotal) return b.nTotal - a.nTotal;
     return a.myArticle.localeCompare(b.myArticle);
   });
@@ -215,6 +246,8 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
     groups,
     totals: {
       skuCount: skus.length,
+      // Просмотры, приходящиеся на карточки с высоким риском — цена бездействия.
+      viewsAtRisk: skus.filter((s) => s.nRiskR > 0).reduce((acc, s) => acc + s.views30d, 0),
       cleanCount: skus.filter((s) => s.nTotal === 0).length,
       withRiskR: skus.filter((s) => s.nRiskR > 0).length,
       withRiskA: skus.filter((s) => s.nRiskA > 0).length,

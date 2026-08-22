@@ -28,6 +28,10 @@ interface FunnelHistoryRow {
   date?: string;
   dt?: string;
   openCount?: number;
+  // WB отдаёт корзину как cartCount. Поля addToCartCount у него нет — из-за него
+  // add_to_cart_count лежал нулём с самого начала сбора. Оба имени на случай,
+  // если контракт снова поменяется.
+  cartCount?: number;
   addToCartCount?: number;
   orderCount?: number;
   orderSum?: number;
@@ -35,6 +39,12 @@ interface FunnelHistoryRow {
   buyoutSum?: number;
   cancelCount?: number;
   cancelSum?: number;
+  // Конверсии WB считает сам, со своим знаменателем — берём как есть,
+  // не пересчитываем: это главные метрики качества карточки.
+  addToCartConversion?: number;
+  cartToOrderConversion?: number;
+  buyoutPercent?: number;
+  addToWishlistCount?: number;
 }
 
 interface FunnelProduct {
@@ -142,13 +152,17 @@ Deno.serve(async (req: Request) => {
             nm_id: nm,
             dt,
             open_count: toInt(h.openCount),
-            add_to_cart_count: toInt(h.addToCartCount),
+            add_to_cart_count: toInt(h.cartCount ?? h.addToCartCount),
             order_count: toInt(h.orderCount),
             order_sum: toNum(h.orderSum),
             buyout_count: toInt(h.buyoutCount),
             buyout_sum: toNum(h.buyoutSum),
             cancel_count: toInt(h.cancelCount),
             cancel_sum: toNum(h.cancelSum),
+            add_to_wishlist_count: toInt(h.addToWishlistCount),
+            add_to_cart_conversion: toNum(h.addToCartConversion),
+            cart_to_order_conversion: toNum(h.cartToOrderConversion),
+            buyout_percent: toNum(h.buyoutPercent),
             fetched_at: new Date().toISOString(),
           });
         }

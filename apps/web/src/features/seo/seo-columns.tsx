@@ -5,11 +5,15 @@ import { Button } from '@/shared/ui/button';
 import { SkuThumb } from '@/shared/ui/domain/sku-thumb';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import { cn } from '@/shared/lib/utils';
+import { formatInt } from '@/shared/lib/format';
 import type { SeoSkuRow } from '@/entities/seo';
 import { RISK_META } from './risk-badge';
 
 const RISK_TOOLTIP =
   'R — меняет классификацию товара или требует разрешительных документов. A — довод против собственной карточки. G — рабочий ключ группы, его отсутствие само по себе дефект.';
+
+const TRAFFIC_TOOLTIP =
+  'Просмотры карточки за 30 дней и конверсия в корзину — из воронки WB. Чинить в первую очередь имеет смысл там, где карточку видят: правка описания у SKU без просмотров ничего не изменит.';
 
 const LEN_TOOLTIP =
   'Целевая длина описания 1500–2000 знаков: короче — не хватает ключей, длиннее — WB режет выдачу в карточке.';
@@ -78,6 +82,29 @@ export function seoColumns(opts: {
       cell: ({ row }) => (
         <CountCell n={row.original.nMissingG} tone="text-sky-600 dark:text-sky-400" />
       ),
+    },
+    {
+      accessorKey: 'views30d',
+      header: () => (
+        <span className="inline-flex items-center gap-1">
+          Трафик 30д
+          <TooltipIcon text={TRAFFIC_TOOLTIP} />
+        </span>
+      ),
+      cell: ({ row }) => {
+        const { views30d, orders30d, crCartPct } = row.original;
+        if (views30d === 0)
+          return <span className="text-muted-foreground text-xs">нет показов</span>;
+        return (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="font-medium tabular-nums">{formatInt(views30d)} просм.</span>
+            <span className="text-muted-foreground text-[11px] tabular-nums">
+              {crCartPct != null ? `${crCartPct}% в корзину · ` : ''}
+              {formatInt(orders30d)} зак.
+            </span>
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'descLen',

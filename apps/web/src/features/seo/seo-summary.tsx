@@ -23,7 +23,7 @@ export function SeoSummaryCards({ totals }: { totals: SeoOverview['totals'] }) {
       icon: AlertTriangle,
       label: 'Высокий риск',
       value: `${formatInt(totals.withRiskR)} карточек`,
-      hint: `${formatInt(totals.riskRTotal)} срабатываний — чинить первыми`,
+      hint: `${formatInt(totals.viewsAtRisk)} просмотров за 30д приходится на них`,
     },
     {
       icon: ListChecks,
