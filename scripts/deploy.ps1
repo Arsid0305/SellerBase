@@ -19,10 +19,21 @@
 
 $ErrorActionPreference = 'Stop'
 
-$ProjectId = 'prj_bwW6MnAXI8UwdDHKC6NrhXSWJZOG'
-$OrgId     = 'team_rJZtkY8YbgEm1Lj2K4P39rkh'
+$ProjectName = 'seller-base-web'
+$Scope       = 'arsid'
 
 function Step($text) { Write-Host "" ; Write-Host "=== $text ===" -ForegroundColor Cyan }
+
+# Внешние команды (git, pnpm, vercel) не бросают исключение при ошибке -
+# ErrorActionPreference на них не действует. Без явной проверки $LASTEXITCODE
+# скрипт шёл дальше после падения и рапортовал успех. Так и вышло на первом
+# запуске: vercel pull подавился, а скрипт написал "переменные получены".
+function Run($file, $arguments) {
+    & $file @arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Команда '$file $($arguments -join ' ')' завершилась с кодом $LASTEXITCODE"
+    }
+}
 function Ok($text)   { Write-Host "  $text" -ForegroundColor Green }
 function Warn($text) { Write-Host "  $text" -ForegroundColor Yellow }
 
@@ -45,42 +56,44 @@ if (-not (Get-Command vercel -ErrorAction SilentlyContinue)) {
 Ok 'vercel CLI на месте'
 
 Step 'Свежий main'
-git fetch origin main
+Run 'git' @('fetch', 'origin', 'main')
 $current = (git rev-parse --abbrev-ref HEAD).Trim()
 if ($current -ne 'main') {
     Warn "Текущая ветка $current, а деплоим main. Переключаюсь."
-    git checkout main
+    Run 'git' @('checkout', 'main')
 }
-git pull origin main
+Run 'git' @('pull', 'origin', 'main')
 Ok "HEAD: $((git log --oneline -1).Trim())"
 
 Step 'Зависимости'
-pnpm install --frozen-lockfile
+Run 'pnpm' @('install', '--frozen-lockfile')
 
 Step 'Проверки перед сборкой'
 # Ловим ошибки локально: неудачная сборка на Vercel стоит дольше.
-pnpm --filter @sellerbase/web typecheck
+Run 'pnpm' @('--filter', '@sellerbase/web', 'typecheck')
 Ok 'типы чистые'
-pnpm --filter @sellerbase/web lint
+Run 'pnpm' @('--filter', '@sellerbase/web', 'lint')
 Ok 'линт чистый'
 
 Step 'Привязка к проекту Vercel'
-# Связь с GitHub оборвана, поэтому проект указываем явно -
-# иначе CLI спросит интерактивно и не найдёт репозиторий.
-New-Item -ItemType Directory -Force -Path '.vercel' | Out-Null
-@{ projectId = $ProjectId; orgId = $OrgId } | ConvertTo-Json | Set-Content -Path '.vercel/project.json' -Encoding utf8
-Ok 'проект seller-base-web'
+# Раньше здесь писался .vercel/project.json вручную - и это ломало деплой:
+# PowerShell 5.1 при -Encoding utf8 добавляет BOM, а CLI такой файл
+# не переваривает ("Project Settings could not be retrieved").
+# Пусть CLI создаёт файл сам - он знает формат.
+if (Test-Path '.vercel') { Remove-Item -Recurse -Force '.vercel' }
+Run 'vercel' @('link', '--yes', '--project', $ProjectName, '--scope', $Scope)
+Ok "проект $ProjectName"
 
 Step 'Переменные окружения из Vercel'
 # Нужны для сборки: ключи Supabase и прочее лежат в настройках проекта.
-vercel pull --yes --environment=production
+Run 'vercel' @('pull', '--yes', '--environment=production')
 Ok 'переменные получены'
 
 Step 'Сборка'
-vercel build --prod
+Run 'vercel' @('build', '--prod')
 
 Step 'Выкатка в продакшн'
-vercel deploy --prebuilt --prod
+Run 'vercel' @('deploy', '--prebuilt', '--prod')
 
 Write-Host ""
 Write-Host "Готово. Проверьте https://seller-base-web.vercel.app" -ForegroundColor Green
