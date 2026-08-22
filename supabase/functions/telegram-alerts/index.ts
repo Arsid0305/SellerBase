@@ -118,14 +118,15 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
     // топ-3 SKU где маржа упала больше всего
     const prevBySku = new Map<string, { margin: number; revenue: number }>();
     for (const r of (prevRows ?? []) as Array<{ my_article: string; margin_pct: number | null; revenue_rub: number }>) {
-      if (r.margin_pct != null) prevBySku.set(r.my_article, { margin: Number(r.margin_pct) * 100, revenue: Number(r.revenue_rub) });
+      // margin_pct RPC отдаёт уже в процентах (27.82 = 27.82%), умножать не нужно.
+      if (r.margin_pct != null) prevBySku.set(r.my_article, { margin: Number(r.margin_pct), revenue: Number(r.revenue_rub) });
     }
     const drops: { article: string; deltaPp: number }[] = [];
     for (const r of (curRows ?? []) as Array<{ my_article: string; margin_pct: number | null; revenue_rub: number }>) {
       if (r.margin_pct == null) continue;
       const prev = prevBySku.get(r.my_article);
       if (!prev || prev.revenue <= 0) continue;
-      const curPct = Number(r.margin_pct) * 100;
+      const curPct = Number(r.margin_pct);
       drops.push({ article: r.my_article, deltaPp: curPct - prev.margin });
     }
     drops.sort((a, b) => a.deltaPp - b.deltaPp);
