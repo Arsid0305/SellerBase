@@ -348,77 +348,114 @@ async function checkDeficit(supabase: SupabaseClient): Promise<CheckResult> {
 }
 
 // ============================================================
-// 4. Cron не работает — last_success > 24ч для любого ingestion_log job
+// 4. Здоровье cron-задач: провисшие + падающие с ошибкой
 // ============================================================
+// Читаем v_job_health, а не сырой ingestion_log.
+//
+// Было: `.limit(500)` по ingestion_log с сортировкой по дате. Продажи и заказы
+// идут каждые 30 минут, поэтому 500 строк покрывали меньше двух суток —
+// недельная fetch-wb-commissions в окно не попадала, и бот докладывал
+// «нет успешных запусков» о задаче, отработавшей 5 дней назад. При этом
+// соседняя проверка в том же сообщении писала «комиссии обновлены 5 дней назад».
+// v_job_health агрегирует всю таблицу, усечения нет.
+//
+// Второе: раньше смотрели только на дату последнего успеха. Задачи, которые
+// раньше работали, а теперь падают каждый день, проверку проходили молча —
+// так поставки падали 32 раза за неделю, и бот об этом не сказал.
+// Теперь есть отдельная строка про последний запуск с ошибкой.
+//
+// Мониторим только задачи с ВКЛЮЧЁННЫМ кроном. Выключенные намеренно
+// (fetch-wb-ads, fetch-wb-supplies) не должны напоминать о себе каждый день.
 async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
-  // Мониторим только cron-задачи у которых есть свой порог.
-  // Не мониторим:
-  //   - ручные вызовы из UI (fetch-wb-promotions)
-  //   - WB-токеновые ошибки 401 (зона ответственности владелицы по §6)
-  //   - сама telegram-alerts (мониторит саму себя → ложный positive при первом запуске)
-  //   - fetch-wb-content (только что задеплоен, успешного запуска ещё не было; вернуть когда отработает первый раз вторник)
+  // Порог свежести на задачу. Считается от расписания её крона плюс слабина.
   const MONITORED: { job: string; staleHours: number }[] = [
-    { job: "fetch-wb-sales", staleHours: 2 },       // cron 30 мин → должен быть свежий
-    { job: "fetch-wb-orders", staleHours: 2 },      // cron 30 мин → должен быть свежий
-    { job: "fetch-wb-funnel", staleHours: 30 },     // daily
-    { job: "fetch-wb-funnel-aggregate", staleHours: 30 }, // daily
-    { job: "fetch-wb-tariffs", staleHours: 30 },    // daily
-    { job: "fetch-wb-commissions", staleHours: 24 * 8 }, // weekly + слабина
+    { job: "fetch-wb-sales", staleHours: 2 },              // cron 30 мин
+    { job: "fetch-wb-orders", staleHours: 2 },             // cron 30 мин
+    { job: "detect-anomalies", staleHours: 3 },            // ежечасно
+    { job: "fetch-wb-funnel", staleHours: 30 },            // ежедневно
+    { job: "fetch-wb-funnel-aggregate", staleHours: 30 },  // ежедневно
+    { job: "fetch-wb-tariffs", staleHours: 30 },           // ежедневно
+    { job: "fetch-wb-stocks", staleHours: 30 },            // ежедневно
+    { job: "fetch-wb-goods-returns", staleHours: 30 },     // ежедневно
+    { job: "fetch-wb-prices", staleHours: 30 },            // ежедневно
+    { job: "fetch-wb-feedback", staleHours: 30 },          // ежедневно
+    { job: "fetch-wb-content", staleHours: 24 * 9 },       // еженедельно, вт
+    { job: "fetch-wb-report", staleHours: 24 * 9 },        // еженедельно, вт
+    { job: "fetch-wb-commissions", staleHours: 24 * 9 },   // еженедельно, пн
   ];
 
   const { data, error } = await supabase
-    .from("ingestion_log")
-    .select("job_name, status, finished_at, started_at")
-    .order("started_at", { ascending: false })
-    .limit(500);
+    .from("v_job_health")
+    .select("job_name, last_run_at, last_success_at, last_status, errors_24h");
   if (error) {
     return {
       name: "cron",
       ok: false,
       severity: "yellow",
       summary: "Cron: не удалось проверить",
-      message: `🟡 *Cron* — не удалось прочитать ingestion_log (${error.message})`,
+      message: `🟡 *Cron* — не удалось прочитать v_job_health (${error.message})`,
     };
   }
 
-  const lastSuccessByJob = new Map<string, string>();
-  for (const r of (data ?? []) as Array<{ job_name: string; status: string; finished_at: string | null }>) {
-    if (r.status === "ok" && r.finished_at && !lastSuccessByJob.has(r.job_name)) {
-      lastSuccessByJob.set(r.job_name, r.finished_at);
-    }
-  }
+  type HealthRow = {
+    job_name: string;
+    last_run_at: string | null;
+    last_success_at: string | null;
+    last_status: string | null;
+    errors_24h: number | null;
+  };
+  const health = new Map<string, HealthRow>();
+  for (const r of (data ?? []) as HealthRow[]) health.set(r.job_name, r);
 
   const now = Date.now();
-  const stale: { job: string; hoursAgo: number | null }[] = [];
+  const stale: string[] = [];   // давно не было успеха
+  const failing: string[] = []; // последний запуск упал
+
   for (const m of MONITORED) {
-    const lastSuccess = lastSuccessByJob.get(m.job);
-    const hoursAgo = lastSuccess ? (now - new Date(lastSuccess).getTime()) / 3_600_000 : null;
-    if (hoursAgo == null || hoursAgo > m.staleHours) {
-      stale.push({ job: m.job, hoursAgo });
+    const h = health.get(m.job);
+
+    if (!h || !h.last_success_at) {
+      stale.push(`${m.job} (успешных запусков не было)`);
+      continue;
+    }
+
+    const hoursAgo = (now - new Date(h.last_success_at).getTime()) / 3_600_000;
+    if (hoursAgo > m.staleHours) {
+      stale.push(`${m.job} (успех ${hoursAgo.toFixed(0)}ч назад)`);
+    }
+
+    // Падает сейчас, даже если недавний успех ещё в пределах порога.
+    if (h.last_status === "error") {
+      const n = h.errors_24h ?? 0;
+      failing.push(`${m.job}${n > 1 ? ` (${n} ошибок за сутки)` : ""}`);
     }
   }
 
-  if (stale.length === 0) {
-    return { name: "cron", ok: true, severity: "green", summary: `Все ${MONITORED.length} cron работают`, message: null };
+  if (stale.length === 0 && failing.length === 0) {
+    return {
+      name: "cron",
+      ok: true,
+      severity: "green",
+      summary: `Все ${MONITORED.length} cron работают`,
+      message: null,
+    };
   }
 
-  const listStr = stale
-    .map((s) => `${s.job} (${s.hoursAgo == null ? "нет успешных запусков" : `${s.hoursAgo.toFixed(0)}ч назад`})`)
-    .join(", ");
+  const total = stale.length + failing.length;
+  const severity: CheckResult["severity"] = total >= 3 ? "red" : "orange";
 
-  const severity: CheckResult["severity"] = stale.length >= 3 ? "red" : "orange";
-  const summary = stale.length >= 3
-    ? `Cron не работает: ${stale.length} задач(а)`
-    : `Cron: ${stale.length} задача(и) провисла`;
+  const parts: string[] = [];
+  if (failing.length > 0) parts.push(`падают с ошибкой: ${failing.join(", ")}`);
+  if (stale.length > 0) parts.push(`нет свежего успеха: ${stale.join(", ")}`);
 
   return {
     name: "cron",
     ok: false,
     severity,
-    summary,
+    summary: `Cron: проблем ${total}`,
     message:
-      `${emoji(severity)} *Cron не работает: ${stale.length} задач(а)*\n` +
-      `${listStr}\n` +
+      `${emoji(severity)} *Cron: проблем ${total}*\n` +
+      `${parts.join("\n")}\n` +
       `→ Открыть ${BASE_URL}/data-quality`,
   };
 }
