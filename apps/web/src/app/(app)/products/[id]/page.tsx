@@ -27,6 +27,8 @@ import { SuppliersCard } from '@/features/supplies';
 import { fetchSuppliersBySku } from '@/entities/suppliers';
 import { ProductWeeklyCard } from '@/features/weekly-analytics';
 import { fetchLatestBoxTariffs } from '@/entities/wb-tariffs';
+import { ProductSeoCard } from '@/features/seo';
+import { fetchSkuSeoSummary } from '@/entities/seo';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -48,22 +50,24 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
   ]);
   if (!product) notFound();
   const skuId = Number(product.id);
-  const [diffs, suppliers, skuEvents, boxTariffs] = await Promise.all([
+  const myArticle = product.meta.supplierCode === '—' ? '' : product.meta.supplierCode;
+  const [diffs, suppliers, skuEvents, boxTariffs, seo] = await Promise.all([
     Number.isFinite(skuId) ? fetchSnapshotsBySkuId(skuId) : Promise.resolve([]),
     Number.isFinite(skuId) ? fetchSuppliersBySku(skuId) : Promise.resolve([]),
     Number.isFinite(skuId) ? fetchSkuEvents(skuId) : Promise.resolve([]),
     fetchLatestBoxTariffs(),
+    fetchSkuSeoSummary(myArticle),
   ]);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link href="/products" className="inline-flex items-center gap-1 hover:text-foreground">
+      <div className="text-muted-foreground flex items-center gap-2 text-sm">
+        <Link href="/products" className="hover:text-foreground inline-flex items-center gap-1">
           <ChevronLeft className="size-4" />
           Мои товары
         </Link>
         <span>·</span>
-        <span className="truncate font-medium text-foreground">{product.name}</span>
+        <span className="text-foreground truncate font-medium">{product.name}</span>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -93,7 +97,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
             {product.tags.map((t) => (
               <ProductTagBadge key={t} kind={t} />
             ))}
-            <span className="font-mono text-xs text-muted-foreground">{product.meta.barcode}</span>
+            <span className="text-muted-foreground font-mono text-xs">{product.meta.barcode}</span>
           </div>
         </div>
       </div>
@@ -119,6 +123,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
 
       <ProductExpensesCard product={product} />
 
+      <ProductSeoCard seo={seo} />
+
       {Number.isFinite(skuId) ? <ProductWeeklyCard skuId={skuId} /> : null}
 
       {Number.isFinite(skuId) ? <SuppliersCard skuId={skuId} initial={suppliers} /> : null}
@@ -132,8 +138,9 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
 
       {Number.isFinite(skuId) ? <EventsCard events={skuEvents} /> : null}
 
-      <p className="text-xs text-muted-foreground">
-        · Данные из `sku_catalog` + RPC `get_full_pnl_by_period` + `wb_reports_fact` (30 дней) + `wb_stocks` (текущие остатки). История остатков из `wb_stocks_history` подключится позже.
+      <p className="text-muted-foreground text-xs">
+        · Данные из `sku_catalog` + RPC `get_full_pnl_by_period` + `wb_reports_fact` (30 дней) +
+        `wb_stocks` (текущие остатки). История остатков из `wb_stocks_history` подключится позже.
       </p>
     </div>
   );

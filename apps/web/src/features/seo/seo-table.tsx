@@ -69,13 +69,20 @@ const CSV_COLUMNS: CsvColumn<SeoSkuRow>[] = [
   },
 ];
 
-export function SeoExplorer({ data }: { data: SeoOverview }) {
+export function SeoExplorer({
+  data,
+  initialArticle,
+}: {
+  data: SeoOverview;
+  initialArticle?: string;
+}) {
   const [status, setStatus] = useState<StatusFilter>('all');
   const [subject, setSubject] = useState<string>('all');
   const [finding, setFinding] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  // ?article= из карточки товара: сразу показываем разбор нужного SKU
+  const [selected, setSelected] = useState<string | null>(initialArticle ?? null);
+  const [search, setSearch] = useState(initialArticle ?? '');
+  const [debouncedSearch, setDebouncedSearch] = useState(initialArticle ?? '');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 250);

@@ -1,2 +1,9 @@
-export { fetchSeoOverview, checkTitle } from './queries';
-export type { SeoOverview, SeoSkuRow, SeoGroupRow, SeoIssue, SeoRisk } from './queries';
+export { fetchSeoOverview, fetchSkuSeoSummary, checkTitle } from './queries';
+export type {
+  SeoOverview,
+  SeoSkuRow,
+  SeoSkuSummary,
+  SeoGroupRow,
+  SeoIssue,
+  SeoRisk,
+} from './queries';

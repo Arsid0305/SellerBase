@@ -225,3 +225,60 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
     generatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
   };
 }
+
+export type SeoSkuSummary = {
+  myArticle: string;
+  nRiskR: number;
+  nRiskA: number;
+  nMissingG: number;
+  nTotal: number;
+  issues: SeoIssue[];
+};
+
+/**
+ * Проверка одной карточки — для блока внутри product-detail.
+ * Отдельный запрос вместо fetchSeoOverview: тянуть весь каталог ради одной строки дорого.
+ */
+export async function fetchSkuSeoSummary(myArticle: string): Promise<SeoSkuSummary | null> {
+  if (!myArticle) return null;
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from('v_sku_seo_issues')
+    .select('my_article, check_name, risk, finding, detail, suggestion')
+    .eq('my_article', myArticle);
+
+  if (error) {
+    console.error('[fetchSkuSeoSummary] v_sku_seo_issues', error);
+    return null;
+  }
+
+  const rows = (data ?? []) as IssueRow[];
+  const summary: SeoSkuSummary = {
+    myArticle,
+    nRiskR: 0,
+    nRiskA: 0,
+    nMissingG: 0,
+    nTotal: rows.length,
+    issues: [],
+  };
+
+  for (const r of rows) {
+    const risk = (r.risk === 'R' || r.risk === 'A' ? r.risk : 'G') as SeoRisk;
+    summary.issues.push({
+      checkName: r.check_name,
+      risk,
+      finding: r.finding,
+      detail: r.detail,
+      suggestion: r.suggestion,
+    });
+    if (r.check_name === 'stop_word_r') summary.nRiskR += 1;
+    else if (r.check_name === 'stop_word_a') summary.nRiskA += 1;
+    else if (r.check_name === 'missing_key') summary.nMissingG += 1;
+  }
+
+  const order: Record<SeoRisk, number> = { R: 0, A: 1, G: 2 };
+  summary.issues.sort((a, b) => order[a.risk] - order[b.risk]);
+
+  return summary;
+}
