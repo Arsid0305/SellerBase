@@ -1,31 +1,32 @@
-# Ручной деплой фронта SellerBase на Vercel.
+﻿# Ручной деплой фронта SellerBase на Vercel.
+#
+# ВАЖНО: файл сохранён в UTF-8 с BOM. Windows PowerShell 5.1 без BOM читает
+# .ps1 как ANSI, русский текст превращается в кашу и ломает разбор строк.
+# Если правите файл - сохраняйте с BOM.
 #
 # Зачем скрипт. С 26.06.2026 автодеплой не работает: аккаунт GitHub Arsid0305
 # под флагом T&S (тикет #4535795), из-за него отключены Actions, интеграция
-# Vercel с GitHub и Supabase GitHub Integration. Подробности —
+# Vercel с GitHub и Supabase GitHub Integration. Подробности -
 # AI_OS/MEMORY/tasks/cross-repo-todo.md и llm_wiki/wiki/workflow.md.
 # В Kino-app та же проблема решена таким же скриптом.
-#
-# Пока тикет не закрыт, это единственный способ доставить фронт на прод.
 #
 # Запуск из корня репозитория:
 #   powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1
 #
-# Первый запуск потребует входа в Vercel CLI. ВАЖНО: входить по email,
-# а не через GitHub — OAuth-приложения GitHub заблокированы флагом.
-#   vercel login   →   выбрать "Continue with Email"
+# Первый запуск потребует входа в Vercel CLI. Входить по email,
+# а не через GitHub - OAuth-приложения GitHub заблокированы флагом.
+#   vercel login   ->   выбрать "Continue with Email"
 
 $ErrorActionPreference = 'Stop'
 
 $ProjectId = 'prj_bwW6MnAXI8UwdDHKC6NrhXSWJZOG'
 $OrgId     = 'team_rJZtkY8YbgEm1Lj2K4P39rkh'
 
-function Step($text) { Write-Host "`n=== $text ===" -ForegroundColor Cyan }
+function Step($text) { Write-Host "" ; Write-Host "=== $text ===" -ForegroundColor Cyan }
 function Ok($text)   { Write-Host "  $text" -ForegroundColor Green }
 function Warn($text) { Write-Host "  $text" -ForegroundColor Yellow }
 
-# Корень репозитория — на два уровня выше этого скрипта не уходим:
-# скрипт лежит в scripts/, значит корень на уровень выше.
+# Скрипт лежит в scripts/, значит корень репозитория на уровень выше.
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $RepoRoot
 Ok "Корень репозитория: $RepoRoot"
@@ -47,7 +48,7 @@ Step 'Свежий main'
 git fetch origin main
 $current = (git rev-parse --abbrev-ref HEAD).Trim()
 if ($current -ne 'main') {
-    Warn "Текущая ветка '$current', а деплоим main. Переключаюсь."
+    Warn "Текущая ветка $current, а деплоим main. Переключаюсь."
     git checkout main
 }
 git pull origin main
@@ -64,7 +65,7 @@ pnpm --filter @sellerbase/web lint
 Ok 'линт чистый'
 
 Step 'Привязка к проекту Vercel'
-# Связь с GitHub оборвана, поэтому проект указываем явно —
+# Связь с GitHub оборвана, поэтому проект указываем явно -
 # иначе CLI спросит интерактивно и не найдёт репозиторий.
 New-Item -ItemType Directory -Force -Path '.vercel' | Out-Null
 @{ projectId = $ProjectId; orgId = $OrgId } | ConvertTo-Json | Set-Content -Path '.vercel/project.json' -Encoding utf8
@@ -81,5 +82,6 @@ vercel build --prod
 Step 'Выкатка в продакшн'
 vercel deploy --prebuilt --prod
 
-Write-Host "`nГотово. Проверьте https://seller-base-web.vercel.app" -ForegroundColor Green
-Write-Host "Если появилась вкладка «SEO карточек» — деплой доехал." -ForegroundColor Green
+Write-Host ""
+Write-Host "Готово. Проверьте https://seller-base-web.vercel.app" -ForegroundColor Green
+Write-Host "Если появилась вкладка SEO карточек - деплой доехал." -ForegroundColor Green
