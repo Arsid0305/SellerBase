@@ -74,11 +74,17 @@ Deno.serve(async (req) => {
     ].join("\n");
 
     await sendTelegram(msg);
-    await supabase.from("integration_jobs").insert({
+    // ingestion_log, а не integration_jobs: последней в схеме нет, запись падала
+    // молча, и задачу не видели ни v_data_quality, ни telegram-alerts.
+    const nowIso = new Date().toISOString();
+    await supabase.from("ingestion_log").insert({
       job_name: "telegram-indices-reminder",
-      status: "success",
-      rows_affected: 1,
-      message: `reminder for week ${lastMonday}`,
+      status: "ok",
+      started_at: nowIso,
+      finished_at: nowIso,
+      rows_in: 1,
+      rows_out: 1,
+      meta: { week: lastMonday },
     });
 
     return new Response(JSON.stringify({ ok: true, sent: true, week: lastMonday }), {
@@ -86,8 +92,11 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await supabase.from("integration_jobs").insert({
-      job_name: "telegram-indices-reminder", status: "error", rows_affected: 0, message: msg,
+    const errIso = new Date().toISOString();
+    await supabase.from("ingestion_log").insert({
+      job_name: "telegram-indices-reminder", status: "error",
+      started_at: errIso, finished_at: errIso,
+      rows_in: 0, rows_out: 0, error_text: msg, meta: {},
     });
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },

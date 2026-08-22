@@ -129,17 +129,26 @@ async function upsertBatch(supabase: SupabaseClient, rows: ReviewRow[]): Promise
   if (error) throw new Error(`upsert wb_reviews_fact: ${error.message}`);
 }
 
+// Логируем в ingestion_log — общий журнал всех ingestion-функций.
+// Раньше писали в integration_jobs, которой в схеме нет: запись падала, а вместе
+// с ней терялась и ошибка из catch. Плюс job не видели v_data_quality
+// и telegram-alerts, которые читают именно ingestion_log.
 async function logJob(
   supabase: SupabaseClient,
   status: "success" | "error",
   rowsAffected: number,
   message: string | null,
 ): Promise<void> {
-  await supabase.from("integration_jobs").insert({
+  const now = new Date().toISOString();
+  await supabase.from("ingestion_log").insert({
     job_name: JOB_NAME,
-    status,
-    rows_affected: rowsAffected,
-    message,
+    status: status === "success" ? "ok" : "error",
+    started_at: now,
+    finished_at: now,
+    rows_in: rowsAffected,
+    rows_out: rowsAffected,
+    error_text: message,
+    meta: {},
   });
 }
 
