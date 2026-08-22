@@ -80,17 +80,23 @@ pg_cron считает успехом постановку запроса, а н
 
 ---
 
-## Ссылки на каноны (не дублировать здесь)
+## Каноны (rules как атомы)
 
-| Тема | Где канон |
-|---|---|
-| Правила Git, PR flow, редактирование файлов | `AI_OS/SYSTEM.md §10` |
-| Начало / конец сессии, формат `todo.md` | `AI_OS/SYSTEM.md §8` |
-| Параллельные subagent'ы + worktree | `AI_OS/SYSTEM.md §9` |
-| BIG / SMALL классификация задач | `AI_OS/SYSTEM.md §3` |
-| Правила краткости | `AI_OS/CLAUDE.md` |
-| Subagents — приоритет, использование | `AI_OS/CLAUDE.md` |
-| Выбор модели `haiku` / `sonnet` / `opus` | `llm_wiki/wiki/workflow.md` |
-| Git/CI workflow (automerge, ветки, PR-flow) | `llm_wiki/wiki/workflow.md` |
-| context-mode защита окна | `llm_wiki/wiki/context-mode.md` |
-| Кросс-проектные уроки и решения | `llm_wiki/wiki/lessons.md`, `decisions.md` |
+Универсальные правила — в `docs/rules/core/*.md` (SSOT в AI_OS, синкается автоматически):
+
+- Начало / конец сессии, формат todo — [`docs/rules/core/session-lifecycle.md`](docs/rules/core/session-lifecycle.md) (у SellerBase свой SESSION_LOG — см. выше)
+- Стиль общения / краткость — [`docs/rules/core/communication-style.md`](docs/rules/core/communication-style.md)
+- Правила Git, PR flow, редактирование — [`docs/rules/core/git-flow.md`](docs/rules/core/git-flow.md)
+- GitHub anti-abuse — [`docs/rules/core/github-anti-abuse.md`](docs/rules/core/github-anti-abuse.md)
+- BIG / SMALL классификация — [`docs/rules/core/task-classification.md`](docs/rules/core/task-classification.md)
+- Принципы работы с кодом — [`docs/rules/core/code-principles.md`](docs/rules/core/code-principles.md)
+- Параллельные subagent'ы + worktree — [`docs/rules/core/subagents.md`](docs/rules/core/subagents.md)
+- Audit-триггер — [`docs/rules/core/audit-trigger.md`](docs/rules/core/audit-trigger.md)
+- Выбор модели `haiku` / `sonnet` / `opus` — `llm_wiki/wiki/workflow.md`
+- Git/CI workflow (automerge, ветки, PR-flow) — `llm_wiki/wiki/workflow.md`
+- context-mode защита окна — `llm_wiki/wiki/context-mode.md`
+- Кросс-проектные уроки и решения — `llm_wiki/wiki/lessons.md`, `decisions.md`
+
+**Специфика SellerBase (scoped-надстройка)**: см. `SYSTEM.md §4` (SMALL/BIG для SellerBase-слоёв, verification через `v_data_quality`, безопасность Edge Functions), `tasks/rules.md` (долгосрочные правила формул/эталонов/SEO).
+
+Архитектура rules и правила синка — [`docs/rules/README.md`](docs/rules/README.md).
