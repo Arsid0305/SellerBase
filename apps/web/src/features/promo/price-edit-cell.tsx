@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Loader2, Check, X, Pencil } from 'lucide-react';
-import { cn } from '@/shared/lib/utils';
 import { formatRub } from '@/shared/lib/format';
 
 type Props = {

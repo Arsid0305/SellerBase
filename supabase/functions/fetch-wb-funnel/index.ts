@@ -3,6 +3,10 @@
 // UPSERT в wb_sales_funnel.
 // Период по умолчанию: yesterday..yesterday. ?from=YYYY-MM-DD&to=YYYY-MM-DD — произвольный.
 // nmIDs автоматически из sku_catalog (≤1000 за запрос).
+// Период режется окнами по 7 дней (WINDOW_DAYS): WB не принимает длинные диапазоны.
+// Пауза 22 сек между запросами — лимит WB 3 req/min. Отсюда: перезабор больше
+// двух недель за раз лучше гонять частями снаружи, иначе упрёмся в потолок
+// времени жизни Edge Function.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -11,6 +15,10 @@ import { checkCronSecret } from "../_shared/auth.ts";
 const JOB_NAME = "fetch-wb-funnel";
 const WB_BASE = "https://seller-analytics-api.wildberries.ru";
 const PAGE = 20;
+// WB отвечает `400 excess limit on days` на длинные диапазоны при aggregationLevel=day.
+// 7 дней проходит, 30 — нет. Режем период сами, чтобы перезабор истории не требовал
+// ручной нарезки снаружи.
+const WINDOW_DAYS = 7;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +36,11 @@ interface FunnelHistoryRow {
   date?: string;
   dt?: string;
   openCount?: number;
+  // WB отдаёт корзину как cartCount. Поля addToCartCount у него нет.
+  // До 13.06.2026 старое имя работало, потом WB его сменил — и корзина лежала
+  // нулём с 14.06 по 14.08, пока это не починили. Держим оба имени на случай,
+  // если контракт снова поменяется.
+  cartCount?: number;
   addToCartCount?: number;
   orderCount?: number;
   orderSum?: number;
@@ -35,6 +48,12 @@ interface FunnelHistoryRow {
   buyoutSum?: number;
   cancelCount?: number;
   cancelSum?: number;
+  // Конверсии WB считает сам, со своим знаменателем — берём как есть,
+  // не пересчитываем: это главные метрики качества карточки.
+  addToCartConversion?: number;
+  cartToOrderConversion?: number;
+  buyoutPercent?: number;
+  addToWishlistCount?: number;
 }
 
 interface FunnelProduct {
@@ -98,75 +117,101 @@ Deno.serve(async (req: Request) => {
     let totalProducts = 0;
     let firstRaw: unknown = null;
 
-    // 2) batches by PAGE size
-    for (let i = 0; i < allNm.length; i += PAGE) {
-      const batch = allNm.slice(i, i + PAGE);
-      const body = {
-        nmIds: batch,
-        selectedPeriod: { start: dateFrom, end: dateTo },
-        timezone: "Europe/Moscow",
-        aggregationLevel: "day",
-      };
-      const resp = await fetch(`${WB_BASE}/api/analytics/v3/sales-funnel/products/history`, {
-        method: "POST",
-        headers: { Authorization: token, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!resp.ok) {
-        const txt = await resp.text();
-        throw new Error(`WB funnel ${resp.status}: ${txt.slice(0, 500)}`);
+    // 2) период — окнами по WINDOW_DAYS, внутри окна — батчи по PAGE артикулов
+    const windows: { start: string; end: string }[] = [];
+    {
+      const end = new Date(dateTo);
+      let cursor = new Date(dateFrom);
+      while (cursor <= end) {
+        const winEnd = new Date(
+          Math.min(cursor.getTime() + (WINDOW_DAYS - 1) * 86400 * 1000, end.getTime()),
+        );
+        windows.push({
+          start: cursor.toISOString().slice(0, 10),
+          end: winEnd.toISOString().slice(0, 10),
+        });
+        cursor = new Date(winEnd.getTime() + 86400 * 1000);
       }
-      const json = await resp.json();
-      if (i === 0) firstRaw = json;
-      // root shapes: array, {data:[...]}, {data:{products:[...]}}
-      let products: FunnelProduct[] = [];
-      if (Array.isArray(json)) {
-        products = json as FunnelProduct[];
-      } else {
-        const root = (json as { data?: unknown }).data;
-        if (Array.isArray(root)) products = root as FunnelProduct[];
-        else if (root && typeof root === "object" && Array.isArray((root as { products?: unknown }).products)) {
-          products = (root as { products: FunnelProduct[] }).products;
-        }
-      }
-      totalProducts += products.length;
+    }
 
-      const rows: Record<string, unknown>[] = [];
-      for (const p of products) {
-        const nm = p.product?.nmId ?? p.nmId;
-        if (!nm) continue;
-        for (const h of p.history ?? []) {
-          const dt = (h.date ?? h.dt ?? "").slice(0, 10);
-          if (!dt) continue;
-          rows.push({
-            nm_id: nm,
-            dt,
-            open_count: toInt(h.openCount),
-            add_to_cart_count: toInt(h.addToCartCount),
-            order_count: toInt(h.orderCount),
-            order_sum: toNum(h.orderSum),
-            buyout_count: toInt(h.buyoutCount),
-            buyout_sum: toNum(h.buyoutSum),
-            cancel_count: toInt(h.cancelCount),
-            cancel_sum: toNum(h.cancelSum),
-            fetched_at: new Date().toISOString(),
-          });
+    let requestNo = 0;
+    for (const win of windows) {
+      for (let i = 0; i < allNm.length; i += PAGE) {
+        const batch = allNm.slice(i, i + PAGE);
+        const body = {
+          nmIds: batch,
+          selectedPeriod: { start: win.start, end: win.end },
+          timezone: "Europe/Moscow",
+          aggregationLevel: "day",
+        };
+        const resp = await fetch(`${WB_BASE}/api/analytics/v3/sales-funnel/products/history`, {
+          method: "POST",
+          headers: { Authorization: token, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error(`WB funnel ${resp.status}: ${txt.slice(0, 500)}`);
         }
+        const json = await resp.json();
+        if (requestNo === 0) firstRaw = json;
+        // root shapes: array, {data:[...]}, {data:{products:[...]}}
+        let products: FunnelProduct[] = [];
+        if (Array.isArray(json)) {
+          products = json as FunnelProduct[];
+        } else {
+          const root = (json as { data?: unknown }).data;
+          if (Array.isArray(root)) products = root as FunnelProduct[];
+          else if (root && typeof root === "object" && Array.isArray((root as { products?: unknown }).products)) {
+            products = (root as { products: FunnelProduct[] }).products;
+          }
+        }
+        totalProducts += products.length;
+
+        const rows: Record<string, unknown>[] = [];
+        for (const p of products) {
+          const nm = p.product?.nmId ?? p.nmId;
+          if (!nm) continue;
+          for (const h of p.history ?? []) {
+            const dt = (h.date ?? h.dt ?? "").slice(0, 10);
+            if (!dt) continue;
+            rows.push({
+              nm_id: nm,
+              dt,
+              open_count: toInt(h.openCount),
+              add_to_cart_count: toInt(h.cartCount ?? h.addToCartCount),
+              order_count: toInt(h.orderCount),
+              order_sum: toNum(h.orderSum),
+              buyout_count: toInt(h.buyoutCount),
+              buyout_sum: toNum(h.buyoutSum),
+              cancel_count: toInt(h.cancelCount),
+              cancel_sum: toNum(h.cancelSum),
+              add_to_wishlist_count: toInt(h.addToWishlistCount),
+              add_to_cart_conversion: toNum(h.addToCartConversion),
+              cart_to_order_conversion: toNum(h.cartToOrderConversion),
+              buyout_percent: toNum(h.buyoutPercent),
+              fetched_at: new Date().toISOString(),
+            });
+          }
+        }
+        if (rows.length > 0) {
+          const { error: upErr } = await supabase.from("wb_sales_funnel")
+            .upsert(rows, { onConflict: "nm_id,dt" });
+          if (upErr) throw new Error(`wb_sales_funnel upsert: ${upErr.message}`);
+          totalRows += rows.length;
+        }
+        // WB rate limit funnel: 3 req/min — пауза 22 сек между запросами
+        requestNo++;
+        const isLast = win === windows[windows.length - 1] && i + PAGE >= allNm.length;
+        if (!isLast) await new Promise((r) => setTimeout(r, 22000));
       }
-      if (rows.length > 0) {
-        const { error: upErr } = await supabase.from("wb_sales_funnel")
-          .upsert(rows, { onConflict: "nm_id,dt" });
-        if (upErr) throw new Error(`wb_sales_funnel upsert: ${upErr.message}`);
-        totalRows += rows.length;
-      }
-      // WB rate limit funnel: 3 req/min — пауза 22 сек между батчами
-      if (i + PAGE < allNm.length) await new Promise((r) => setTimeout(r, 22000));
     }
 
     await supabase.from("ingestion_log").update({
       status: "ok", finished_at: new Date().toISOString(),
       rows_in: totalProducts, rows_out: totalRows,
-      meta: { from: dateFrom, to: dateTo, products: totalProducts, rows: totalRows,
+      meta: { from: dateFrom, to: dateTo, windows: windows.length,
+              products: totalProducts, rows: totalRows,
               raw_sample: firstRaw && Array.isArray(firstRaw) ? (firstRaw as unknown[])[0] :
                           firstRaw && typeof firstRaw === "object" ? Object.keys(firstRaw as object) : null },
     }).eq("id", jobId);
