@@ -21,6 +21,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Включает output: 'standalone' в next.config.ts — раскладку, которую
+# ниже забирает runner-стадия. Вне контейнера флаг не ставится: на Windows
+# standalone падает на симлинках.
+ENV BUILD_STANDALONE=1
 RUN pnpm --filter @sellerbase/web build
 
 # ---- runner ----
