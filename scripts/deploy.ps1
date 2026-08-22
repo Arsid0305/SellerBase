@@ -84,16 +84,16 @@ if (Test-Path '.vercel') { Remove-Item -Recurse -Force '.vercel' }
 Run 'vercel' @('link', '--yes', '--project', $ProjectName, '--scope', $Scope)
 Ok "проект $ProjectName"
 
-Step 'Переменные окружения из Vercel'
-# Нужны для сборки: ключи Supabase и прочее лежат в настройках проекта.
-Run 'vercel' @('pull', '--yes', '--environment=production')
-Ok 'переменные получены'
-
-Step 'Сборка'
-Run 'vercel' @('build', '--prod')
-
 Step 'Выкатка в продакшн'
-Run 'vercel' @('deploy', '--prebuilt', '--prod')
+# Собираем НЕ локально, а на стороне Vercel - как он делал бы из GitHub.
+#
+# Почему не 'vercel build' + 'deploy --prebuilt': на Windows локальная
+# сборка кладёт вывод так, что загрузчик его не находит -
+# 'ENOENT: no such file or directory ... functions/analytics/margin.func'.
+# Плюс standalone-раскладка упиралась в запрет симлинков.
+# Удалённая сборка обходит обе беды: наверх уходят исходники,
+# собирает их Linux-окружение Vercel.
+Run 'vercel' @('deploy', '--prod', '--yes')
 
 Write-Host ""
 Write-Host "Готово. Проверьте https://seller-base-web.vercel.app" -ForegroundColor Green
