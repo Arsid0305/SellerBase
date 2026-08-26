@@ -15,13 +15,16 @@ export default async function SeoPage({ searchParams }: { searchParams: SearchPa
     <div className="flex flex-col gap-6">
       <PageHeader
         title="SEO карточек"
-        description="Проверка наименований, описаний и характеристик по регламенту — где горит и что чинить"
+        description="Ревизия карточек: заполненность полей WB, наименования, описания, риски — где горит и что чинить"
       />
       <SeoExplorer data={data} initialArticle={article} />
       <p className="text-muted-foreground text-xs">
         Проверка идёт по <code>v_sku_seo_issues</code>: правила в <code>seo_stop_words</code>,
-        пороги в <code>app_settings</code>. Данные карточек — из <code>sku_catalog</code>,
-        обновляются <code>fetch-wb-content</code>. Регламент — <code>docs/SEO_MARKETPLACES.md</code>{' '}
+        пороги в <code>app_settings</code>. Заполненность полей — <code>v_sku_card_review</code>{' '}
+        поверх справочника <code>wb_subject_charcs</code>, который тянет{' '}
+        <code>fetch-wb-subject-charcs</code> прямо с WB: «из скольки» — это то, что площадка ждёт в
+        категории, а не наш список. Данные карточек — из <code>sku_catalog</code>, обновляются{' '}
+        <code>fetch-wb-content</code>. Регламент — <code>docs/SEO_MARKETPLACES.md</code>{' '}
         §5, словарь с объяснениями — <code>docs/seo/stop-words.md</code>. Балла пока нет: без
         семантического ядра он мерил бы соблюдение формы, а не результат. В WB ничего не пишется,
         только чтение. Обновлено {data.generatedAt}.

@@ -32,6 +32,24 @@ export function SeoSkuDetail({ sku, onClose }: { sku: SeoSkuRow; onClose: () => 
         </Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 pb-4">
+        {sku.missingFields.length > 0 && (
+          <div className="border-border bg-muted/20 flex flex-col gap-1.5 rounded-md border p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">Незаполненные поля WB</span>
+              <span className="text-muted-foreground text-sm tabular-nums">
+                — {sku.missingFields.length} из {sku.charcsTotal}
+                {sku.requiredMissing > 0 ? `, обязательных ${sku.requiredMissing}` : ''}
+              </span>
+            </div>
+            <p className="text-xs leading-relaxed">{sku.missingFields.join(' · ')}</p>
+            {sku.charcsUnknown > 0 && (
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                Ещё {sku.charcsUnknown} полей мы с WB не тянем (ТН ВЭД, сертификаты, НДС) — про них
+                состояние неизвестно, в счёт они не идут.
+              </p>
+            )}
+          </div>
+        )}
         {sku.issues.map((issue, i) => (
           <div
             key={`${issue.checkName}-${issue.finding}-${i}`}
