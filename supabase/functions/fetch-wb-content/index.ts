@@ -49,6 +49,7 @@ interface WbCard {
   title?: string;
   brand?: string;
   description?: string;
+  subjectID?: number;
   subjectName?: string;
   rating?: number;
   reviewsCount?: number;
@@ -121,6 +122,10 @@ Deno.serve(async (req: Request) => {
               brand: card.brand || null,
               category: card.subjectName || null, // legacy-поле, оставлено для обратной совместимости
               subject_name: card.subjectName || null,
+              // subject_id — ключ к справочнику характеристик предмета
+              // (content/v2/object/charcs/{subjectId}). Без него не узнать, какие поля
+              // у категории есть вообще, то есть нечем мерить незаполненность.
+              subject_id: card.subjectID ?? null,
               rating: card.rating ?? null, // Content API обычно не отдаёт — останется null
               reviews_count: card.reviewsCount ?? null, // аналогично, обычно null без Feedbacks API
               photo_url: photoUrl,
