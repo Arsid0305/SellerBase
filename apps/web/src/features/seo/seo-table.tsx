@@ -13,7 +13,14 @@ import { SeoFindings } from './seo-findings';
 import { SeoSkuDetail } from './seo-detail';
 import { seoColumns } from './seo-columns';
 
-type StatusFilter = 'all' | 'risk-r' | 'with-traffic' | 'risk-a' | 'missing-key' | 'clean';
+type StatusFilter =
+  | 'all'
+  | 'risk-r'
+  | 'with-traffic'
+  | 'risk-a'
+  | 'missing-key'
+  | 'fields-thin'
+  | 'clean';
 
 const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: 'Все' },
@@ -21,8 +28,13 @@ const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
   { key: 'with-traffic', label: 'Есть трафик и замечания' },
   { key: 'risk-a', label: 'Средний риск' },
   { key: 'missing-key', label: 'Нет ключа' },
+  { key: 'fields-thin', label: 'Поля заполнены слабо' },
   { key: 'clean', label: 'Без замечаний' },
 ];
+
+// Порог «слабо» — 85%: выше него остаются единичные необязательные поля,
+// ниже начинается то, что реально стоит дозаполнить.
+const FIELDS_THIN_PCT = 85;
 
 function matchesStatus(row: SeoSkuRow, f: StatusFilter): boolean {
   switch (f) {
@@ -36,6 +48,8 @@ function matchesStatus(row: SeoSkuRow, f: StatusFilter): boolean {
       return row.nRiskA > 0;
     case 'missing-key':
       return row.nMissingG > 0;
+    case 'fields-thin':
+      return row.charcsTotal > 0 && (row.charcsFilledPct ?? 100) < FIELDS_THIN_PCT;
     case 'clean':
       return row.nTotal === 0;
   }
@@ -65,6 +79,19 @@ const CSV_COLUMNS: CsvColumn<SeoSkuRow>[] = [
   { key: 'buyoutPct', label: 'Процент выкупа %' },
   { key: 'descLen', label: 'Длина описания' },
   { key: 'charCount', label: 'Характеристик' },
+  { key: 'charcsFilled', label: 'Полей заполнено' },
+  { key: 'charcsTotal', label: 'Полей проверяем' },
+  { key: 'charcsFilledPct', label: 'Заполнено %' },
+  { key: 'requiredMissing', label: 'Обязательных пропущено' },
+  { key: 'popularMissing', label: 'Популярных пропущено' },
+  { key: 'charcsUnknown', label: 'Полей не видим' },
+  {
+    key: 'missingFields',
+    label: 'Незаполненные поля',
+    format: (row) => row.missingFields.join('; '),
+  },
+  { key: 'freqCoveredPct', label: 'Покрытие ключей %' },
+  { key: 'stockQty', label: 'Остаток' },
   { key: 'nRiskR', label: 'Высокий риск' },
   { key: 'nRiskA', label: 'Средний риск' },
   { key: 'nMissingG', label: 'Нет ключа' },
@@ -170,6 +197,7 @@ export function SeoExplorer({
             {data.groups.map((g) => (
               <option key={g.subjectName} value={g.subjectName}>
                 {g.subjectName} · {g.skuCount} SKU
+                {g.charcsFilledPct != null ? ` · поля ${g.charcsFilledPct}%` : ''}
                 {g.withRiskR > 0 ? ` · ${g.withRiskR} с риском` : ''}
               </option>
             ))}

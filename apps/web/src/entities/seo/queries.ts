@@ -36,6 +36,19 @@ export type SeoSkuRow = {
   nMissingG: number;
   nTotal: number;
   issues: SeoIssue[];
+  // Ревизия полей карточки: v_sku_card_review поверх справочника wb_subject_charcs.
+  // charcsTotal — сколько полей мы реально проверяем (без страновых и без тех,
+  // что не тянем с WB). charcsUnknown — та самая слепая зона.
+  charcsTotal: number;
+  charcsFilled: number;
+  charcsFilledPct: number | null;
+  requiredMissing: number;
+  popularMissing: number;
+  charcsUnknown: number;
+  missingFields: string[];
+  freqCoveredPct: number | null;
+  dimsMissing: boolean;
+  stockQty: number;
 };
 
 export type SeoGroupRow = {
@@ -44,6 +57,7 @@ export type SeoGroupRow = {
   cleanCount: number;
   withRiskR: number;
   issuesTotal: number;
+  charcsFilledPct: number | null;
 };
 
 export type SeoOverview = {
@@ -97,6 +111,20 @@ type FunnelRow = {
   cr_order_pct: number | string | null;
 };
 
+type ReviewRow = {
+  my_article: string | null;
+  charcs_total: number | null;
+  charcs_filled: number | null;
+  charcs_filled_pct: number | string | null;
+  required_missing: number | null;
+  popular_missing: number | null;
+  charcs_unknown: number | null;
+  missing_fields: string | null;
+  freq_covered_pct: number | string | null;
+  dims_missing: boolean | null;
+  stock_qty: number | null;
+};
+
 type CatalogRow = {
   my_article: string | null;
   wb_article: number | null;
@@ -110,7 +138,7 @@ type CatalogRow = {
 export async function fetchSeoOverview(): Promise<SeoOverview> {
   const supabase = createAdminClient();
 
-  const [issuesRes, catalogRes, funnelRes] = await Promise.all([
+  const [issuesRes, catalogRes, funnelRes, reviewRes] = await Promise.all([
     supabase
       .from('v_sku_seo_issues')
       .select('my_article, wb_article, subject_name, check_name, risk, finding, detail, suggestion')
@@ -125,11 +153,18 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
       .from('v_sku_seo_funnel_30d')
       .select('my_article, views_30d, orders_30d, cart_30d, cr_cart_pct, cr_order_pct, buyout_pct')
       .range(0, 10_000),
+    supabase
+      .from('v_sku_card_review')
+      .select(
+        'my_article, charcs_total, charcs_filled, charcs_filled_pct, required_missing, popular_missing, charcs_unknown, missing_fields, freq_covered_pct, dims_missing, stock_qty',
+      )
+      .range(0, 10_000),
   ]);
 
   if (issuesRes.error) console.error('[fetchSeoOverview] v_sku_seo_issues', issuesRes.error);
   if (catalogRes.error) console.error('[fetchSeoOverview] sku_catalog', catalogRes.error);
   if (funnelRes.error) console.error('[fetchSeoOverview] v_sku_seo_funnel_30d', funnelRes.error);
+  if (reviewRes.error) console.error('[fetchSeoOverview] v_sku_card_review', reviewRes.error);
 
   const issues = (issuesRes.data ?? []) as IssueRow[];
   const catalog = (catalogRes.data ?? []) as CatalogRow[];
@@ -139,6 +174,11 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
   }
   const num = (v: number | string | null | undefined): number | null =>
     v == null ? null : typeof v === 'number' ? v : Number(v);
+
+  const review = new Map<string, ReviewRow>();
+  for (const r of (reviewRes.data ?? []) as ReviewRow[]) {
+    if (r.my_article) review.set(r.my_article, r);
+  }
 
   const byArticle = new Map<string, SeoSkuRow>();
 
@@ -164,6 +204,20 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
       nMissingG: 0,
       nTotal: 0,
       issues: [],
+      charcsTotal: Number(review.get(c.my_article)?.charcs_total ?? 0),
+      charcsFilled: Number(review.get(c.my_article)?.charcs_filled ?? 0),
+      charcsFilledPct: num(review.get(c.my_article)?.charcs_filled_pct),
+      requiredMissing: Number(review.get(c.my_article)?.required_missing ?? 0),
+      popularMissing: Number(review.get(c.my_article)?.popular_missing ?? 0),
+      charcsUnknown: Number(review.get(c.my_article)?.charcs_unknown ?? 0),
+      // В view список склеен через '; ' — разбираем обратно, чтобы UI мог показать
+      // его пунктами, а CSV — одной ячейкой.
+      missingFields: (review.get(c.my_article)?.missing_fields ?? '')
+        .split('; ')
+        .filter(Boolean),
+      freqCoveredPct: num(review.get(c.my_article)?.freq_covered_pct),
+      dimsMissing: review.get(c.my_article)?.dims_missing ?? false,
+      stockQty: Number(review.get(c.my_article)?.stock_qty ?? 0),
     });
   }
 
@@ -227,12 +281,24 @@ export async function fetchSeoOverview(): Promise<SeoOverview> {
       cleanCount: 0,
       withRiskR: 0,
       issuesTotal: 0,
+      charcsFilledPct: null,
     };
     g.skuCount += 1;
     g.issuesTotal += s.nTotal;
     if (s.nTotal === 0) g.cleanCount += 1;
     if (s.nRiskR > 0) g.withRiskR += 1;
     groupMap.set(name, g);
+  }
+
+  // Средняя заполненность полей по группе — считаем только там, где справочник
+  // предмета вообще подтянулся: иначе ноль выглядел бы как «ничего не заполнено».
+  for (const [name, g] of groupMap) {
+    const rows = skus.filter(
+      (s) => (s.subjectName ?? '— без предмета —') === name && s.charcsTotal > 0,
+    );
+    g.charcsFilledPct = rows.length
+      ? Math.round(rows.reduce((acc, s) => acc + (s.charcsFilledPct ?? 0), 0) / rows.length)
+      : null;
   }
 
   const groups = [...groupMap.values()].sort((a, b) => {

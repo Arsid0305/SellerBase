@@ -15,6 +15,9 @@ const RISK_TOOLTIP =
 const TRAFFIC_TOOLTIP =
   'Просмотры, корзина и заказы за 30 дней — из воронки WB. Чинить в первую очередь имеет смысл там, где карточку видят: правка описания у SKU без просмотров ничего не изменит. Низкая конверсия в корзину при живых просмотрах — признак того, что не убеждают наименование, фото и описание.';
 
+const FIELDS_TOOLTIP =
+  'Сколько характеристик предмета заполнено. Список полей берётся с WB (content/v2/object/charcs), поэтому «из скольки» — это то, что площадка действительно ждёт в этой категории, а не наша выдумка. Поля для продавцов других стран (ИКПУ, NTIN) исключены. Всё остальное WB отдаёт заполненным, если оно заполнено, поэтому отсутствие поля означает именно пропуск.';
+
 const LEN_TOOLTIP =
   'Целевая длина описания 1500–2000 знаков: короче — не хватает ключей, длиннее — WB режет выдачу в карточке.';
 
@@ -57,6 +60,37 @@ export function seoColumns(opts: {
       cell: ({ row }) => (
         <span className="text-muted-foreground text-sm">{row.original.subjectName ?? '—'}</span>
       ),
+    },
+    {
+      accessorKey: 'charcsFilledPct',
+      header: () => (
+        <span className="inline-flex items-center gap-1">
+          Поля WB
+          <TooltipIcon text={FIELDS_TOOLTIP} />
+        </span>
+      ),
+      cell: ({ row }) => {
+        const r = row.original;
+        if (r.charcsTotal === 0) {
+          return <span className="text-muted-foreground text-xs">нет справочника</span>;
+        }
+        const pct = r.charcsFilledPct ?? 0;
+        const tone =
+          pct >= 85
+            ? 'text-emerald-700 dark:text-emerald-400'
+            : pct >= 70
+              ? 'text-amber-700 dark:text-amber-400'
+              : 'text-red-700 dark:text-red-400';
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className={cn('font-medium tabular-nums', tone)}>{pct}%</span>
+            <span className="text-muted-foreground text-[11px] tabular-nums">
+              {r.charcsFilled} из {r.charcsTotal}
+              {r.charcsUnknown > 0 ? ` · ${r.charcsUnknown} не видим` : ''}
+            </span>
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'nRiskR',
@@ -176,7 +210,8 @@ export function seoColumns(opts: {
             variant={isOpen ? 'default' : 'ghost'}
             size="sm"
             className={cn('text-xs', !isOpen && 'text-muted-foreground')}
-            disabled={row.original.nTotal === 0}
+            // Разбор нужен и без замечаний: там же список незаполненных полей.
+            disabled={row.original.nTotal === 0 && row.original.missingFields.length === 0}
             onClick={() => opts.onSelect(isOpen ? null : row.original.myArticle)}
           >
             {isOpen ? 'Скрыть' : 'Разбор'}
