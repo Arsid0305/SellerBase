@@ -12,7 +12,8 @@
 
 | Группа | SKU | Файл | Статус |
 |---|---|---|---|
-| Мячи массажные | 19 | [`myachi-massazhnye.md`](myachi-massazhnye.md) | ✅ переписано |
+| Мячи массажные | 19 | [`myachi-massazhnye.md`](myachi-massazhnye.md) | ✅ переписано 21.08, перепроверить под канон 2026 |
+| Мячи 106/107/109 — значения полей | 15 | [`myachi-polya-106-107-109.md`](myachi-polya-106-107-109.md) | ✅ готово к заливке: зона массажа, действие, материал, цвет |
 | Мешки для стирки | 12 | [`meshki-dlya-stirki.md`](meshki-dlya-stirki.md) | ✅ переписано |
 | Таблетницы | 10 | [`tabletnitsy.md`](tabletnitsy.md) | ✅ переписано |
 | Капы | 8 | [`kapy.md`](kapy.md) | ✅ переписано |
