@@ -49,7 +49,7 @@
 | группа | SKU | файл | состояние | артефакты |
 |---|---|---|---|---|
 | Массажёры роликовые ленточные ACRB1MS101 | 3 | [`massagers-roller-101.md`](massagers-roller-101.md) | **готово под ключ** — поля и три описания в [`../descriptions/massagers-roller-101.md`](../descriptions/massagers-roller-101.md) | [разбор](https://claude.ai/code/artifact/7a57eab6-730e-4f80-9e27-3d205309807b) · [под ключ](https://claude.ai/code/artifact/76d2cfd8-2b35-4d94-b279-af98335b0e34) |
-| Массажные мячи 6 / 7 / 9 см | 15 | [`massage-balls-106-107-109.md`](massage-balls-106-107-109.md) | значения полей готовы к заливке — [`../descriptions/myachi-polya-106-107-109.md`](../descriptions/myachi-polya-106-107-109.md). Остаются наименования и описания. Подгруппа 103 выведена из продажи | [разбор](https://claude.ai/code/artifact/ccb8774b-0fe9-4a3a-987b-926ad7707621) · [поля](https://claude.ai/code/artifact/c9dc8145-633f-47c2-8d7d-549ceadbe2ba) |
+| Массажные мячи 6 / 7 / 9 см | 15 | [`massage-balls-106-107-109.md`](massage-balls-106-107-109.md) | **готово под ключ** — наименования, поля и 15 описаний в [`../descriptions/myachi-106-107-109.md`](../descriptions/myachi-106-107-109.md). Перед заливкой описаний — правка инфографики. Подгруппа 103 выведена из продажи | [разбор](https://claude.ai/code/artifact/ccb8774b-0fe9-4a3a-987b-926ad7707621) · [поля](https://claude.ai/code/artifact/c9dc8145-633f-47c2-8d7d-549ceadbe2ba) |
 | Мешки для стирки (предмет 1005) | 12 | [`meshki-stirki-1005.md`](meshki-stirki-1005.md) | материал собран, разбор ждёт фотографий | [разбор](https://claude.ai/code/artifact/2af12263-60b9-4471-ab89-c925bbfedf76) |
 
 Колонка «артефакты» — реестр читаемых версий разборов. Заводится здесь, а не в отдельных
