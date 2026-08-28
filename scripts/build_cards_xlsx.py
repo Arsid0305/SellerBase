@@ -125,6 +125,55 @@ def parse_balls(text):
     return rows
 
 
+INFO = ROOT / "docs" / "seo" / "infographics"
+
+INFO_GROUPS = [
+    ("Мячи 6-7-9 см", "myachi-106-107-109.md"),
+    ("Массажёры 101", "massagers-roller-101.md"),
+    ("Таблетницы", "tabletnitsy.md"),
+]
+
+
+def parse_order(text):
+    """Нумерованный список из раздела «## Порядок» — что делать и в каком порядке."""
+    m = re.search(r"(?m)^## Порядок\s*$(.*?)(?=^## |\Z)", text, re.S)
+    if not m:
+        return []
+    items = re.findall(r"(?m)^\d+\.\s+(.+?)(?=\n\d+\.|\n\n|\Z)", m.group(1), re.S)
+    return [re.sub(r"\s+", " ", i).replace("**", "").strip() for i in items]
+
+
+def urgency(text):
+    """Срочность — по наличию медицинских заявлений в задании."""
+    return "не срочно" if "нет ни одного медицинского заявления" in text else "срочно"
+
+
+def sheet_info(wb):
+    rows = []
+    for name, fname in INFO_GROUPS:
+        path = INFO / fname
+        if not path.exists():
+            continue
+        t = path.read_text(encoding="utf-8")
+        for i, item in enumerate(parse_order(t), 1):
+            rows.append([name if i == 1 else "", urgency(t) if i == 1 else "", i, item])
+    if not rows:
+        return 0
+    ws = wb.create_sheet("Инфографика")
+    ws.append(["Группа", "Срочность", "№", "Что сделать"])
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    for r in rows:
+        ws.append(r)
+    for col, w in zip("ABCD", (20, 14, 5, 105)):
+        ws.column_dimensions[col].width = w
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.freeze_panes = "A2"
+    return len(rows)
+
+
 GROUPS = [
     ("Таблетницы", "tabletnitsy.md", parse_generic),
     ("Мячи 6-7-9 см", "myachi-106-107-109.md", parse_balls),
@@ -170,6 +219,8 @@ def main():
         ["Мячи", "Заливать описания только после правки инфографики: "
                  "docs/seo/infographics/myachi-106-107-109.md."],
         ["Таблетницы", "Строку про крепления в трёх карточках 101* подтвердить перед заливкой."],
+        ["Инфографика", "Отдельный лист: что переделать на слайдах, по группам. Мячи и массажёры — "
+                        "срочно, там медицинские заявления. Таблетницы — не срочно."],
     ]:
         intro.append(line)
     intro.column_dimensions["A"].width = 18
@@ -177,6 +228,10 @@ def main():
     for row in intro.iter_rows():
         row[0].font = Font(bold=True)
         row[1].alignment = Alignment(wrap_text=True, vertical="top")
+
+    n_info = sheet_info(wb)
+    if n_info:
+        print(f"Инфографика: {n_info} пунктов")
 
     total = 0
     for name, fname, parser in GROUPS:
