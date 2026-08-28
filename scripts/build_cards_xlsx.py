@@ -181,22 +181,27 @@ INFO_GROUPS = [
 
 
 def parse_order(text):
-    """Нумерованный список из раздела «## Порядок» — что делать и в каком порядке."""
-    m = re.search(r"(?m)^## Порядок\s*$(.*?)(?=^## |\Z)", text, re.S)
-    if not m:
-        return []
-    items = re.findall(r"(?m)^\d+\.\s+(.+?)(?=\n\d+\.|\n\n|\Z)", m.group(1), re.S)
-    return [re.sub(r"\s+", " ", i).replace("**", "").strip() for i in items]
+    """Нумерованные списки из разделов «Порядок».
+
+    В файле их может быть несколько — по одному на подгруппу, и заголовок
+    бывает как второго уровня, так и третьего. Берём все и склеиваем.
+    """
+    items = []
+    for m in re.finditer(r"(?m)^#{2,3} Порядок\s*$(.*?)(?=^#{2,3} |\Z)", text, re.S):
+        for i in re.findall(r"(?m)^\d+\.\s+(.+?)(?=\n\d+\.|\n\n|\Z)", m.group(1), re.S):
+            items.append(re.sub(r"\s+", " ", i).replace("**", "").strip())
+    return items
 
 
 def parse_per_article(text):
-    """Таблица «## По артикулам»: артикул -> что сделать со слайдами."""
-    m = re.search(r"(?m)^## По артикулам\s*$(.*?)(?=^## |\Z)", text, re.S)
-    if not m:
-        return {}
+    """Таблицы «По артикулам»: артикул -> что сделать со слайдами.
+
+    Разделов может быть несколько (по подгруппам), уровень заголовка ## или ###.
+    """
     out = {}
-    for art, todo in re.findall(r"(?m)^\|\s*(" + ART + r")\s*\|\s*(.+?)\s*\|\s*$", m.group(1)):
-        out[art] = todo.strip()
+    for m in re.finditer(r"(?m)^#{2,3} По артикулам\s*$(.*?)(?=^#{2,3} |\Z)", text, re.S):
+        for art, todo in re.findall(r"(?m)^\|\s*(" + ART + r")\s*\|\s*(.+?)\s*\|\s*$", m.group(1)):
+            out[art] = todo.strip()
     return out
 
 
