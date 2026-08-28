@@ -150,6 +150,12 @@ def parse_bags(text):
                     if v and not v.startswith(("то же", "стоит", "требует")):
                         fields.setdefault(sku, {})[cells[0]] = v
 
+        # «**`SKU`** — «Комплектация», N значений:» + блок в тройных кавычках
+        for m2 in re.finditer(r"\*\*`(\d[A-Z]{2}\d{3}[A-ZС]{2})`\*\* — «Комплектация»"
+                              r"(?:(?!\*\*`)[\s\S])*?```\n(.*?)\n```",
+                              body, re.S):
+            fields.setdefault(m2.group(1), {})["Комплектация"] = m2.group(2).strip()
+
         for head, sec in split_sections(body, "### "):
             mm = re.match(r"\s*`?(" + ART + r")`?\s*·\s*(.+)", head)
             if not mm:
