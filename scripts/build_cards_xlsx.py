@@ -127,7 +127,53 @@ def parse_balls(text):
 
 INFO = ROOT / "docs" / "seo" / "infographics"
 
+def parse_bags(text):
+    """meshki-dlya-stirki.md: поля таблицей «колонка на SKU», описания в «### ART · имя».
+
+    Разбор идёт по подгруппам: внутри каждой одна таблица «Значения полей», где
+    первая колонка — имя поля, остальные — артикулы. Готовы не все подгруппы,
+    поэтому карточка попадает в лист только если у неё есть описание.
+    """
+    rows = []
+    for _, body in split_sections(text):
+        fields = {}
+        m = re.search(r"^\| поле \|(.+?)\|\s*$", body, re.M)
+        if m:
+            skus = [re.sub(r"[`\s]|\(.*?\)", "", c) for c in m.group(1).split("|") if c.strip()]
+            start = body.index(m.group(0))
+            for line in body[start:].split("\n")[2:]:
+                if not line.startswith("|"):
+                    break
+                cells = [c.strip() for c in line.strip("|").split("|")]
+                for sku, val in zip(skus, cells[1:]):
+                    v = val.replace("`", "").replace(" + ", "\n").replace(" · ", "\n").strip()
+                    if v and not v.startswith(("то же", "стоит", "требует")):
+                        fields.setdefault(sku, {})[cells[0]] = v
+
+        # «**`SKU`** — «Комплектация», N значений:» + блок в тройных кавычках
+        for m2 in re.finditer(r"\*\*`(\d[A-Z]{2}\d{3}[A-ZС]{2})`\*\* — «Комплектация»"
+                              r"(?:(?!\*\*`)[\s\S])*?```\n(.*?)\n```",
+                              body, re.S):
+            fields.setdefault(m2.group(1), {})["Комплектация"] = m2.group(2).strip()
+
+        for head, sec in split_sections(body, "### "):
+            mm = re.match(r"\s*`?(" + ART + r")`?\s*·\s*(.+)", head)
+            if not mm:
+                continue
+            sku = mm.group(1)
+            f = fields.get(sku[4:], {})
+            rows.append({
+                "Артикул": sku,
+                "Наименование": mm.group(2).strip(),
+                "Цвет": f.get("Цвет", ""),
+                "Комплектация": f.get("Комплектация", ""),
+                "Описание": fenced(sec),
+            })
+    return rows
+
+
 INFO_GROUPS = [
+    ("Мешки для стирки", "meshki-stirki.md"),
     ("Мячи 6-7-9 см", "myachi-106-107-109.md"),
     ("Массажёры 101", "massagers-roller-101.md"),
     ("Таблетницы", "tabletnitsy.md"),
@@ -199,6 +245,7 @@ GROUPS = [
     ("Таблетницы", "tabletnitsy.md", parse_generic),
     ("Мячи 6-7-9 см", "myachi-106-107-109.md", parse_balls),
     ("Массажёры 101", "massagers-roller-101.md", parse_roller),
+    ("Мешки для стирки", "meshki-dlya-stirki.md", parse_bags),
 ]
 
 COLS = ["Артикул", "nm_id", "Наименование", "Зона массажа", "Действие",

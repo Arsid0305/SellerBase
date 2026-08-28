@@ -32,6 +32,13 @@ GROUPS = {
          ("Заливка", "descriptions/massagers-roller-101.md"),
          ("Инфографика", "infographics/massagers-roller-101.md")],
     ),
+    "meshki": (
+        "Мешки для стирки",
+        "12 карточек · предмет 1005 · четыре подгруппы, у шести карточек жёсткий каркас",
+        [("Разбор", "fill-plan/meshki-stirki-1005.md"),
+         ("Заливка", "descriptions/meshki-dlya-stirki.md"),
+         ("Инфографика", "infographics/meshki-stirki.md")],
+    ),
     "tabletnitsy": (
         "Таблетницы",
         "Предмет 2323 · 10 карточек · три конструкции от трёх поставщиков",
