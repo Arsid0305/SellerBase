@@ -143,6 +143,27 @@ def parse_order(text):
     return [re.sub(r"\s+", " ", i).replace("**", "").strip() for i in items]
 
 
+def parse_per_article(text):
+    """Таблица «## По артикулам»: артикул -> что сделать со слайдами."""
+    m = re.search(r"(?m)^## По артикулам\s*$(.*?)(?=^## |\Z)", text, re.S)
+    if not m:
+        return {}
+    out = {}
+    for art, todo in re.findall(r"(?m)^\|\s*(" + ART + r")\s*\|\s*(.+?)\s*\|\s*$", m.group(1)):
+        out[art] = todo.strip()
+    return out
+
+
+def all_per_article():
+    """Задания по слайдам со всех групп разом."""
+    out = {}
+    for _, fname in INFO_GROUPS:
+        path = INFO / fname
+        if path.exists():
+            out.update(parse_per_article(path.read_text(encoding="utf-8")))
+    return out
+
+
 def urgency(text):
     """Срочность — по наличию медицинских заявлений в задании."""
     return "не срочно" if "нет ни одного медицинского заявления" in text else "срочно"
@@ -181,7 +202,7 @@ GROUPS = [
 ]
 
 COLS = ["Артикул", "nm_id", "Наименование", "Зона массажа", "Действие",
-        "Материал изделия", "Цвет", "Комплектация", "Описание"]
+        "Материал изделия", "Цвет", "Комплектация", "Описание", "Инфографика"]
 
 
 def sheet(wb, name, rows):
@@ -192,7 +213,8 @@ def sheet(wb, name, rows):
         c.font = Font(bold=True)
     for r in rows:
         ws.append([r.get(c, "") for c in cols])
-    widths = {"Артикул": 15, "nm_id": 12, "Наименование": 46, "Описание": 90}
+    widths = {"Артикул": 15, "nm_id": 12, "Наименование": 46, "Описание": 90,
+              "Инфографика": 70}
     for i, c in enumerate(cols, 1):
         ws.column_dimensions[ws.cell(1, i).column_letter].width = widths.get(c, 22)
     for row in ws.iter_rows(min_row=2):
@@ -229,6 +251,7 @@ def main():
         row[0].font = Font(bold=True)
         row[1].alignment = Alignment(wrap_text=True, vertical="top")
 
+    per_article = all_per_article()
     n_info = sheet_info(wb)
     if n_info:
         print(f"Инфографика: {n_info} пунктов")
@@ -240,6 +263,10 @@ def main():
             print(f"пропуск: нет {fname}")
             continue
         rows = parser(path.read_text(encoding="utf-8"))
+        for r in rows:
+            todo = per_article.get(r["Артикул"])
+            if todo:
+                r["Инфографика"] = todo
         if not rows:
             print(f"пропуск: {fname} — ни одного артикула не разобрано")
             continue
