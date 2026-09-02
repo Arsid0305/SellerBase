@@ -428,6 +428,7 @@ async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
     { job: "fetch-wb-goods-returns", staleHours: 30 },     // ежедневно
     { job: "fetch-wb-prices", staleHours: 30 },            // ежедневно
     { job: "fetch-wb-feedback", staleHours: 30 },          // ежедневно
+    { job: "fetch-wb-questions", staleHours: 30 },         // ежедневно
     { job: "fetch-wb-content", staleHours: 24 * 9 },       // еженедельно, вт
     { job: "fetch-wb-report", staleHours: 24 * 9 },        // еженедельно, вт
     { job: "fetch-wb-commissions", staleHours: 24 * 9 },   // еженедельно, пн
