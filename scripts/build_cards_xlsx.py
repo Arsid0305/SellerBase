@@ -19,7 +19,7 @@
     текст
     ```
 """
-import argparse, pathlib, re, sys
+import argparse, json, pathlib, re, sys
 
 try:
     import openpyxl
@@ -334,9 +334,36 @@ GROUPS = [
 # но в книгу не попало, потому что имени не было в этом перечне.
 COLS = ["Артикул", "nm_id", "Наименование", "Полное наименование товара",
         "Зона массажа", "Действие", "Материал изделия", "Цвет", "Комплектация",
-        "Упаковка", "Код ТН ВЭД", "Описание", "Рич-контент", "Инфографика"]
+        "Упаковка", "Код ТН ВЭД", "Длина упаковки", "Ширина упаковки",
+        "Высота упаковки", "Вес с упаковкой (г)",
+        "Описание", "Рич-контент", "Инфографика"]
 
 COUNTRY = "Китай"
+
+# Габариты и вес в упаковке — docs/seo/packaging.json, выгрузка из sku_catalog.
+# Это размеры В УПАКОВКЕ, а не изделия: цифры пришли из юнит-экономики, и разбор
+# таблетниц (§«Размер и вес») прямо оговаривает, что годятся они для полей
+# «Длина / Ширина / Высота упаковки» и логистики, но не для размеров предмета.
+PACKAGING = json.loads((ROOT / "docs" / "seo" / "packaging.json").read_text(encoding="utf-8")) \
+    if (ROOT / "docs" / "seo" / "packaging.json").exists() else {}
+
+PACK_FIELDS = [
+    ("Длина упаковки", "len"),
+    ("Ширина упаковки", "wid"),
+    ("Высота упаковки", "hei"),
+    ("Вес с упаковкой (г)", "weight_g"),
+]
+
+
+def fill_packaging(row):
+    """Габариты и вес по артикулу. Пусто — значит в каталоге нет цифры."""
+    pack = PACKAGING.get(row.get("Артикул", ""))
+    if not pack:
+        return
+    for col, key in PACK_FIELDS:
+        v = pack.get(key)
+        if v is not None:
+            row.setdefault(col, v)
 
 # Коды ТН ВЭД по префиксу артикула. Источник — docs/marking/codes-marking.md,
 # который, в свою очередь, собран по матрице владелицы (выбор помечен зелёным).
@@ -386,6 +413,7 @@ def sheet(wb, name, rows):
         if r.get("Наименование"):
             r.setdefault("Полное наименование товара", r["Наименование"])
         r.setdefault("Страна производства", COUNTRY)
+        fill_packaging(r)
     # Известные колонки в заданном порядке, затем всё остальное разобранное.
     extra = sorted({k for r in rows for k in r} - set(COLS))
     cols = [c for c in COLS + extra if any(r.get(c) for r in rows) or c in FORCE_COLS]
