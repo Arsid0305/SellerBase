@@ -56,7 +56,20 @@ def split_sections(text, level="## "):
 
 
 # Поля, которые в лист не выносим: они служебные либо дублируют другие колонки.
-SKIP_FIELDS = {"поле", "Описание"}
+SKIP_FIELDS = {
+    "поле", "Описание",
+    # Служебные поля карточки: в книгу для заливки не идут.
+    "Артикул OZON", "Баркод", "NTIN", "ИКПУ", "Код ТРУ 1", "Код ТРУ 2",
+    "Ставка НДС", "Тип доставки", "Код упаковки",
+    # Разбор массажёров записывает габариты слитно — «Высота / Ширина / Глубина
+    # предмета | 3 · 7 · 110». Для книги они уже разложены по отдельным колонкам
+    # из packaging.json, а слитная строка дала бы дубль колонки.
+    "Вес товара с упаковкой",
+}
+
+
+def is_skipped(name):
+    return name in SKIP_FIELDS or " / " in name
 
 # Три состояния поля, и в книге они должны различаться на глаз.
 # Раньше «проверено, верно» и «до поля не дошли» выглядели одинаково — пустой
@@ -98,7 +111,7 @@ def all_fields(section):
     for name, value in re.findall(r"^\|\s*\**([^|*]+?)\**\s*\|\s*(.+?)\s*\|\s*$",
                                   section, re.M):
         name = name.strip()
-        if name in SKIP_FIELDS or name.startswith("-"):
+        if is_skipped(name) or name.startswith("-"):
             continue
         v = status(value)
         if v:
@@ -127,17 +140,20 @@ def parse_roller(text):
         m = re.match(r"\s*([A-Z]{2})\s*·\s*([^·]+?)\s*·\s*(\d+)", head)
         if not m:
             continue
-        rows.append({
+        # Общая таблица разбирается целиком, а не по списку имён: раньше сюда
+        # были вписаны четыре поля, и «Упаковка» из неё в книгу не попадала,
+        # хотя стояла в разборе. Та же ошибка, что была у таблетниц с этим полем.
+        row = all_fields(common)
+        row.update({k: v for k, v in all_fields(body).items() if v})
+        row.update({
             "Артикул": "ACRB1MS101" + m.group(1),
             "nm_id": m.group(3),
             "Наименование": field(body, "Наименование"),
             "Зона массажа": field(body, "Зона массажа"),
-            "Действие": field(common, "Действие"),
-            "Материал изделия": field(common, "Материал изделия"),
             "Цвет": field(body, "Цвет"),
-            "Комплектация": field(common, "Комплектация"),
             "Описание": fenced(body),
         })
+        rows.append({k: v for k, v in row.items() if v})
     return rows
 
 
