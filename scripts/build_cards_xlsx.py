@@ -418,6 +418,77 @@ def tnved(article):
     return TNVED[max(match, key=len)] if match else ""
 
 
+# Группа по префиксу артикула — только для листа размеров, где строки идут
+# по всему каталогу, а не по разобранным группам.
+SIZE_GROUPS = [
+    ("ACRA7TB", "Таблетницы"),
+    ("ACRB1MS10", "Мячи и массажёры"),
+    ("ACRH1MS", "Массажёр для пальцев"),
+    ("AHMA", "Мешки для стирки"),
+]
+
+
+def size_group(art):
+    for pref, name in SIZE_GROUPS:
+        if art.startswith(pref):
+            return name
+    return ""
+
+
+def size_issue(v):
+    """Что не так с размерами конкретной карточки."""
+    ih, iw, idp = v.get("item_hei"), v.get("item_wid"), v.get("item_dep")
+    l, w, h = v.get("len"), v.get("wid"), v.get("hei")
+    out = []
+    if ih is None and iw is None:
+        out.append("нет размеров предмета")
+    if l is None:
+        out.append("нет размеров упаковки")
+    if None not in (ih, iw, idp, l, w, h):
+        si = sorted((ih, iw, idp), reverse=True)
+        sp = sorted((l, w, h), reverse=True)
+        if si == sp:
+            out.append("упаковка совпала с предметом — похоже, не измеряли")
+        elif not all(a >= b for a, b in zip(sp, si)):
+            out.append("упаковка меньше предмета хотя бы по одной стороне")
+    if v.get("net_g") is None:
+        out.append("нет веса нетто")
+    out.append("нет веса брутто")
+    return "; ".join(out)
+
+
+def sheet_sizes(wb):
+    """Лист размеров и весов: предмет и упаковка рядом, с пометкой о расхождениях.
+
+    Отдельным листом, потому что править это удобнее по всему каталогу разом,
+    а не переключаясь между группами. Строки идут и по тем артикулам, которых
+    в книге нет: подгруппа мячей 103 и таблетница 401 выведены из продажи,
+    но размеры у них те же и чинить их придётся заодно.
+    """
+    if not PACKAGING:
+        return 0
+    ws = wb.create_sheet("Размеры и вес")
+    ws.append(["Артикул", "Группа",
+               "Предмет: высота", "ширина", "глубина", "вес нетто, г",
+               "Упаковка: длина", "ширина", "высота", "вес брутто, г",
+               "Что не так"])
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    for art in sorted(PACKAGING):
+        v = PACKAGING[art]
+        ws.append([art, size_group(art),
+                   v.get("item_hei"), v.get("item_wid"), v.get("item_dep"), v.get("net_g"),
+                   v.get("len"), v.get("wid"), v.get("hei"), None,
+                   size_issue(v)])
+    for col, wd in zip("ABCDEFGHIJK", (15, 21, 15, 9, 9, 13, 16, 9, 9, 14, 62)):
+        ws.column_dimensions[col].width = wd
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.freeze_panes = "C2"
+    return ws.max_row - 1
+
+
 def sheet(wb, name, rows):
     ws = wb.create_sheet(name)
     for r in rows:
@@ -497,6 +568,9 @@ def main():
     n_info = sheet_info(wb)
     if n_info:
         print(f"Инфографика: {n_info} пунктов")
+    n_sizes = sheet_sizes(wb)
+    if n_sizes:
+        print(f"Размеры и вес: {n_sizes} артикулов")
 
     total = 0
     for name, fname, parser in GROUPS:
