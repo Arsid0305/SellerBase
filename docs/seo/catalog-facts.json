@@ -1,0 +1,317 @@
+{
+ "ACRA7TB101BC": {
+  "cost_rub": 285,
+  "nm_id": 186800214,
+  "orders_year": 49,
+  "questions": 1,
+  "stock": 117
+ },
+ "ACRA7TB101CL": {
+  "cost_rub": 285,
+  "nm_id": 298193176,
+  "orders_year": 23,
+  "questions": 0,
+  "stock": 108
+ },
+ "ACRA7TB201BC": {
+  "cost_rub": 214,
+  "nm_id": 186826338,
+  "orders_year": 192,
+  "questions": 4,
+  "stock": 316
+ },
+ "ACRA7TB201CL": {
+  "cost_rub": 214,
+  "nm_id": 419130077,
+  "orders_year": 89,
+  "questions": 1,
+  "stock": 210
+ },
+ "ACRA7TB201LI": {
+  "cost_rub": 214,
+  "nm_id": 448254852,
+  "orders_year": 39,
+  "questions": 1,
+  "stock": 184
+ },
+ "ACRA7TB201WH": {
+  "cost_rub": 214,
+  "nm_id": 448248943,
+  "orders_year": 54,
+  "questions": 0,
+  "stock": 183
+ },
+ "ACRA7TB301CL": {
+  "cost_rub": 167,
+  "nm_id": 345168494,
+  "orders_year": 57,
+  "questions": 1,
+  "stock": 162
+ },
+ "ACRA7TB301GR": {
+  "cost_rub": 167,
+  "nm_id": 278515093,
+  "orders_year": 151,
+  "questions": 1,
+  "stock": 271
+ },
+ "ACRA7TB301WH": {
+  "cost_rub": 167,
+  "nm_id": 273516556,
+  "orders_year": 27,
+  "questions": 0,
+  "stock": 95
+ },
+ "ACRA7TB401BC": {
+  "cost_rub": 360,
+  "nm_id": 321907864,
+  "orders_year": 3,
+  "questions": 0,
+  "stock": 0
+ },
+ "ACRB1MS101BL": {
+  "cost_rub": 166,
+  "nm_id": 275208802,
+  "orders_year": 14,
+  "questions": 0,
+  "stock": 51
+ },
+ "ACRB1MS101PN": {
+  "cost_rub": 166,
+  "nm_id": 275208801,
+  "orders_year": 8,
+  "questions": 0,
+  "stock": 58
+ },
+ "ACRB1MS101RJ": {
+  "cost_rub": 166,
+  "nm_id": 223420736,
+  "orders_year": 16,
+  "questions": 0,
+  "stock": 45
+ },
+ "ACRB1MS103BL": {
+  "cost_rub": 96,
+  "nm_id": 340741532,
+  "orders_year": 14,
+  "questions": 0,
+  "stock": 49
+ },
+ "ACRB1MS103LI": {
+  "cost_rub": 96,
+  "nm_id": 340743352,
+  "orders_year": 15,
+  "questions": 1,
+  "stock": 25
+ },
+ "ACRB1MS103PN": {
+  "cost_rub": 96,
+  "nm_id": 340734340,
+  "orders_year": 19,
+  "questions": 0,
+  "stock": 0
+ },
+ "ACRB1MS103RJ": {
+  "cost_rub": 97,
+  "nm_id": 340743911,
+  "orders_year": 11,
+  "questions": 0,
+  "stock": 8
+ },
+ "ACRB1MS106BL": {
+  "cost_rub": 74,
+  "nm_id": 236072834,
+  "orders_year": 28,
+  "questions": 1,
+  "stock": 206
+ },
+ "ACRB1MS106BС": {
+  "cost_rub": 62,
+  "nm_id": 370591238,
+  "orders_year": 32,
+  "questions": 0,
+  "stock": 201
+ },
+ "ACRB1MS106PN": {
+  "cost_rub": 74,
+  "nm_id": 236072836,
+  "orders_year": 78,
+  "questions": 4,
+  "stock": 244
+ },
+ "ACRB1MS106RJ": {
+  "cost_rub": 74,
+  "nm_id": 223671295,
+  "orders_year": 20,
+  "questions": 2,
+  "stock": 376
+ },
+ "ACRB1MS106WH": {
+  "cost_rub": 74,
+  "nm_id": 236072835,
+  "orders_year": 136,
+  "questions": 4,
+  "stock": 344
+ },
+ "ACRB1MS107BL": {
+  "cost_rub": 73,
+  "nm_id": 419145748,
+  "orders_year": 6,
+  "questions": 0,
+  "stock": 104
+ },
+ "ACRB1MS107BС": {
+  "cost_rub": 73,
+  "nm_id": 419145985,
+  "orders_year": 7,
+  "questions": 0,
+  "stock": 88
+ },
+ "ACRB1MS107PN": {
+  "cost_rub": 73,
+  "nm_id": 419145389,
+  "orders_year": 10,
+  "questions": 0,
+  "stock": 116
+ },
+ "ACRB1MS107RJ": {
+  "cost_rub": 73,
+  "nm_id": 419141548,
+  "orders_year": 15,
+  "questions": 0,
+  "stock": 67
+ },
+ "ACRB1MS107WH": {
+  "cost_rub": 73,
+  "nm_id": 419145391,
+  "orders_year": 18,
+  "questions": 0,
+  "stock": 239
+ },
+ "ACRB1MS109BL": {
+  "cost_rub": 102,
+  "nm_id": 419145749,
+  "orders_year": 14,
+  "questions": 0,
+  "stock": 90
+ },
+ "ACRB1MS109BС": {
+  "cost_rub": 102,
+  "nm_id": 419145986,
+  "orders_year": 6,
+  "questions": 0,
+  "stock": 110
+ },
+ "ACRB1MS109LI": {
+  "cost_rub": 102,
+  "nm_id": 419146579,
+  "orders_year": 15,
+  "questions": 0,
+  "stock": 107
+ },
+ "ACRB1MS109PN": {
+  "cost_rub": 102,
+  "nm_id": 419145390,
+  "orders_year": 12,
+  "questions": 0,
+  "stock": 118
+ },
+ "ACRB1MS109RJ": {
+  "cost_rub": 102,
+  "nm_id": 419141549,
+  "orders_year": 29,
+  "questions": 0,
+  "stock": 73
+ },
+ "ACRH1MS101RJ": {
+  "cost_rub": 81,
+  "nm_id": 173605843,
+  "orders_year": 8,
+  "questions": 3,
+  "stock": 447
+ },
+ "AHMA1BW101BG": {
+  "cost_rub": 86,
+  "nm_id": 176500218,
+  "orders_year": 33,
+  "questions": 5,
+  "stock": 269
+ },
+ "AHMA1BW111WH": {
+  "cost_rub": 108,
+  "nm_id": 236929188,
+  "orders_year": 99,
+  "questions": 7,
+  "stock": 77
+ },
+ "AHMA1BW112WH": {
+  "cost_rub": 108,
+  "nm_id": 236929187,
+  "orders_year": 59,
+  "questions": 1,
+  "stock": 67
+ },
+ "AHMA1BW301WH": {
+  "cost_rub": 115,
+  "nm_id": 239235150,
+  "orders_year": 21,
+  "questions": 1,
+  "stock": 0
+ },
+ "AHMA1BW302WH": {
+  "cost_rub": 144,
+  "nm_id": 239233529,
+  "orders_year": 15,
+  "questions": 0,
+  "stock": 52
+ },
+ "AHMA2BW201WH": {
+  "cost_rub": 128,
+  "nm_id": 204615141,
+  "orders_year": 54,
+  "questions": 4,
+  "stock": 156
+ },
+ "AHMA2BW202WH": {
+  "cost_rub": 185,
+  "nm_id": 236074677,
+  "orders_year": 34,
+  "questions": 1,
+  "stock": 24
+ },
+ "AHMA3BW101BG": {
+  "cost_rub": 211,
+  "nm_id": 177404837,
+  "orders_year": 11,
+  "questions": 2,
+  "stock": 102
+ },
+ "AHMA3BW102BG": {
+  "cost_rub": 196,
+  "nm_id": 177405495,
+  "orders_year": 19,
+  "questions": 3,
+  "stock": 214
+ },
+ "AHMA3BW201WH": {
+  "cost_rub": 184,
+  "nm_id": 176721350,
+  "orders_year": 19,
+  "questions": 2,
+  "stock": 221
+ },
+ "AHMA3BW202WH": {
+  "cost_rub": 184,
+  "nm_id": 176723275,
+  "orders_year": 60,
+  "questions": 3,
+  "stock": 56
+ },
+ "AHMA7BW101BG": {
+  "cost_rub": 391,
+  "nm_id": 172832355,
+  "orders_year": 28,
+  "questions": 3,
+  "stock": 112
+ }
+}
