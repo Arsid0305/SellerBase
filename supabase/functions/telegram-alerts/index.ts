@@ -1,8 +1,9 @@
 // telegram-alerts — ежедневная проверка ключевых метрик и алерт владелице в Telegram.
 // Запускается раз в день кроном.
-// 10 проверок параллельно: маржа, выкуп, дефицит, простой cron-задач, новые SKU без cost,
+// 11 проверок параллельно: маржа, выкуп, дефицит, простой cron-задач, новые SKU без cost,
 // акции ВБ заканчивающиеся завтра, обнулившийся остаток активных SKU, упавший рейтинг,
-// устаревшие тарифы ВБ-комиссии, критические аномалии из sku_events (детектор).
+// устаревшие тарифы ВБ-комиссии, критические аномалии из sku_events (детектор),
+// удержания и штрафы за неделю (реклама, платные отзывы, транзит).
 // Если все проверки зелёные — ничего не отправляет (не спамим «всё ок»).
 // verify_jwt = false (вызывается из pg_cron).
 
@@ -126,6 +127,11 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       if (r.margin_pct == null) continue;
       const prev = prevBySku.get(r.my_article);
       if (!prev || prev.revenue <= 0) continue;
+      // И в текущем окне должны быть продажи. Иначе в «топ-3 где маржа упала»
+      // попадают SKU, которые просто не продавались: у них margin_pct = 0, и разница
+      // с прошлой неделей читается как обвал маржи. Разбор 2026-09-02: все три SKU
+      // в сводке имели revenue = 0 и 0 проданных штук.
+      if (Number(r.revenue_rub) <= 0) continue;
       const curPct = Number(r.margin_pct);
       drops.push({ article: r.my_article, deltaPp: curPct - prev.margin });
     }
@@ -800,6 +806,109 @@ async function checkYesterdayBuyouts(supabase: SupabaseClient): Promise<CheckRes
   };
 }
 
+// ============================================================
+// 11. Удержания и штрафы за 7д — реклама, платные отзывы, транзит, штрафы.
+// ============================================================
+// Эти расходы приходят в отчёте с nm_id = 0: они не привязаны ни к одному товару,
+// поэтому не видны ни в одной карточке и молча уходят в общий итог. Разбор 2026-09-02:
+// недельная маржа ушла в -7.6% из-за одного списания «WB Продвижение» на 6757₽ —
+// при прибыли от продаж 6712₽ реклама съела её целиком, и в сводке это выглядело
+// как необъяснимый обвал маржи.
+function deductionLabel(oper: string, bonus: string): string {
+  const b = bonus || oper || "прочее";
+  if (/Продвижение/i.test(b)) return "Реклама «WB Продвижение»";
+  if (/Списание за отзыв/i.test(b)) return "Платные отзывы";
+  if (/транзитных поставок/i.test(b)) return "Доставка транзитных поставок";
+  if (/хранение возвратов/i.test(b)) return "Штраф: хранение возвратов на ПВЗ";
+  if (/недовоз|поставка .* удалена|РЗШ/i.test(b)) return "Штраф по поставке";
+  if (/программе лояльности/i.test(b)) return "Программа лояльности";
+  // Номера документов и поставок отрезаем, иначе каждая строка своя группа.
+  return b.replace(/[,.]?\s*(документ|поставка)\s*№\s*\d+/gi, "").trim();
+}
+
+async function checkDeductions(supabase: SupabaseClient): Promise<CheckResult> {
+  // Окно как в checkMargin — WB Report лагает 1-2 дня.
+  const today = new Date();
+  const LAG_DAYS = 2;
+  const d0 = dateStr(new Date(today.getTime() - LAG_DAYS * 86_400_000));
+  const d7 = dateStr(new Date(today.getTime() - (LAG_DAYS + 7) * 86_400_000));
+
+  const { data, error } = await supabase
+    .from("wb_reports_fact")
+    .select("supplier_oper_name, bonus_type_name, deduction, penalty, retail_amount, doc_type_name, quantity")
+    .gte("sale_dt", d7)
+    .lte("sale_dt", d0)
+    .limit(10000);
+  if (error) {
+    return {
+      name: "deductions",
+      ok: false,
+      severity: "yellow",
+      summary: "Удержания: не удалось посчитать",
+      message: `🟡 *Удержания* — не удалось посчитать (${error.message})`,
+    };
+  }
+
+  type Row = {
+    supplier_oper_name: string | null;
+    bonus_type_name: string | null;
+    deduction: number | null;
+    penalty: number | null;
+    retail_amount: number | null;
+    doc_type_name: string | null;
+    quantity: number | null;
+  };
+
+  const byLabel = new Map<string, number>();
+  let total = 0;
+  let revenue = 0;
+  for (const r of (data ?? []) as Row[]) {
+    if (r.doc_type_name === "Продажа" && Number(r.quantity ?? 0) > 0) {
+      revenue += Number(r.retail_amount ?? 0);
+    }
+    const sum = Number(r.deduction ?? 0) + Number(r.penalty ?? 0);
+    if (sum === 0) continue;
+    total += sum;
+    const label = deductionLabel(r.supplier_oper_name ?? "", r.bonus_type_name ?? "");
+    byLabel.set(label, (byLabel.get(label) ?? 0) + sum);
+  }
+
+  const rub = (n: number) => `${Math.round(n).toLocaleString("ru-RU")} ₽`;
+  if (total <= 0) {
+    return { name: "deductions", ok: true, severity: "green", summary: "Удержания за 7д: 0 ₽", message: null };
+  }
+
+  const sharePct = revenue > 0 ? (total / revenue) * 100 : null;
+  const shareStr = sharePct != null ? ` (${sharePct.toFixed(0)}% от выручки)` : "";
+  const summary = `Удержания за 7д: ${rub(total)}${shareStr}`;
+
+  // Порог по доле от выручки: удержания больше пятой части выручки съедают всю маржу
+  // тонкого товара, это всегда разбор. Без продаж в окне любое удержание — красное.
+  const severity: CheckResult["severity"] =
+    sharePct == null || sharePct >= 20 ? "red" : sharePct >= 5 ? "orange" : "yellow";
+  if (severity === "yellow") {
+    return { name: "deductions", ok: true, severity, summary, message: null };
+  }
+
+  const lines = [...byLabel.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([label, sum]) => `• ${label}: ${rub(sum)}`)
+    .join("\n");
+
+  return {
+    name: "deductions",
+    ok: false,
+    severity,
+    summary,
+    message:
+      `${emoji(severity)} *Удержания за 7д: ${rub(total)}${shareStr}*\n` +
+      `${lines}\n` +
+      `Выручка за то же окно: ${rub(revenue)}\n` +
+      `→ Открыть ${BASE_URL}/margin-analyzer`,
+  };
+}
+
 async function sendTelegram(token: string, chatId: string, text: string): Promise<boolean> {
   const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
@@ -853,11 +962,12 @@ Deno.serve(async (req: Request) => {
       checkLowRating(supabase),
       checkStaleCommissions(supabase),
       checkAnomalies(supabase),
+      checkDeductions(supabase),
     ]);
 
     const alerts = results.filter((r) => r.message != null);
 
-    // Всегда формируем сводку по всем 10 проверкам.
+    // Всегда формируем сводку по всем проверкам.
     const today = dateStr(new Date());
     const header = `📊 *SellerBase — ежедневная сводка ${today}*`;
     const allChecks = results.map((r) => `${emoji(r.severity)} ${r.summary}`).join("\n");
