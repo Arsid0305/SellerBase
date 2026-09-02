@@ -12,7 +12,8 @@
 //     "base":   "https://seller-analytics-api.wildberries.ru",
 //     "method": "GET" | "POST",
 //     "paths":  ["/api/v2/...", "/api/v1/..."],
-//     "payload": { ... }        // тело для POST, одно на все пути
+//     "payload": { ... },       // тело для POST, одно на все пути
+//     "snippet": 8000           // сколько знаков ответа вернуть, по умолчанию 600
 //   }
 //
 // Результат — в ответе и в ingestion_log (meta.probe).
@@ -22,7 +23,11 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 import { checkCronSecret } from "../_shared/auth.ts";
 
 const JOB_NAME = "probe-wb-api";
-const SNIPPET = 600;
+const SNIPPET_DEFAULT = 600;
+// Потолок на длину куска ответа. 600 знаков хватает, чтобы понять «работает / не работает»,
+// но не хватает, чтобы увидеть структуру большого ответа целиком: разведка рич-контента
+// 02.09.2026 упёрлась в обрыв на поле description. Отсюда параметр snippet в теле запроса.
+const SNIPPET_MAX = 20000;
 const ALLOWED_HOST_SUFFIX = ".wildberries.ru";
 
 const corsHeaders = {
@@ -68,6 +73,10 @@ Deno.serve(async (req: Request) => {
     const method: string = (body.method ?? "GET").toUpperCase();
     const paths: string[] = Array.isArray(body.paths) ? body.paths : [];
     const payload = body.payload ?? {};
+    const snippetLen = Math.min(
+      Math.max(Number(body.snippet ?? SNIPPET_DEFAULT) || SNIPPET_DEFAULT, 1),
+      SNIPPET_MAX,
+    );
 
     const host = new URL(base).hostname;
     if (!host.endsWith(ALLOWED_HOST_SUFFIX)) {
@@ -97,7 +106,7 @@ Deno.serve(async (req: Request) => {
           path,
           status: resp.status,
           ok: resp.ok,
-          snippet: text.slice(0, SNIPPET),
+          snippet: text.slice(0, snippetLen),
         });
       } catch (e) {
         results.push({

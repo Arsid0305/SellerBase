@@ -1,0 +1,432 @@
+{
+ "ACRA7TB101BC": {
+  "hei": 7,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 15,
+  "len": 17,
+  "net_g": 160,
+  "weight_g": null,
+  "wid": 12
+ },
+ "ACRA7TB101CL": {
+  "hei": 7,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 15,
+  "len": 17,
+  "net_g": 160,
+  "weight_g": null,
+  "wid": 12
+ },
+ "ACRA7TB201BC": {
+  "hei": 5,
+  "item_dep": 9,
+  "item_hei": 4,
+  "item_wid": 15,
+  "len": 16,
+  "net_g": 170,
+  "weight_g": 160,
+  "wid": 12
+ },
+ "ACRA7TB201CL": {
+  "hei": 5,
+  "item_dep": 9,
+  "item_hei": 4,
+  "item_wid": 15,
+  "len": 16,
+  "net_g": 170,
+  "weight_g": 160,
+  "wid": 12
+ },
+ "ACRA7TB201LI": {
+  "hei": 5,
+  "item_dep": 9,
+  "item_hei": 4,
+  "item_wid": 15,
+  "len": 16,
+  "net_g": 160,
+  "weight_g": 160,
+  "wid": 12
+ },
+ "ACRA7TB201WH": {
+  "hei": 5,
+  "item_dep": 9,
+  "item_hei": 4,
+  "item_wid": 15,
+  "len": 16,
+  "net_g": 170,
+  "weight_g": 160,
+  "wid": 12
+ },
+ "ACRA7TB301CL": {
+  "hei": 7,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 15,
+  "len": 17,
+  "net_g": 160,
+  "weight_g": 150,
+  "wid": 12
+ },
+ "ACRA7TB301GR": {
+  "hei": 7,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 15,
+  "len": 17,
+  "net_g": 160,
+  "weight_g": 150,
+  "wid": 12
+ },
+ "ACRA7TB301WH": {
+  "hei": 7,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 15,
+  "len": 17,
+  "net_g": 160,
+  "weight_g": 150,
+  "wid": 12
+ },
+ "ACRA7TB401BC": {
+  "hei": 6,
+  "item_dep": 13,
+  "item_hei": 3,
+  "item_wid": 23,
+  "len": 15,
+  "net_g": 170,
+  "weight_g": null,
+  "wid": 25
+ },
+ "ACRB1MS101BL": {
+  "hei": 3,
+  "item_dep": 110,
+  "item_hei": 3,
+  "item_wid": 6,
+  "len": 55,
+  "net_g": null,
+  "weight_g": 160,
+  "wid": 6
+ },
+ "ACRB1MS101PN": {
+  "hei": 3,
+  "item_dep": 110,
+  "item_hei": 3,
+  "item_wid": 6,
+  "len": 55,
+  "net_g": null,
+  "weight_g": 160,
+  "wid": 6
+ },
+ "ACRB1MS101RJ": {
+  "hei": 3,
+  "item_dep": 110,
+  "item_hei": 3,
+  "item_wid": 6,
+  "len": 55,
+  "net_g": null,
+  "weight_g": 160,
+  "wid": 6
+ },
+ "ACRB1MS103BL": {
+  "hei": 6,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 8,
+  "net_g": null,
+  "weight_g": null,
+  "wid": 8
+ },
+ "ACRB1MS103LI": {
+  "hei": 6,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 8,
+  "net_g": null,
+  "weight_g": null,
+  "wid": 8
+ },
+ "ACRB1MS103PN": {
+  "hei": 6,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 8,
+  "net_g": null,
+  "weight_g": null,
+  "wid": 8
+ },
+ "ACRB1MS103RJ": {
+  "hei": 6,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 8,
+  "net_g": null,
+  "weight_g": null,
+  "wid": 8
+ },
+ "ACRB1MS106BL": {
+  "hei": 7,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 7,
+  "net_g": null,
+  "weight_g": 40,
+  "wid": 7
+ },
+ "ACRB1MS106BС": {
+  "hei": 7,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 7,
+  "net_g": null,
+  "weight_g": 40,
+  "wid": 7
+ },
+ "ACRB1MS106PN": {
+  "hei": 7,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 7,
+  "net_g": null,
+  "weight_g": 40,
+  "wid": 7
+ },
+ "ACRB1MS106RJ": {
+  "hei": 7,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 7,
+  "net_g": null,
+  "weight_g": 40,
+  "wid": 7
+ },
+ "ACRB1MS106WH": {
+  "hei": 7,
+  "item_dep": 6,
+  "item_hei": 6,
+  "item_wid": 6,
+  "len": 7,
+  "net_g": null,
+  "weight_g": 40,
+  "wid": 7
+ },
+ "ACRB1MS107BL": {
+  "hei": 8,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 7,
+  "len": 8,
+  "net_g": null,
+  "weight_g": 60,
+  "wid": 8
+ },
+ "ACRB1MS107BС": {
+  "hei": 8,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 7,
+  "len": 8,
+  "net_g": null,
+  "weight_g": 60,
+  "wid": 8
+ },
+ "ACRB1MS107PN": {
+  "hei": 8,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 7,
+  "len": 8,
+  "net_g": null,
+  "weight_g": 60,
+  "wid": 8
+ },
+ "ACRB1MS107RJ": {
+  "hei": 8,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 7,
+  "len": 8,
+  "net_g": null,
+  "weight_g": 60,
+  "wid": 8
+ },
+ "ACRB1MS107WH": {
+  "hei": 8,
+  "item_dep": 7,
+  "item_hei": 7,
+  "item_wid": 7,
+  "len": 8,
+  "net_g": null,
+  "weight_g": 60,
+  "wid": 8
+ },
+ "ACRB1MS109BL": {
+  "hei": 9,
+  "item_dep": 9,
+  "item_hei": 9,
+  "item_wid": 9,
+  "len": 9,
+  "net_g": null,
+  "weight_g": 100,
+  "wid": 9
+ },
+ "ACRB1MS109BС": {
+  "hei": 9,
+  "item_dep": 9,
+  "item_hei": 9,
+  "item_wid": 9,
+  "len": 9,
+  "net_g": null,
+  "weight_g": 100,
+  "wid": 9
+ },
+ "ACRB1MS109LI": {
+  "hei": 9,
+  "item_dep": 9,
+  "item_hei": 9,
+  "item_wid": 9,
+  "len": 9,
+  "net_g": null,
+  "weight_g": 100,
+  "wid": 9
+ },
+ "ACRB1MS109PN": {
+  "hei": 9,
+  "item_dep": 9,
+  "item_hei": 9,
+  "item_wid": 9,
+  "len": 9,
+  "net_g": null,
+  "weight_g": 100,
+  "wid": 9
+ },
+ "ACRB1MS109RJ": {
+  "hei": 9,
+  "item_dep": 9,
+  "item_hei": 9,
+  "item_wid": 9,
+  "len": 9,
+  "net_g": null,
+  "weight_g": 100,
+  "wid": 9
+ },
+ "ACRH1MS101RJ": {
+  "hei": 4,
+  "item_dep": 3,
+  "item_hei": 14,
+  "item_wid": 3,
+  "len": 15,
+  "net_g": null,
+  "weight_g": 40,
+  "wid": 4
+ },
+ "AHMA1BW101BG": {
+  "hei": 3,
+  "item_dep": null,
+  "item_hei": 15,
+  "item_wid": 17,
+  "len": 18,
+  "net_g": null,
+  "weight_g": 60,
+  "wid": 17
+ },
+ "AHMA1BW111WH": {
+  "hei": 1,
+  "item_dep": null,
+  "item_hei": 80,
+  "item_wid": 60,
+  "len": 28,
+  "net_g": null,
+  "weight_g": 100,
+  "wid": 22
+ },
+ "AHMA1BW112WH": {
+  "hei": 1,
+  "item_dep": null,
+  "item_hei": 80,
+  "item_wid": 60,
+  "len": 28,
+  "net_g": null,
+  "weight_g": 100,
+  "wid": 22
+ },
+ "AHMA1BW301WH": {
+  "hei": 3,
+  "item_dep": null,
+  "item_hei": 30,
+  "item_wid": 18,
+  "len": 19,
+  "net_g": null,
+  "weight_g": null,
+  "wid": 17
+ },
+ "AHMA1BW302WH": {
+  "hei": 4,
+  "item_dep": null,
+  "item_hei": 35,
+  "item_wid": 21,
+  "len": 22,
+  "net_g": null,
+  "weight_g": null,
+  "wid": 22
+ },
+ "AHMA2BW201WH": {
+  "hei": 3,
+  "item_dep": null,
+  "item_hei": 17,
+  "item_wid": 15,
+  "len": 20,
+  "net_g": null,
+  "weight_g": 30,
+  "wid": 16
+ },
+ "AHMA2BW202WH": {
+  "hei": 3,
+  "item_dep": null,
+  "item_hei": 17,
+  "item_wid": 15,
+  "len": 20,
+  "net_g": null,
+  "weight_g": null,
+  "wid": 16
+ },
+ "AHMA3BW101BG": {
+  "hei": 5,
+  "len": 25,
+  "weight_g": null,
+  "wid": 20
+ },
+ "AHMA3BW102BG": {
+  "hei": 4,
+  "len": 25,
+  "weight_g": 60,
+  "wid": 17
+ },
+ "AHMA3BW201WH": {
+  "hei": 3,
+  "len": 21,
+  "weight_g": 30,
+  "wid": 15
+ },
+ "AHMA3BW202WH": {
+  "hei": 3,
+  "len": 21,
+  "weight_g": 30,
+  "wid": 15
+ },
+ "AHMA7BW101BG": {
+  "hei": 6,
+  "len": 30,
+  "weight_g": 315,
+  "wid": 21
+ }
+}
