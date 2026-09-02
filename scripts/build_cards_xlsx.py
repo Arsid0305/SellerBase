@@ -58,6 +58,34 @@ def split_sections(text, level="## "):
 # Поля, которые в лист не выносим: они служебные либо дублируют другие колонки.
 SKIP_FIELDS = {"поле", "Описание"}
 
+# Три состояния поля, и в книге они должны различаться на глаз.
+# Раньше «проверено, верно» и «до поля не дошли» выглядели одинаково — пустой
+# ячейкой, и при заливке было не понять, это «не трогать» или «не заполнено».
+OK = "верно, не трогать"
+MEASURE = "нужен замер"
+
+
+def status(value):
+    """Значение поля для книги. Пусто — значит поле не разобрано.
+
+    «30 — стоит верно» превращается в «30 — верно, не трогать»: видно и что стоит
+    в карточке, и что менять не нужно. Голое «стоит верно» — только пометку.
+    """
+    v = value.replace("`", "").replace("**", "").strip()
+    if not v or v.startswith("---"):
+        return ""
+    low = v.lower()
+    if low.startswith("требует") or low.startswith("замерить"):
+        return MEASURE
+    if low.startswith(("стоит верно", "оставить", "стоит", "то же")):
+        return OK
+    for marker in (" — стоит верно", " - стоит верно", ", стоит верно"):
+        if marker in v:
+            return v.replace(marker, "").strip() + f" — {OK}"
+    if "требует замера" in low:
+        return MEASURE
+    return v.replace(" · ", "\n")
+
 
 def all_fields(section):
     """Все строки таблицы «| поле | значение |» раздела, как есть.
@@ -72,10 +100,9 @@ def all_fields(section):
         name = name.strip()
         if name in SKIP_FIELDS or name.startswith("-"):
             continue
-        v = value.replace("`", "").strip()
-        if not v or v.startswith(("стоит", "то же", "требует", "---")):
-            continue
-        out[name] = v.replace(" · ", "\n")
+        v = status(value)
+        if v:
+            out[name] = v
     return out
 
 
@@ -136,8 +163,8 @@ def parse_balls(text):
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
             if len(cells) != 3 or not cells[0].startswith("`"):
                 continue
-            put = cells[2].replace("`", "").replace(" + ", "\n").strip()
-            if not put or put.startswith("оставить"):
+            put = status(cells[2].replace(" + ", "\n"))
+            if not put:
                 continue
             for code in re.findall(r"`(\d{3}[A-ZС]{1,2})`", cells[0]):
                 colors["ACRB1MS" + code] = put
@@ -192,8 +219,8 @@ def parse_bags(text):
                 # «Высота предмета» — одно поле, но без чистки станут двумя колонками.
                 cells[0] = cells[0].replace("*", "").replace("`", "").strip()
                 for sku, val in zip(skus, cells[1:]):
-                    v = val.replace("`", "").replace(" + ", "\n").replace(" · ", "\n").strip()
-                    if v and not v.startswith(("то же", "стоит", "требует")):
+                    v = status(val.replace(" + ", "\n"))
+                    if v:
                         fields.setdefault(sku, {})[cells[0]] = v
 
         # «**`SKU`** — «Комплектация», N значений:» + блок в тройных кавычках
@@ -380,8 +407,10 @@ def main():
         ["Порядок", "Сначала характеристики, затем наименование, затем описание."],
         ["Значения полей", "Каждое значение — отдельной строкой. Склейка через запятую "
                            "с 01.05.2026 — основание для теневого бана."],
-        ["Пустые ячейки", "Значит «стоит верно, не трогать». Обоснования — "
-                          "в docs/seo/descriptions/."],
+        ["Что значит ячейка", "Значение — вносим его. «верно, не трогать» — поле проверено "
+                              "по данным, менять не нужно. «нужен замер» — ждём физический замер "
+                              "или ответ поставщика. ПУСТО — поле ещё не разобрано, "
+                              "решения по нему нет. Обоснования — в docs/seo/descriptions/."],
         ["Мячи", "Заливать описания только после правки инфографики: "
                  "docs/seo/infographics/myachi-106-107-109.md."],
         ["Таблетницы", "Строку про крепления в трёх карточках 101* подтвердить перед заливкой."],
