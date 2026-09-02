@@ -48,9 +48,10 @@ function fmtPct(n: number): string {
 }
 
 function fmtPp(n: number): string {
-  // Процентные пункты (разница абсолютных %), а не относительный %. Пишем «п.п.» явно,
-  // чтобы не путать (запрос владелицы 2026-06-27).
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1)} п.п.`;
+  // Разница двух процентов. По-хорошему это процентные пункты, но владелица
+  // 02.09.2026 попросила писать «%» — так читается быстрее, а рядом всегда стоит
+  // «было … → стало …», из которого видно, что это разница, а не рост в разы.
+  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
 }
 
 // Для маржи: чистая абсолютная разница без «%» — «было 4.1% → стало 5.2%».
@@ -60,6 +61,26 @@ function fmtMarginChange(prev: number, cur: number): string {
 
 function dateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+// Расходы на рекламу за период. Списания «WB Продвижение» приходят в отчёте
+// с nm_id = 0 и попадают в общий net_profit, но к товару не привязаны. Чтобы
+// отделить работу карточки от вложений в продвижение, маржа считается дважды.
+async function adSpend(supabase: SupabaseClient, from: string, to: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("wb_reports_fact")
+    .select("bonus_type_name, deduction, penalty")
+    .gte("sale_dt", from)
+    .lte("sale_dt", to)
+    .limit(10000);
+  if (error || !data) return 0;
+  let sum = 0;
+  for (const r of data as Array<{ bonus_type_name: string | null; deduction: number | null; penalty: number | null }>) {
+    const b = r.bonus_type_name ?? "";
+    if (!/Продвижение|Списание за отзыв/i.test(b)) continue;
+    sum += Number(r.deduction ?? 0) + Number(r.penalty ?? 0);
+  }
+  return sum;
 }
 
 // ============================================================
@@ -100,6 +121,27 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
   if (curMargin == null || prevMargin == null) {
     return { name: "margin", ok: true, severity: "yellow", summary: "Маржа: нет данных за период", message: null };
   }
+
+  // Реклама сидит внутри net_profit, но к работе карточки отношения не имеет.
+  // Первая цифра показывает, зарабатывает ли товар; вторая — что осталось после вложений.
+  const [curAd, prevAd] = await Promise.all([adSpend(supabase, d7, d0), adSpend(supabase, d14, d7)]);
+  const marginNoAd = (rows: { revenue_rub: number; net_profit_rub: number }[] | null, ad: number) => {
+    const rev = (rows ?? []).reduce((s, r) => s + Number(r.revenue_rub ?? 0), 0);
+    const profit = (rows ?? []).reduce((s, r) => s + Number(r.net_profit_rub ?? 0), 0);
+    return rev > 0 ? ((profit + ad) / rev) * 100 : null;
+  };
+  const curMarginNoAd = marginNoAd(curRows, curAd);
+  const prevMarginNoAd = marginNoAd(prevRows, prevAd);
+  const twoLines =
+    curMarginNoAd != null && prevMarginNoAd != null
+      ? `Без рекламы: ${fmtMarginChange(prevMarginNoAd, curMarginNoAd)}\n` +
+        `С рекламой: ${fmtMarginChange(prevMargin, curMargin)}\n` +
+        `Реклама за 7д: ${Math.round(curAd).toLocaleString("ru-RU")}₽\n`
+      : "";
+  const twoShort =
+    curMarginNoAd != null
+      ? `${curMarginNoAd.toFixed(1)}% без рекламы / ${curMargin.toFixed(1)}% с рекламой`
+      : `${curMargin.toFixed(1)}%`;
 
   const totalRevenue = (rows: { revenue_rub: number }[] | null) =>
     (rows ?? []).reduce((s, r) => s + Number(r.revenue_rub ?? 0), 0);
@@ -145,10 +187,10 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: false,
       severity: "red",
-      summary: `Маржа упала: ${fmtMarginChange(prevMargin, curMargin)}`,
+      summary: `Маржа упала: ${twoShort}`,
       message:
         `🔴 *Маржа упала на ${fmtPp(deltaPp)}*\n` +
-        `За 7д: ${fmtMarginChange(prevMargin, curMargin)}\n` +
+        twoLines +
         `Выручка: ${Math.round(prevRevenue).toLocaleString("ru-RU")}₽ → ${Math.round(curRevenue).toLocaleString("ru-RU")}₽\n` +
         `Прибыль: ${Math.round(prevProfit).toLocaleString("ru-RU")}₽ → ${Math.round(curProfit).toLocaleString("ru-RU")}₽\n` +
         `Топ-3 SKU где маржа упала: ${top3Str}\n` +
@@ -161,10 +203,10 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: true,
       severity: "orange",
-      summary: `Маржа: ${fmtMarginChange(prevMargin, curMargin)} — внимание`,
+      summary: `Маржа: ${twoShort} — внимание`,
       message:
         `🟠 *Маржа снизилась на ${fmtPp(deltaPp)}*\n` +
-        `За 7д: ${fmtMarginChange(prevMargin, curMargin)}\n` +
+        twoLines +
         `→ Открыть ${BASE_URL}/margin-analyzer`,
     };
   }
@@ -174,7 +216,7 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: true,
       severity: "yellow",
-      summary: `Маржа: ${fmtMarginChange(prevMargin, curMargin)}`,
+      summary: `Маржа: ${twoShort}`,
       message: null,
     };
   }
@@ -184,12 +226,12 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       name: "margin",
       ok: true,
       severity: "green",
-      summary: `Маржа выросла: ${fmtMarginChange(prevMargin, curMargin)}`,
+      summary: `Маржа выросла: ${twoShort}`,
       message: null,
     };
   }
 
-  return { name: "margin", ok: true, severity: "green", summary: `Маржа стабильна: ${curMargin.toFixed(1)}%`, message: null };
+  return { name: "margin", ok: true, severity: "green", summary: `Маржа стабильна: ${twoShort}`, message: null };
 }
 
 // ============================================================
@@ -555,7 +597,7 @@ async function checkOutOfStockActiveSku(supabase: SupabaseClient): Promise<Check
       name: "out_of_stock",
       ok: false,
       severity: "yellow",
-      summary: "OOS активных SKU: не удалось проверить",
+      summary: "Товары без остатка: не удалось проверить",
       message: `🟡 *Остатки ВБ* — не удалось проверить (${skuErr?.message ?? stockErr?.message})`,
     };
   }
@@ -576,12 +618,12 @@ async function checkOutOfStockActiveSku(supabase: SupabaseClient): Promise<Check
   }
 
   if (oos.length === 0) {
-    return { name: "out_of_stock", ok: true, severity: "green", summary: "OOS активных SKU: 0", message: null };
+    return { name: "out_of_stock", ok: true, severity: "green", summary: "Товары без остатка: 0", message: null };
   }
 
   const top3 = oos.slice(0, 3).map((o) => o.article).join(", ");
   const severity: CheckResult["severity"] = oos.length >= 6 ? "red" : "orange";
-  const summary = `OOS активных SKU: ${oos.length}`;
+  const summary = `Товары без остатка: ${oos.length}`;
 
   return {
     name: "out_of_stock",
@@ -959,10 +1001,10 @@ Deno.serve(async (req: Request) => {
       checkNewSkuNoCost(supabase),
       checkPromotionsEndingSoon(supabase),
       checkOutOfStockActiveSku(supabase),
+      checkDeductions(supabase),
       checkLowRating(supabase),
       checkStaleCommissions(supabase),
       checkAnomalies(supabase),
-      checkDeductions(supabase),
     ]);
 
     const alerts = results.filter((r) => r.message != null);
