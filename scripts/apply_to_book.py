@@ -17,6 +17,7 @@ import argparse
 from pathlib import Path
 
 import openpyxl
+from openpyxl.styles import PatternFill
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILT = ROOT / "kartochki_arols.xlsx"
@@ -65,6 +66,7 @@ def main():
 
     changed = 0
     dashed = 0
+    repainted = 0
     other = {}
     for name in book.sheetnames:
         if name in SKIP or name not in built.sheetnames:
@@ -76,6 +78,8 @@ def main():
             print(f"  {name}: колонки разошлись, лист пропущен")
             continue
         ki = th.index(KEY) + 1
+        # Колонка артикула — территория владелицы: там её зелёные и красные
+        # пометки «обработано» и «выведено». Заливку туда не трогаем.
         trow = rows_by_article(theirs, ki)
         orow = rows_by_article(ours, ki)
         for art, r in trow.items():
@@ -84,6 +88,19 @@ def main():
             for ci, col in enumerate(th, 1):
                 a = theirs.cell(r, ci).value or ""
                 b = ours.cell(orow[art], ci).value or ""
+                # Подсветка = «ещё не залито в кабинет». Сборка считает её
+                # от живого слепка кабинета, поэтому сделанное гаснет само —
+                # переносим заливку как есть, включая её снятие.
+                if ci != ki and not args.dry_run:
+                    src = ours.cell(orow[art], ci).fill
+                    dst = theirs.cell(r, ci)
+                    want = (PatternFill("solid", fgColor=src.fgColor.rgb)
+                            if src.fill_type == "solid" else PatternFill())
+                    have = (dst.fill.fgColor.rgb
+                            if dst.fill.fill_type == "solid" else None)
+                    if have != (src.fgColor.rgb if src.fill_type == "solid" else None):
+                        dst.fill = want
+                        repainted += 1
                 if a == b:
                     continue
                 if only_formatting(a, b, col):
@@ -103,6 +120,7 @@ def main():
     verb = "перенесено" if not args.dry_run else "будет перенесено"
     print(f"\n{verb} значений: {changed}")
     print(f"{verb} исправлений оформления (§21): {dashed}")
+    print(f"перекрашено ячеек (подсветка «не сделано»): {repainted}")
     if other:
         print("\nразошлось ещё, но НЕ переносится — решение за владелицей:")
         for col, items in sorted(other.items(), key=lambda x: -len(x[1])):
