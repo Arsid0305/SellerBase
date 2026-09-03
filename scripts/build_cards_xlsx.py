@@ -743,6 +743,28 @@ def analysed_by_article():
     return out
 
 
+# Пояснение при значении: «75 — окружность по слайду», «АРОЛС — стоит».
+# В разборе так писать удобно — видно и значение, и почему оно такое. В ячейку
+# должно попасть только само значение: файл грузится в кабинет.
+CONFIRM_NOTES = {"стоит", "уже стоит", "стоит верно", "верно", "верно, не трогать"}
+
+
+def strip_note(value):
+    """Отрезать пояснение после « — », если это пояснение, а не часть значения.
+
+    Ловушка здесь — комплектация: «Ручки 17 см — 2 шт.» тоже содержит тире,
+    и резать её нельзя. Отличаем по правой части: у комплектации это короткий
+    хвост в одно-два слова («1 шт.»), у пояснения — фраза. Перечисления через
+    точку с запятой не трогаем вовсе.
+    """
+    if ";" in value or value.count(" — ") != 1:
+        return value
+    left, note = value.split(" — ", 1)
+    if note.strip().lower().rstrip(".") in CONFIRM_NOTES:
+        return left.strip()
+    return left.strip() if len(note.split()) >= 3 else value
+
+
 def sep(value):
     """Наши разделители значений — в кабинетный «;».
 
@@ -776,7 +798,15 @@ def cell_value(current, decided):
         return "", (FILL_NEW if current else None)
     if decided.endswith(f"— {OK}"):
         return sep(decided[:-len(f"— {OK}")]), None
-    value = sep(decided)
+    # Статус мог прийти с пояснением: «нужен замер — в поле 6 см, на слайде 50 мм».
+    # Значение тогда не наше, а кабинетное, и ячейка просто помечается жёлтым.
+    head = decided.split(" — ", 1)[0].strip()
+    if head in STATUS_ASK or head.lower().startswith(
+            ("нужен", "требует", "привести", "сверить", "подтвердить")):
+        return current, FILL_ASK
+    if head.lower().startswith(CLEAR_PREFIXES):
+        return "", (FILL_NEW if current else None)
+    value = sep(strip_note(decided))
     return (current, None) if value == current else (value, FILL_NEW)
 
 
