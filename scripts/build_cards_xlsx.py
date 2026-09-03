@@ -376,6 +376,30 @@ BRAND = "АРОЛС"
 PACKAGING = json.loads((ROOT / "docs" / "seo" / "packaging.json").read_text(encoding="utf-8")) \
     if (ROOT / "docs" / "seo" / "packaging.json").exists() else {}
 
+# Вес нетто и габариты упаковки из юнит-экономики владелицы. Пересобирается
+# скриптом scripts/export_unit_weights.py. Чтение колонок подтверждено
+# владелицей 03.09.2026: «вес — вес нетто, размер — размер упаковки».
+# Этот источник приоритетнее packaging.json: там брутто местами оказался
+# меньше нетто, потому что в поле веса попал как раз чистый вес.
+UNIT = (json.loads((ROOT / "docs" / "seo" / "unit-weights.json").read_text(encoding="utf-8"))
+        .get("articles", {})
+        if (ROOT / "docs" / "seo" / "unit-weights.json").exists() else {})
+
+# Правило владелицы 03.09: «вес брутто = вес нетто для групп, которые я не
+# упаковываю в доп пакет. В доп пакет идёт — таблетницы и скакалки»,
+# «доп пакет 10 гр». Отсюда брутто считается, а не берётся из каталога.
+DOP_PAKET_G = 10
+DOP_PAKET_PREFIXES = ("ACRA7TB", "ACRB1SK")
+
+
+def brutto_from_net(article, net_g):
+    """Брутто по правилу владелицы: нетто плюс доп пакет там, где он есть."""
+    if net_g is None:
+        return None
+    if article.startswith(DOP_PAKET_PREFIXES):
+        return net_g + DOP_PAKET_G
+    return net_g
+
 # Две разные пары, и путать их нельзя.
 #
 # Предмет: габариты и вес нетто — из карточек кабинета, там они уже стоят.
@@ -441,13 +465,65 @@ PACK_FIELDS = [
 ]
 
 
+def pack_view(article):
+    """Габариты и вес по артикулу из двух источников — единая точка сборки.
+
+    Один источник истины для листа «Размеры и вес» и для листов групп, иначе
+    они разъезжаются: лист читал packaging.json напрямую и показывал брутто
+    меньше нетто там, где карточки уже считали его по правилу.
+
+    Приоритет габаритов упаковки и веса нетто — юнит-экономика владелицы.
+    Брутто не берётся готовым ниоткуда, считается от нетто по brutto_from_net.
+    """
+    unit = UNIT.get(article) or {}
+    pack = PACKAGING.get(article) or {}
+    if not unit and not pack:
+        return {}
+
+    net_g = unit.get("net_g")
+    if net_g is None:
+        net_g = pack.get("net_g")
+
+    return {
+        "item_hei": pack.get("item_hei"),
+        "item_wid": pack.get("item_wid"),
+        "item_dep": pack.get("item_dep"),
+        "net_g": net_g,
+        "len": unit.get("pkg_len") or pack.get("len"),
+        "wid": unit.get("pkg_wid") or pack.get("wid"),
+        "hei": unit.get("pkg_hei") or pack.get("hei"),
+        "brutto_g": brutto_from_net(article, net_g),
+    }
+
+
 def fill_packaging(row):
-    """Габариты и вес по артикулу. Пусто — значит в каталоге нет цифры."""
-    pack = PACKAGING.get(row.get("Артикул", ""))
-    if not pack:
-        return
+    """Габариты и вес по артикулу. Пусто — значит цифры нет ни в одном источнике.
+
+    Порядок источников для веса и упаковки: юнит-экономика владелицы, затем
+    packaging.json. Брутто не берём готовым нигде — считаем по правилу
+    владелицы от нетто, см. brutto_from_net.
+    """
+    article = row.get("Артикул", "")
+    unit = UNIT.get(article) or {}
+    pack = PACKAGING.get(article) or {}
+
+    net_g = unit.get("net_g")
+    if net_g is None:
+        net_g = pack.get("net_g")
+
     for col, key in PACK_FIELDS:
-        v = pack.get(key)
+        if key == "net_g":
+            v = net_g
+        elif key == "brutto_g":
+            v = brutto_from_net(article, net_g)
+        elif key == "len":
+            v = unit.get("pkg_len") or pack.get(key)
+        elif key == "wid":
+            v = unit.get("pkg_wid") or pack.get(key)
+        elif key == "hei":
+            v = unit.get("pkg_hei") or pack.get(key)
+        else:
+            v = pack.get(key)
         if v is not None:
             row.setdefault(col, v)
 
@@ -581,8 +657,13 @@ def size_group(art):
     return ""
 
 
-def size_issue(v):
-    """Что не так с размерами конкретной карточки."""
+def size_issue(v, article=None):
+    """Что не так с размерами конкретной карточки.
+
+    Брутто в `v` уже посчитан по правилу владелицы, поэтому противоречие
+    «брутто меньше нетто» на нём не всплывает. А в кабинете оно осталось,
+    и лист обязан о нём говорить — иначе правка потерялась бы из вида.
+    """
     ih, iw, idp = v.get("item_hei"), v.get("item_wid"), v.get("item_dep")
     l, w, h = v.get("len"), v.get("wid"), v.get("hei")
     out = []
@@ -607,6 +688,10 @@ def size_issue(v):
         # либо брутто занижен. Разница мелкая (10–30 г), но в поставке
         # она умножается на тираж.
         out.append(f"брутто {br} г меньше нетто {net} г")
+    cab = (PACKAGING.get(article) or {}) if article else {}
+    cab_net, cab_br = cab.get("net_g"), cab.get("brutto_g")
+    if cab_net is not None and cab_br is not None and cab_br < cab_net:
+        out.append(f"в кабинете брутто {cab_br} г меньше нетто {cab_net} г — править в кабинете")
     if not out:
         out.append("всё заполнено")
     return "; ".join(out)
@@ -635,14 +720,14 @@ def sheet_sizes(wb):
         # незаполненная по всему каталогу.
         return MEASURE if x is None else x
 
-    for art in sorted(PACKAGING):
-        v = PACKAGING[art]
+    for art in sorted(set(PACKAGING) | set(UNIT)):
+        v = pack_view(art)
         ws.append([art, size_group(art) or "прочее",
                    num(v.get("item_hei")), num(v.get("item_wid")), num(v.get("item_dep")),
                    num(v.get("net_g")),
                    num(v.get("len")), num(v.get("wid")), num(v.get("hei")),
                    num(v.get("brutto_g")),
-                   size_issue(v)])
+                   size_issue(v, art)])
     for col, wd in zip("ABCDEFGHIJK", (15, 21, 15, 9, 9, 13, 16, 9, 9, 14, 62)):
         ws.column_dimensions[col].width = wd
     for row in ws.iter_rows(min_row=2):
