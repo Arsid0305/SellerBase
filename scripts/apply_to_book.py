@@ -26,9 +26,22 @@ SKIP = {"Как читать файл", "Порядок заливки", "Инф
 DASHES = str.maketrans({"—": "-", "–": "-"})
 
 
-def same_but_dash(a, b):
-    """Значения различаются только длиной тире — правило §21, а не правка."""
-    return (str(a).translate(DASHES) == str(b).translate(DASHES)) and a != b
+def as_rule(value, column):
+    """Значение, приведённое к правилам оформления §21: тире и регистр."""
+    out = str(value).translate(DASHES)
+    if column == "Комплектация":
+        out = ";".join(i.lstrip()[:1].upper() + i.lstrip()[1:]
+                       for i in out.split(";"))
+    return out
+
+
+def only_formatting(a, b, column):
+    """Различие целиком объясняется правилами §21 — оформление, не правка.
+
+    Такое переносится молча: согласовывать нечего. Всё остальное — текст,
+    цифры, чужой регистр внутри слова — остаётся владелице.
+    """
+    return as_rule(a, column) == as_rule(b, column) and a != b
 
 
 def rows_by_article(ws, key_col):
@@ -73,9 +86,9 @@ def main():
                 b = ours.cell(orow[art], ci).value or ""
                 if a == b:
                     continue
-                if same_but_dash(a, b):
-                    # §21: длинное тире в кабинет не идёт. Это не смысловая
-                    # правка, согласовывать нечего — переносим всегда.
+                if only_formatting(a, b, col):
+                    # §21: тире и регистр комплектации — правила оформления,
+                    # а не смысловая правка. Переносим без согласования.
                     if not args.dry_run:
                         theirs.cell(r, ci).value = b
                     dashed += 1
@@ -89,7 +102,7 @@ def main():
 
     verb = "перенесено" if not args.dry_run else "будет перенесено"
     print(f"\n{verb} значений: {changed}")
-    print(f"{verb} исправлений тире (§21): {dashed}")
+    print(f"{verb} исправлений оформления (§21): {dashed}")
     if other:
         print("\nразошлось ещё, но НЕ переносится — решение за владелицей:")
         for col, items in sorted(other.items(), key=lambda x: -len(x[1])):

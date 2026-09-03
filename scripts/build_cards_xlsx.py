@@ -928,6 +928,24 @@ def no_long_dash(value):
     return value.translate(DASHES) if isinstance(value, str) else value
 
 
+def capitalized_items(value):
+    """Каждая позиция комплектации с заглавной буквы (правило владелицы 03.09).
+
+    Позиции разделены «;», как в кабинете, и заглавной становится первая буква
+    каждой — не только первой позиции. Остальные буквы не трогаем: внутри
+    встречаются размеры и обозначения, которым регистр менять нельзя
+    («мешок-контейнер … 15 × 17 см», «TPR»).
+    """
+    if not isinstance(value, str) or not value.strip():
+        return value
+    parts = []
+    for item in value.split(";"):
+        head = item.lstrip()
+        pad = item[:len(item) - len(head)]
+        parts.append(pad + (head[:1].upper() + head[1:] if head else head))
+    return ";".join(parts)
+
+
 def sheet_export(wb, group, cards, decided_all):
     """Лист группы: колонки и значения кабинета, поверх — решения разборов."""
     cols = list(cards["cols"])
@@ -959,7 +977,10 @@ def sheet_export(wb, group, cards, decided_all):
                         ours = decided[mine]
                         break
             value, fill = cell_value(current.get(c, ""), ours, c)
-            line.append(no_long_dash(value))
+            value = no_long_dash(value)
+            if c == "Комплектация":
+                value = capitalized_items(value)
+            line.append(value)
             fills.append(fill)
         facts = FACTS.get(art, {})
         for _, key in FACT_FIELDS:
