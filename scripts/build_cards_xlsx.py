@@ -858,11 +858,19 @@ def strip_note(value):
     return left.strip() if len(note.split()) >= 3 else value
 
 
+# Колонки, где текст читает человек, а не парсер кабинета. Точка с запятой
+# в них не разделитель значений, а часть текста: описание владелица копирует
+# в карточку руками, и абзацы должны остаться абзацами.
+PROSE_COLUMNS = {"Описание"}
+
+
 def sep(value):
     """Наши разделители значений — в кабинетный «;».
 
     В разборах значения разделены переводом строки или « · », в файле кабинета —
     точкой с запятой. Файл должен грузиться обратно, поэтому приводим к нему.
+
+    К прозе не применяется: там перевод строки — абзац, а не новое значение.
     """
     return value.replace("\n", ";").replace(" · ", ";").strip()
 
@@ -873,12 +881,14 @@ def sep(value):
 CLEAR_PREFIXES = ("очистить", "не заполнено")
 
 
-def cell_value(current, decided):
+def cell_value(current, decided, column=None):
     """Что положить в ячейку и каким цветом её залить.
 
     current — то, что стоит в кабинете сейчас; decided — что сказал разбор.
+    column — имя колонки: у прозы разделители не схлопываются.
     Возвращает (значение, заливка или None).
     """
+    fmt = (lambda v: v.strip()) if column in PROSE_COLUMNS else sep
     if not decided:
         return current, None
     low = decided.lower()
@@ -890,7 +900,7 @@ def cell_value(current, decided):
         # «очистить» — поле надо опустошить; «не заполнено» — оно и так пусто.
         return "", (FILL_NEW if current else None)
     if decided.endswith(f"— {OK}"):
-        return sep(decided[:-len(f"— {OK}")]), None
+        return fmt(decided[:-len(f"— {OK}")]), None
     # Статус мог прийти с пояснением: «нужен замер — в поле 6 см, на слайде 50 мм».
     # Значение тогда не наше, а кабинетное, и ячейка просто помечается жёлтым.
     head = decided.split(" — ", 1)[0].strip()
@@ -899,7 +909,10 @@ def cell_value(current, decided):
         return current, FILL_ASK
     if head.lower().startswith(CLEAR_PREFIXES):
         return "", (FILL_NEW if current else None)
-    value = sep(strip_note(decided))
+    # У прозы пояснение не отрезаем: strip_note режет значение по « — », а в
+    # описании тире — часть фразы. На нём обрывались описания таблетниц:
+    # «Отличие этой сборки от простой круглой — крепления…» теряло всё правее.
+    value = fmt(decided) if column in PROSE_COLUMNS else fmt(strip_note(decided))
     return (current, None) if value == current else (value, FILL_NEW)
 
 
@@ -933,7 +946,7 @@ def sheet_export(wb, group, cards, decided_all):
                     if theirs == c and mine in decided:
                         ours = decided[mine]
                         break
-            value, fill = cell_value(current.get(c, ""), ours)
+            value, fill = cell_value(current.get(c, ""), ours, c)
             line.append(value)
             fills.append(fill)
         facts = FACTS.get(art, {})
@@ -974,7 +987,7 @@ def find_examples(decided_all):
             for col, ours in decided_all.get(art, {}).items():
                 if col not in current:
                     continue
-                value, fill = cell_value(current[col], ours)
+                value, fill = cell_value(current[col], ours, col)
                 if fill is FILL_NEW and not green and col not in ("Описание",):
                     green = (group, art, col, current[col], value)
                 elif fill is FILL_ASK and not yellow:
