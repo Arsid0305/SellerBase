@@ -314,6 +314,83 @@
     "questions": 0,
     "cost_rub": 45
   },
+  "ACRF1BN101BC": {
+    "nm_id": 169153168,
+    "stock": 201,
+    "orders_year": 32,
+    "questions": 6,
+    "cost_rub": 106
+  },
+  "ACRF1BN101PN": {
+    "nm_id": 169112569,
+    "stock": 120,
+    "orders_year": 19,
+    "questions": 2,
+    "cost_rub": 126
+  },
+  "ACRF1BN201GR": {
+    "nm_id": 169395410,
+    "stock": 154,
+    "orders_year": 34,
+    "questions": 3,
+    "cost_rub": 223
+  },
+  "ACRF1KP101BC": {
+    "nm_id": 550445272,
+    "stock": 0,
+    "orders_year": 0,
+    "questions": 0,
+    "cost_rub": 22
+  },
+  "ACRF1KP101BL": {
+    "nm_id": 550445280,
+    "stock": 0,
+    "orders_year": 0,
+    "questions": 0,
+    "cost_rub": 22
+  },
+  "ACRF1KP101GN": {
+    "nm_id": 550445281,
+    "stock": 0,
+    "orders_year": 0,
+    "questions": 0,
+    "cost_rub": 22
+  },
+  "ACRF1KP101RD": {
+    "nm_id": 550445277,
+    "stock": 0,
+    "orders_year": 0,
+    "questions": 0,
+    "cost_rub": 22
+  },
+  "ACRF1KP102BC": {
+    "nm_id": 550445274,
+    "stock": 0,
+    "orders_year": 0,
+    "questions": 0,
+    "cost_rub": 22
+  },
+  "ACRF1KP102GN": {
+    "nm_id": 550445283,
+    "stock": 0,
+    "orders_year": 0,
+    "questions": 0,
+    "cost_rub": 22
+  },
+  "ACRF1KP102RD": {
+    "nm_id": 550445279,
+    "stock": 0,
+    "orders_year": 0,
+    "questions": 0,
+    "cost_rub": 22
+  },
+  "ACRF1KP103BC": {
+    "nm_id": 550445275,
+    "stock": 0,
+    "orders_year": 0,
+    "questions": 0,
+    "cost_rub": 22
+  },
   "ACRH1MS101RJ": {
     "cost_rub": 81,
     "nm_id": 173605843,
@@ -404,5 +481,47 @@
     "orders_year": 28,
     "questions": 3,
     "stock": 112
+  },
+  "AKTA2KN101YL": {
+    "nm_id": 273546535,
+    "stock": 58,
+    "orders_year": 27,
+    "questions": 0,
+    "cost_rub": 192
+  },
+  "AKTA2KN102GN": {
+    "nm_id": 327442631,
+    "stock": 63,
+    "orders_year": 13,
+    "questions": 0,
+    "cost_rub": 149
+  },
+  "AKTA2KN102YL": {
+    "nm_id": 273527791,
+    "stock": 106,
+    "orders_year": 24,
+    "questions": 1,
+    "cost_rub": 149
+  },
+  "AKTA4ST101CL": {
+    "nm_id": 273556717,
+    "stock": 82,
+    "orders_year": 38,
+    "questions": 0,
+    "cost_rub": 120
+  },
+  "AKTA4ST102CL": {
+    "nm_id": 321959186,
+    "stock": 9,
+    "orders_year": 23,
+    "questions": 1,
+    "cost_rub": 130
+  },
+  "AKTA4ST103CL": {
+    "nm_id": 370594147,
+    "stock": 77,
+    "orders_year": 28,
+    "questions": 1,
+    "cost_rub": 120
   }
 }
