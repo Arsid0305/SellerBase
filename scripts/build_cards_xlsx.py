@@ -803,6 +803,13 @@ EXPORT = json.loads((ROOT / "docs" / "seo" / "cabinet-export.json").read_text(en
 # в кабинете и попадать в выгрузку — в книгу она не идёт. За сессию 02–03.09
 # так ушли четыре товара, каждый раз уже после того, как по нему что-то собрали,
 # поэтому список общий и лежит рядом с данными, а не в коде.
+# Живой слепок кабинета: что реально стоит в карточках сейчас. Приоритетнее
+# cabinet-export.json — та выгрузка ручная и устаревает, как только владелица
+# заливает правки. Подсветка считается от него, поэтому залитое гаснет само.
+LIVE = (json.loads((ROOT / "docs" / "seo" / "cabinet-live.json").read_text(encoding="utf-8"))
+        .get("articles", {})
+        if (ROOT / "docs" / "seo" / "cabinet-live.json").exists() else {})
+
 DISCONTINUED = {k: v for k, v in (json.loads(
     (ROOT / "docs" / "seo" / "discontinued.json").read_text(encoding="utf-8")).items()
     if (ROOT / "docs" / "seo" / "discontinued.json").exists() else {}) if not k.startswith("_")}
@@ -946,6 +953,28 @@ def capitalized_items(value):
     return ";".join(parts)
 
 
+# Насколько длина описания в кабинете может отличаться от нашей, чтобы считать
+# его тем же текстом. Владелица правит первую строку под своё наименование,
+# поэтому дословного совпадения не бывает; прежние описания при этом длиннее
+# наших вдвое-втрое, так что порог их уверенно отсекает.
+DESCR_TOLERANCE = 0.15
+
+
+def descr_is_live(article, ours):
+    """Наше ли описание уже стоит в кабинете.
+
+    Полный текст в слепок не кладём — он на полторы тысячи знаков на карточку.
+    Судим по длине: наши описания укладываются в 1000-1500 знаков, прежние
+    занимают 2700-3100. Начало текста в слепке есть, но сравнивать по нему
+    нельзя: владелица переписывает первую строку под изменённое наименование.
+    """
+    live = LIVE.get(article) or {}
+    n = live.get("_descr_len")
+    if not n or not ours:
+        return False
+    return abs(len(str(ours)) - n) <= DESCR_TOLERANCE * n
+
+
 def sheet_export(wb, group, cards, decided_all):
     """Лист группы: колонки и значения кабинета, поверх — решения разборов."""
     cols = list(cards["cols"])
@@ -966,6 +995,9 @@ def sheet_export(wb, group, cards, decided_all):
         if art in DISCONTINUED:
             continue
         current = dict(zip(cols, cards["rows"][art]))
+        # Поверх ручной выгрузки — то, что стоит в кабинете на самом деле.
+        current.update({k: v for k, v in (LIVE.get(art) or {}).items()
+                        if not k.startswith("_")})
         decided = decided_all.get(art, {})
         line, fills = [], []
         for c in cols:
@@ -978,6 +1010,11 @@ def sheet_export(wb, group, cards, decided_all):
                         break
             value, fill = cell_value(current.get(c, ""), ours, c)
             value = no_long_dash(value)
+            # Описание целиком в слепок не кладём — оно на полторы тысячи знаков.
+            # Достаточно начала: если в кабинете стоит тот же текст, правка уже
+            # залита и гореть ей незачем.
+            if c == "Описание" and fill is FILL_NEW:
+                fill = None if descr_is_live(art, value) else fill
             if c == "Комплектация":
                 value = capitalized_items(value)
             line.append(value)
