@@ -916,6 +916,18 @@ def cell_value(current, decided, column=None):
     return (current, None) if value == current else (value, FILL_NEW)
 
 
+# Длинное тире и среднее в карточку не идут: владелица держит в своих текстах
+# только короткий дефис, а «—» читается как след машинного текста. Правило
+# применяется на выходе, к готовому значению ячейки: в разборах тире остаётся
+# служебным разделителем («нужен замер — в поле 6 см»), и трогать его там нельзя.
+DASHES = str.maketrans({"—": "-", "–": "-"})
+
+
+def no_long_dash(value):
+    """Длинное и среднее тире — в короткий дефис."""
+    return value.translate(DASHES) if isinstance(value, str) else value
+
+
 def sheet_export(wb, group, cards, decided_all):
     """Лист группы: колонки и значения кабинета, поверх — решения разборов."""
     cols = list(cards["cols"])
@@ -947,7 +959,7 @@ def sheet_export(wb, group, cards, decided_all):
                         ours = decided[mine]
                         break
             value, fill = cell_value(current.get(c, ""), ours, c)
-            line.append(value)
+            line.append(no_long_dash(value))
             fills.append(fill)
         facts = FACTS.get(art, {})
         for _, key in FACT_FIELDS:

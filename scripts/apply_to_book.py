@@ -23,6 +23,12 @@ BUILT = ROOT / "kartochki_arols.xlsx"
 KEY = "Артикул продавца"
 # Листы без карточек: там нечего сопоставлять по артикулу.
 SKIP = {"Как читать файл", "Порядок заливки", "Инфографика", "Размеры и вес"}
+DASHES = str.maketrans({"—": "-", "–": "-"})
+
+
+def same_but_dash(a, b):
+    """Значения различаются только длиной тире — правило §21, а не правка."""
+    return (str(a).translate(DASHES) == str(b).translate(DASHES)) and a != b
 
 
 def rows_by_article(ws, key_col):
@@ -45,6 +51,7 @@ def main():
     built = openpyxl.load_workbook(BUILT)
 
     changed = 0
+    dashed = 0
     other = {}
     for name in book.sheetnames:
         if name in SKIP or name not in built.sheetnames:
@@ -66,7 +73,13 @@ def main():
                 b = ours.cell(orow[art], ci).value or ""
                 if a == b:
                     continue
-                if col in columns:
+                if same_but_dash(a, b):
+                    # §21: длинное тире в кабинет не идёт. Это не смысловая
+                    # правка, согласовывать нечего — переносим всегда.
+                    if not args.dry_run:
+                        theirs.cell(r, ci).value = b
+                    dashed += 1
+                elif col in columns:
                     if not args.dry_run:
                         theirs.cell(r, ci).value = b
                     changed += 1
@@ -74,8 +87,9 @@ def main():
                 else:
                     other.setdefault(col, []).append(f"{name}/{art}")
 
-    print(f"\nперенесено ячеек: {changed}" if not args.dry_run
-          else f"\nбудет перенесено: {changed}")
+    verb = "перенесено" if not args.dry_run else "будет перенесено"
+    print(f"\n{verb} значений: {changed}")
+    print(f"{verb} исправлений тире (§21): {dashed}")
     if other:
         print("\nразошлось ещё, но НЕ переносится — решение за владелицей:")
         for col, items in sorted(other.items(), key=lambda x: -len(x[1])):
