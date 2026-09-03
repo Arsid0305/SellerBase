@@ -714,6 +714,14 @@ def sheet(wb, name, rows):
 EXPORT = json.loads((ROOT / "docs" / "seo" / "cabinet-export.json").read_text(encoding="utf-8")) \
     if (ROOT / "docs" / "seo" / "cabinet-export.json").exists() else {}
 
+# Снятое с производства и выведенное из продажи. Карточка может ещё висеть
+# в кабинете и попадать в выгрузку — в книгу она не идёт. За сессию 02–03.09
+# так ушли четыре товара, каждый раз уже после того, как по нему что-то собрали,
+# поэтому список общий и лежит рядом с данными, а не в коде.
+DISCONTINUED = {k: v for k, v in (json.loads(
+    (ROOT / "docs" / "seo" / "discontinued.json").read_text(encoding="utf-8")).items()
+    if (ROOT / "docs" / "seo" / "discontinued.json").exists() else {}) if not k.startswith("_")}
+
 FILL_NEW = PatternFill("solid", fgColor="D6EFD8")   # значение из разбора — менять
 FILL_ASK = PatternFill("solid", fgColor="FFF2CC")   # ждём замер или ответ владелицы
 FILL_REF = PatternFill("solid", fgColor="EDEDED")   # справочная колонка, не заливается
@@ -827,6 +835,8 @@ def sheet_export(wb, group, cards, decided_all):
         c.font = Font(size=8, italic=True, color="808080")
 
     for art in sorted(cards["rows"]):
+        if art in DISCONTINUED:
+            continue
         current = dict(zip(cols, cards["rows"][art]))
         decided = decided_all.get(art, {})
         line, fills = [], []
@@ -860,7 +870,7 @@ def sheet_export(wb, group, cards, decided_all):
         for cell in row:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
     ws.freeze_panes = "C3"
-    return len(cards["rows"])
+    return ws.max_row - 2          # минус строка заголовков и строка подсказок
 
 
 def main():
@@ -900,8 +910,12 @@ def main():
                           "нетто и брутто рядом, с колонкой «Что не так»."],
         ["Код ТН ВЭД", "Из вашей матрицы «ТН ВЭД × ОКПД 2» — тот код, что помечен зелёным. "
                        "Разбор и расхождения с прежними кодами — docs/marking/codes-marking.md."],
-        ["Шпатели", "Выгрузки по этой группе не было, лист собран из снимка кабинета "
-                    "и устроен иначе: там колонки «сейчас в кабинете», а не к заливке."],
+        ["Снятое с производства", "В книгу не идёт, даже если карточка ещё висит в кабинете "
+                                  "и попадает в выгрузку. Сейчас это палочка-кость AAND1ST202BL, "
+                                  "скакалка со счётчиком ACRB1SK201BC, шпатель голубой AKTA2KN101BL "
+                                  "и латексный набор ACRB5FR400CL. Список — docs/seo/discontinued.json."],
+        ["Бандажи, ножи,\nпробки", "Разбора по ним ещё не было — ждём срез Эвирмы. В ячейках лежит "
+                                   "то, что стоит в кабинете, цветных пометок нет."],
     ]:
         intro.append(line)
     intro.column_dimensions["A"].width = 18
@@ -925,8 +939,11 @@ def main():
     for group in sorted(EXPORT):
         n = sheet_export(wb, group, EXPORT[group], decided)
         total += n
-        touched = sum(1 for a in EXPORT[group]["rows"] if a in decided)
-        print(f"{group}: {n} карточек, разобрано {touched}")
+        live = [a for a in EXPORT[group]["rows"] if a not in DISCONTINUED]
+        touched = sum(1 for a in live if a in decided)
+        gone = len(EXPORT[group]["rows"]) - len(live)
+        note = f", снятых пропущено {gone}" if gone else ""
+        print(f"{group}: {n} карточек, разобрано {touched}{note}")
 
     # Группы, которых в выгрузке нет: их данные лежат в снимке от 03.09.
     # Ключ «_отложено» перечисляет то, что владелица просила не трогать.
