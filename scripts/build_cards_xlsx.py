@@ -1029,6 +1029,15 @@ def sheet_export(wb, group, cards, decided_all):
                 fill = None if descr_is_live(art, value) else fill
             if c == "Комплектация":
                 value = capitalized_items(value)
+            # Правила §21 применяются уже после сравнения, и разница могла быть
+            # только в них: в разборе длинное тире, в кабинете дефис. Тогда
+            # правки нет — гасим, иначе подсветка зовёт заливать то же самое.
+            if fill is FILL_NEW:
+                same = no_long_dash(str(current.get(c, "")))
+                if c == "Комплектация":
+                    same = capitalized_items(same)
+                if value == same:
+                    fill = None
             line.append(value)
             fills.append(fill)
         facts = FACTS.get(art, {})
