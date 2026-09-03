@@ -457,6 +457,72 @@
     "hei": 7,
     "brutto_g": 1000
   },
+  "ACRF1BN101BC": {
+    "len": 14,
+    "wid": 12,
+    "hei": 2,
+    "brutto_g": 40
+  },
+  "ACRF1BN101PN": {
+    "len": 14,
+    "wid": 12,
+    "hei": 2,
+    "brutto_g": 40
+  },
+  "ACRF1BN201GR": {
+    "len": 19,
+    "wid": 14,
+    "hei": 3,
+    "brutto_g": 90
+  },
+  "ACRF1KP101BC": {
+    "len": 7,
+    "wid": 7,
+    "hei": 7,
+    "brutto_g": 40
+  },
+  "ACRF1KP101BL": {
+    "len": 7,
+    "wid": 7,
+    "hei": 7,
+    "brutto_g": 40
+  },
+  "ACRF1KP101GN": {
+    "len": 7,
+    "wid": 7,
+    "hei": 7,
+    "brutto_g": 40
+  },
+  "ACRF1KP101RD": {
+    "len": 7,
+    "wid": 7,
+    "hei": 7,
+    "brutto_g": 40
+  },
+  "ACRF1KP102BC": {
+    "len": 7,
+    "wid": 7,
+    "hei": 7,
+    "brutto_g": 40
+  },
+  "ACRF1KP102GN": {
+    "len": 7,
+    "wid": 7,
+    "hei": 7,
+    "brutto_g": 40
+  },
+  "ACRF1KP102RD": {
+    "len": 7,
+    "wid": 7,
+    "hei": 7,
+    "brutto_g": 40
+  },
+  "ACRF1KP103BC": {
+    "len": 7,
+    "wid": 7,
+    "hei": 7,
+    "brutto_g": 40
+  },
   "ACRH1MS101RJ": {
     "hei": 4,
     "item_dep": 3,
@@ -579,5 +645,47 @@
     "weight_g": 315,
     "wid": 21,
     "brutto_g": 300
+  },
+  "AKTA2KN101BL": {
+    "len": 16,
+    "wid": 12,
+    "hei": 3,
+    "brutto_g": 200
+  },
+  "AKTA2KN101YL": {
+    "len": 16,
+    "wid": 12,
+    "hei": 3,
+    "brutto_g": 200
+  },
+  "AKTA2KN102GN": {
+    "len": 16,
+    "wid": 13,
+    "hei": 3,
+    "brutto_g": 140
+  },
+  "AKTA2KN102YL": {
+    "len": 16,
+    "wid": 13,
+    "hei": 3,
+    "brutto_g": 170
+  },
+  "AKTA4ST101CL": {
+    "len": 7,
+    "wid": 7,
+    "hei": 6,
+    "brutto_g": 50
+  },
+  "AKTA4ST102CL": {
+    "len": 16,
+    "wid": 12,
+    "hei": 3,
+    "brutto_g": 50
+  },
+  "AKTA4ST103CL": {
+    "len": 7,
+    "wid": 7,
+    "hei": 6,
+    "brutto_g": 50
   }
 }

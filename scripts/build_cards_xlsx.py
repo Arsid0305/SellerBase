@@ -400,6 +400,15 @@ PACKAGING = json.loads((ROOT / "docs" / "seo" / "packaging.json").read_text(enco
 FACTS = json.loads((ROOT / "docs" / "seo" / "catalog-facts.json").read_text(encoding="utf-8")) \
     if (ROOT / "docs" / "seo" / "catalog-facts.json").exists() else {}
 
+# Снимок кабинета для групп, по которым разбора ещё НЕ было: владелица 03.09
+# попросила листы, но разбор отложила до среза Эвирмы. Поэтому здесь не
+# «что вносить», а «что стоит сейчас» — колонки так и подписаны, чтобы лист
+# нельзя было спутать с заданием на заливку.
+SNAPSHOT = json.loads((ROOT / "docs" / "seo" / "cabinet-snapshot.json").read_text(encoding="utf-8")) \
+    if (ROOT / "docs" / "seo" / "cabinet-snapshot.json").exists() else {}
+
+NO_ANALYSIS = "разбора не было — ждём срез Эвирмы"
+
 FACT_FIELDS = [
     ("Заказов за год", "orders_year"),
     ("Вопросов покупателей", "questions"),
@@ -462,6 +471,7 @@ TNVED = {
     "AAND1BL": "4016999708",      # игрушки для собак, резина
     "AAND1ST": "4016999708",
     "AAND1RP": "5609000000",      # канаты, хлопковая нить
+    "ACRF1KP": "",                # капы — в матрице владелицы кода нет
 }
 
 
@@ -494,6 +504,55 @@ def tnved(article):
     return TNVED[max(match, key=len)] if match else ""
 
 
+def sheet_snapshot(wb, name, cards):
+    """Лист по группе без разбора: что стоит в кабинете сейчас.
+
+    Отличается от обычного листа подписями колонок. В разобранных группах
+    «Наименование» значит «внести это»; здесь — «сейчас стоит вот это»,
+    и путать их нельзя, иначе владелица зальёт обратно то же самое.
+    """
+    rows = []
+    for art in sorted(cards):
+        c = cards[art]
+        row = {"Артикул": art, "nm_id": c.get("nm_id"),
+               "Наименование сейчас в кабинете": c.get("title") or "не заполнено",
+               "Описание сейчас в кабинете": c.get("descr") or "не заполнено",
+               "Статус": NO_ANALYSIS,
+               "Код ТН ВЭД": tnved(art) or "нет в матрице кодов"}
+        for k, v in (c.get("chars") or {}).items():
+            row[k] = v.replace(" · ", "\n")
+        fill_packaging(row)
+        fill_facts(row)
+        row.setdefault("Бренд", BRAND)
+        row.setdefault("Страна производства", COUNTRY)
+        rows.append(row)
+
+    head = ["Артикул", "nm_id", "Статус", "Наименование сейчас в кабинете",
+            "Описание сейчас в кабинете", "Код ТН ВЭД"]
+    tail = ["Длина упаковки", "Ширина упаковки", "Высота упаковки",
+            "Вес товара с упаковкой (г)", "Заказов за год", "Вопросов покупателей",
+            "Остаток на складах", "Себестоимость, ₽", "Бренд", "Страна производства"]
+    mid = sorted({k for r in rows for k in r} - set(head) - set(tail))
+    cols = head + mid + tail
+
+    ws = wb.create_sheet(name)
+    ws.append(cols)
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    for r in rows:
+        ws.append([r.get(c, "не заполнено") for c in cols])
+    widths = {"Артикул": 15, "nm_id": 12, "Статус": 26,
+              "Наименование сейчас в кабинете": 46, "Описание сейчас в кабинете": 90,
+              "Код ТН ВЭД": 16}
+    for i, c in enumerate(cols, 1):
+        ws.column_dimensions[ws.cell(1, i).column_letter].width = widths.get(c, 22)
+    for row in ws.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.freeze_panes = "A2"
+    return len(rows)
+
+
 # Группа по префиксу артикула — только для листа размеров, где строки идут
 # по всему каталогу, а не по разобранным группам.
 SIZE_GROUPS = [
@@ -507,6 +566,11 @@ SIZE_GROUPS = [
     ("ACRB3FR", "Фитнес-резинки"),
     ("ACRB4FR", "Фитнес-резинки"),
     ("ACRB5FR", "Фитнес-резинки"),
+    ("ACRF1BN", "Бандажи косметические"),
+    ("ACRF1KP", "Капы"),
+    ("AKTA4ST", "Пробки для бутылок"),
+    ("AKTA2KN101", "Шпатели кондитерские"),
+    ("AKTA2KN102", "Ножи для пиццы"),
 ]
 
 
@@ -689,6 +753,11 @@ def main():
                        "Разбор и расхождения с прежними кодами — docs/marking/codes-marking.md."],
         ["Рич-контент", "Столбец пустой: сценариев ещё нет. Заполняется по мере разбора групп, "
                         "заливается в кабинете отдельно от карточки."],
+        ["Листы без разбора", "Пять листов — «Бандажи косметические», «Капы», «Ножи для пиццы», "
+                              "«Пробки для бутылок», «Шпатели кондитерские» — показывают, ЧТО СТОИТ "
+                              "В КАБИНЕТЕ СЕЙЧАС, а не что вносить. Разбор по ним отложен до среза "
+                              "Эвирмы (ваше решение 03.09). Колонки там так и названы: «Наименование "
+                              "сейчас в кабинете», «Описание сейчас в кабинете»."],
         ["Колонки", "Набираются из того, что разобрано в docs/seo/descriptions/. "
                     "Если поле разобрано — оно появится в листе само, дописывать список не нужно."],
     ]:
@@ -723,6 +792,11 @@ def main():
             continue
         total += sheet(wb, name, rows)
         print(f"{name}: {len(rows)} карточек")
+
+    for name in SNAPSHOT:
+        n = sheet_snapshot(wb, name, SNAPSHOT[name])
+        total += n
+        print(f"{name}: {n} карточек — снимок кабинета, без разбора")
 
     wb.save(a.out)
     print(f"записано {total} карточек → {a.out}")
