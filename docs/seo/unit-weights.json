@@ -1,0 +1,698 @@
+{
+ "_": "Вес нетто и габариты упаковки. Источник — юнит-экономика владелицы, лист «Юнит». Чтение колонок подтверждено владелицей 03.09.2026: Вес — нетто, Длина/Ширина/Высота — упаковка. Габаритов предмета в файле нет. Пересобрать: python3 scripts/export_unit_weights.py",
+ "articles": {
+  "ACRF1BN101PN": {
+   "name": "Бандаж для лица розовый",
+   "net_g": 40,
+   "pkg_len": 14,
+   "pkg_wid": 12,
+   "pkg_hei": 2,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRF1BN101BC": {
+   "name": "Бандаж для лица черный",
+   "net_g": 40,
+   "pkg_len": 14,
+   "pkg_wid": 12,
+   "pkg_hei": 2,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRF1BN201GR": {
+   "name": "Бандаж для лица серый",
+   "net_g": 90,
+   "pkg_len": 19,
+   "pkg_wid": 14,
+   "pkg_hei": 3,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "AHMA7BW101BG": {
+   "name": "Мешки 7 шт.",
+   "net_g": 315,
+   "pkg_len": 30,
+   "pkg_wid": 21,
+   "pkg_hei": 6,
+   "pkg_type": "своя",
+   "in_box": 20
+  },
+  "AHMA1BW101BG": {
+   "name": "Мешок для бюстгалтеров",
+   "net_g": 60,
+   "pkg_len": 18,
+   "pkg_wid": 17,
+   "pkg_hei": 3,
+   "pkg_type": "своя, ОРР 24*34",
+   "in_box": 140
+  },
+  "AHMA3BW101BG": {
+   "name": "Мешки 3 шт.",
+   "net_g": 140,
+   "pkg_len": 25,
+   "pkg_wid": 20,
+   "pkg_hei": 5,
+   "pkg_type": "слайдер 25*30, ОРР 24*34",
+   "in_box": 40
+  },
+  "AHMA3BW102BG": {
+   "name": "Мешки/деликат 3 шт.",
+   "net_g": 120,
+   "pkg_len": 25,
+   "pkg_wid": 17,
+   "pkg_hei": 4,
+   "pkg_type": "ОРР 24*34 слайдер 20*30",
+   "in_box": 50
+  },
+  "AHMA3BW201WH": {
+   "name": "Мешки/шнурок мелк 3 шт.",
+   "net_g": 130,
+   "pkg_len": 21,
+   "pkg_wid": 15,
+   "pkg_hei": 3,
+   "pkg_type": "ОРР 24*34 слайдер 20*30",
+   "in_box": 100
+  },
+  "AHMA3BW202WH": {
+   "name": "Мешки/шнурок крупн 3 шт.",
+   "net_g": 130,
+   "pkg_len": 21,
+   "pkg_wid": 15,
+   "pkg_hei": 3,
+   "pkg_type": "OPP 20*34 слайдер 18*25",
+   "in_box": 100
+  },
+  "AHMA2BW201WH": {
+   "name": "Мешки 2 шт. серый",
+   "net_g": 60,
+   "pkg_len": 20,
+   "pkg_wid": 16,
+   "pkg_hei": 3,
+   "pkg_type": "ОРР 22*34 слайдер 18*25",
+   "in_box": 90
+  },
+  "AHMA2BW202WH": {
+   "name": "Мешки 2 шт. розовый",
+   "net_g": 95,
+   "pkg_len": 20,
+   "pkg_wid": 16,
+   "pkg_hei": 3,
+   "pkg_type": "18*25",
+   "in_box": 90
+  },
+  "AHMA1BW112WH": {
+   "name": "Мешок 60*80 крупн",
+   "net_g": 100,
+   "pkg_len": 28,
+   "pkg_wid": 22,
+   "pkg_hei": 1,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "AHMA1BW111WH": {
+   "name": "Мешок 60*80 мелк",
+   "net_g": 100,
+   "pkg_len": 28,
+   "pkg_wid": 22,
+   "pkg_hei": 1,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "AHMA1BW301WH": {
+   "name": "Мешок для обуви L - 30 см",
+   "net_g": null,
+   "pkg_len": 19,
+   "pkg_wid": 17,
+   "pkg_hei": 3,
+   "pkg_type": "22*34",
+   "in_box": 100
+  },
+  "AHMA1BW302WH": {
+   "name": "Мешок для обуви XL - 35 см",
+   "net_g": null,
+   "pkg_len": 22,
+   "pkg_wid": 22,
+   "pkg_hei": 4,
+   "pkg_type": "24*34",
+   "in_box": 80
+  },
+  "ACRH1MS101RJ": {
+   "name": "Массажер для пальцев",
+   "net_g": 40,
+   "pkg_len": 15,
+   "pkg_wid": 4,
+   "pkg_hei": 4,
+   "pkg_type": "своя",
+   "in_box": 300
+  },
+  "ACRB1MS101RJ": {
+   "name": "Массажер для тела оранжевый",
+   "net_g": 160,
+   "pkg_len": 55,
+   "pkg_wid": 6,
+   "pkg_hei": 3,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS101PN": {
+   "name": "Массажер для тела розовый",
+   "net_g": 160,
+   "pkg_len": 55,
+   "pkg_wid": 6,
+   "pkg_hei": 3,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS101BL": {
+   "name": "Массажер для тела голубой",
+   "net_g": 160,
+   "pkg_len": 55,
+   "pkg_wid": 6,
+   "pkg_hei": 3,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS106WH": {
+   "name": "Мяч с шипами белый 6 см",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": "своя",
+   "in_box": 300
+  },
+  "ACRB1MS106PN": {
+   "name": "Мяч с шипами розовый 6 см",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": "своя",
+   "in_box": 300
+  },
+  "ACRB1MS106BL": {
+   "name": "Мяч с шипами голубой 6 см",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": "своя",
+   "in_box": 300
+  },
+  "ACRB1MS106RJ": {
+   "name": "Мяч с шипами оранжевый 6 см",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": "своя",
+   "in_box": 300
+  },
+  "ACRB1MS107WH": {
+   "name": "Мяч с шипами белый 7 см",
+   "net_g": 60,
+   "pkg_len": 8,
+   "pkg_wid": 8,
+   "pkg_hei": 8,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS107PN": {
+   "name": "Мяч с шипами розовый 7 см",
+   "net_g": 60,
+   "pkg_len": 8,
+   "pkg_wid": 8,
+   "pkg_hei": 8,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS107BL": {
+   "name": "Мяч с шипами голубой 7 см",
+   "net_g": 60,
+   "pkg_len": 8,
+   "pkg_wid": 8,
+   "pkg_hei": 8,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS107RJ": {
+   "name": "Мяч с шипами оранжевый 7 см",
+   "net_g": 60,
+   "pkg_len": 8,
+   "pkg_wid": 8,
+   "pkg_hei": 8,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS109PN": {
+   "name": "Мяч с шипами розовый 9 см",
+   "net_g": 100,
+   "pkg_len": 9,
+   "pkg_wid": 9,
+   "pkg_hei": 9,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS109BL": {
+   "name": "Мяч с шипами голубой 9 см",
+   "net_g": 100,
+   "pkg_len": 9,
+   "pkg_wid": 9,
+   "pkg_hei": 9,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS109RJ": {
+   "name": "Мяч с шипами оранжевый 9 см",
+   "net_g": 100,
+   "pkg_len": 9,
+   "pkg_wid": 9,
+   "pkg_hei": 9,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS109LI": {
+   "name": "Мяч с шипами фиолетовый 9 см",
+   "net_g": 100,
+   "pkg_len": 9,
+   "pkg_wid": 9,
+   "pkg_hei": 9,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS103PN": {
+   "name": "Мяч гладкий розовый",
+   "net_g": null,
+   "pkg_len": 8,
+   "pkg_wid": 8,
+   "pkg_hei": 6,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS103BL": {
+   "name": "Мяч гладкий голубой",
+   "net_g": null,
+   "pkg_len": 8,
+   "pkg_wid": 8,
+   "pkg_hei": 6,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS103LI": {
+   "name": "Мяч гладкий сиреневый",
+   "net_g": null,
+   "pkg_len": 8,
+   "pkg_wid": 8,
+   "pkg_hei": 6,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1MS103RJ": {
+   "name": "Мяч гладкий оранжевый",
+   "net_g": null,
+   "pkg_len": 8,
+   "pkg_wid": 8,
+   "pkg_hei": 6,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB3FR101CL": {
+   "name": "Набор эластичных лент 3 шт. в мешке",
+   "net_g": 370,
+   "pkg_len": 30,
+   "pkg_wid": 11,
+   "pkg_hei": 6,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRB5FR200CL": {
+   "name": "Набор эластичных лент 5 шт. в мешке",
+   "net_g": 240,
+   "pkg_len": 19,
+   "pkg_wid": 10,
+   "pkg_hei": 5,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRB4FR300CL": {
+   "name": "Набор эластичных лент 4 шт.",
+   "net_g": 250,
+   "pkg_len": 17,
+   "pkg_wid": 10,
+   "pkg_hei": 5,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRB5FR400CL": {
+   "name": "Набор эластичных лент 5 шт.",
+   "net_g": 14,
+   "pkg_len": 20,
+   "pkg_wid": 8,
+   "pkg_hei": 4,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRB1SK101BC": {
+   "name": "Скакалка черная",
+   "net_g": 170,
+   "pkg_len": 20,
+   "pkg_wid": 10,
+   "pkg_hei": 2,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1SK101RD": {
+   "name": "Скакалка красная",
+   "net_g": 170,
+   "pkg_len": 20,
+   "pkg_wid": 10,
+   "pkg_hei": 2,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRB1SK101BL": {
+   "name": "Скакалка синяя",
+   "net_g": 170,
+   "pkg_len": 20,
+   "pkg_wid": 10,
+   "pkg_hei": 2,
+   "pkg_type": "своя",
+   "in_box": null
+  },
+  "ACRF1KP101BC": {
+   "name": "Капа черный/красный - черная коробка",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRF1KP102BC": {
+   "name": "Капа черный/белый-черная коробка",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRF1KP103BC": {
+   "name": "Капа белый/черный",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRF1KP101RD": {
+   "name": "Капа белый/красный",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRF1KP102RD": {
+   "name": "Капа красный/белый",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRF1KP101BL": {
+   "name": "Капа синий/белый",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRF1KP101GN": {
+   "name": "Капа зеленый/белый",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRF1KP102GN": {
+   "name": "Капа зеленый/черный",
+   "net_g": 40,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "ACRA7TB201BC": {
+   "name": "Таблетница прям 7*2 черн",
+   "net_g": 160,
+   "pkg_len": 16,
+   "pkg_wid": 12,
+   "pkg_hei": 5,
+   "pkg_type": "22*10*5",
+   "in_box": 70
+  },
+  "ACRA7TB201CL": {
+   "name": "Таблетница прям 7*2 черн/цветн",
+   "net_g": 160,
+   "pkg_len": 16,
+   "pkg_wid": 12,
+   "pkg_hei": 5,
+   "pkg_type": "22*10*5",
+   "in_box": 70
+  },
+  "ACRA7TB201WH": {
+   "name": "Таблетница прям 7*2 бел/цветн",
+   "net_g": 160,
+   "pkg_len": 16,
+   "pkg_wid": 12,
+   "pkg_hei": 5,
+   "pkg_type": "22*10*5",
+   "in_box": 70
+  },
+  "ACRA7TB201LI": {
+   "name": "Таблетница прям 7*2 сирен/цветн",
+   "net_g": 160,
+   "pkg_len": 16,
+   "pkg_wid": 12,
+   "pkg_hei": 5,
+   "pkg_type": "22*10*5",
+   "in_box": 70
+  },
+  "ACRA7TB101BC": {
+   "name": "Таблетница круглая 7*2 черн",
+   "net_g": 165,
+   "pkg_len": 17,
+   "pkg_wid": 12,
+   "pkg_hei": 7,
+   "pkg_type": "15*10*10",
+   "in_box": 60
+  },
+  "ACRA7TB101CL": {
+   "name": "Таблетница круглая 7*2 черн/цвет",
+   "net_g": 165,
+   "pkg_len": 17,
+   "pkg_wid": 12,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": 60
+  },
+  "ACRA7TB301GR": {
+   "name": "Таблетница круглая 7*2 сер",
+   "net_g": 150,
+   "pkg_len": 17,
+   "pkg_wid": 12,
+   "pkg_hei": 7,
+   "pkg_type": "15*10*12",
+   "in_box": 60
+  },
+  "ACRA7TB301CL": {
+   "name": "Таблетница круглая 7*2 сер /цвет",
+   "net_g": 150,
+   "pkg_len": 17,
+   "pkg_wid": 12,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": 60
+  },
+  "ACRA7TB301WH": {
+   "name": "Таблетница круглая 7*2 бел",
+   "net_g": 150,
+   "pkg_len": 17,
+   "pkg_wid": 12,
+   "pkg_hei": 7,
+   "pkg_type": "15*10*11",
+   "in_box": 60
+  },
+  "ACRA7TB401BC": {
+   "name": "Таблетница автомат 7*2 черн",
+   "net_g": null,
+   "pkg_len": 15,
+   "pkg_wid": 25,
+   "pkg_hei": 6,
+   "pkg_type": "25*15*5",
+   "in_box": 30
+  },
+  "ACRB1SK201BC": {
+   "name": "Скакалка со счетчиком",
+   "net_g": null,
+   "pkg_len": 19,
+   "pkg_wid": 12,
+   "pkg_hei": 8,
+   "pkg_type": "своя, 22*10*5 самосборная",
+   "in_box": null
+  },
+  "AAND1BL101RD": {
+   "name": "Мяч регби красный",
+   "net_g": 80,
+   "pkg_len": 11,
+   "pkg_wid": 8,
+   "pkg_hei": 6,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AAND1BL101BL": {
+   "name": "Мяч регби синий",
+   "net_g": 80,
+   "pkg_len": 11,
+   "pkg_wid": 8,
+   "pkg_hei": 6,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AAND1BL102RD": {
+   "name": "Мяч шина красный",
+   "net_g": 140,
+   "pkg_len": 12,
+   "pkg_wid": 9,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AAND1BL102BL": {
+   "name": "Мяч шина синий",
+   "net_g": 140,
+   "pkg_len": 12,
+   "pkg_wid": 9,
+   "pkg_hei": 7,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AAND1ST202BL": {
+   "name": "Палочка для жевания",
+   "net_g": null,
+   "pkg_len": 26,
+   "pkg_wid": 7,
+   "pkg_hei": 4,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AAND1RP301BG": {
+   "name": "Канат бол бежевый 55см/520гр",
+   "net_g": null,
+   "pkg_len": 19,
+   "pkg_wid": 19,
+   "pkg_hei": 8,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AAND1RP301YL": {
+   "name": "Канат мал желтый 55см/330гр",
+   "net_g": null,
+   "pkg_len": 21,
+   "pkg_wid": 15,
+   "pkg_hei": 6,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA4ST101CL": {
+   "name": "Набор пробок 4 шт. в коробке нежн",
+   "net_g": 50,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 6,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA4ST103CL": {
+   "name": "Набор пробок 4 шт. в коробке ярк",
+   "net_g": 50,
+   "pkg_len": 7,
+   "pkg_wid": 7,
+   "pkg_hei": 6,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA4ST102CL": {
+   "name": "Набор пробок 4 шт.",
+   "net_g": null,
+   "pkg_len": 16,
+   "pkg_wid": 12,
+   "pkg_hei": 3,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA2KN101YL": {
+   "name": "Шпатель желтый",
+   "net_g": 200,
+   "pkg_len": 16,
+   "pkg_wid": 12,
+   "pkg_hei": 3,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA2KN101BL": {
+   "name": "Шпатель голубой",
+   "net_g": 200,
+   "pkg_len": 16,
+   "pkg_wid": 12,
+   "pkg_hei": 3,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA2KN102YL": {
+   "name": "Нож для пиццы желтый",
+   "net_g": 170,
+   "pkg_len": 16,
+   "pkg_wid": 13,
+   "pkg_hei": 3,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA2KN102GN": {
+   "name": "Нож для пиццы зеленый",
+   "net_g": 170,
+   "pkg_len": 16,
+   "pkg_wid": 13,
+   "pkg_hei": 3,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA1KN101GR": {
+   "name": "Консервный нож",
+   "net_g": null,
+   "pkg_len": 21,
+   "pkg_wid": 6,
+   "pkg_hei": 5,
+   "pkg_type": null,
+   "in_box": null
+  },
+  "AKTA1PR101GR": {
+   "name": "Чеснокодавка",
+   "net_g": null,
+   "pkg_len": 21,
+   "pkg_wid": 6,
+   "pkg_hei": 3,
+   "pkg_type": null,
+   "in_box": null
+  }
+ }
+}

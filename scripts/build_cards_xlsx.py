@@ -376,6 +376,30 @@ BRAND = "АРОЛС"
 PACKAGING = json.loads((ROOT / "docs" / "seo" / "packaging.json").read_text(encoding="utf-8")) \
     if (ROOT / "docs" / "seo" / "packaging.json").exists() else {}
 
+# Вес нетто и габариты упаковки из юнит-экономики владелицы. Пересобирается
+# скриптом scripts/export_unit_weights.py. Чтение колонок подтверждено
+# владелицей 03.09.2026: «вес — вес нетто, размер — размер упаковки».
+# Этот источник приоритетнее packaging.json: там брутто местами оказался
+# меньше нетто, потому что в поле веса попал как раз чистый вес.
+UNIT = (json.loads((ROOT / "docs" / "seo" / "unit-weights.json").read_text(encoding="utf-8"))
+        .get("articles", {})
+        if (ROOT / "docs" / "seo" / "unit-weights.json").exists() else {})
+
+# Правило владелицы 03.09: «вес брутто = вес нетто для групп, которые я не
+# упаковываю в доп пакет. В доп пакет идёт — таблетницы и скакалки»,
+# «доп пакет 10 гр». Отсюда брутто считается, а не берётся из каталога.
+DOP_PAKET_G = 10
+DOP_PAKET_PREFIXES = ("ACRA7TB", "ACRB1SK")
+
+
+def brutto_from_net(article, net_g):
+    """Брутто по правилу владелицы: нетто плюс доп пакет там, где он есть."""
+    if net_g is None:
+        return None
+    if article.startswith(DOP_PAKET_PREFIXES):
+        return net_g + DOP_PAKET_G
+    return net_g
+
 # Две разные пары, и путать их нельзя.
 #
 # Предмет: габариты и вес нетто — из карточек кабинета, там они уже стоят.
@@ -441,13 +465,65 @@ PACK_FIELDS = [
 ]
 
 
+def pack_view(article):
+    """Габариты и вес по артикулу из двух источников — единая точка сборки.
+
+    Один источник истины для листа «Размеры и вес» и для листов групп, иначе
+    они разъезжаются: лист читал packaging.json напрямую и показывал брутто
+    меньше нетто там, где карточки уже считали его по правилу.
+
+    Приоритет габаритов упаковки и веса нетто — юнит-экономика владелицы.
+    Брутто не берётся готовым ниоткуда, считается от нетто по brutto_from_net.
+    """
+    unit = UNIT.get(article) or {}
+    pack = PACKAGING.get(article) or {}
+    if not unit and not pack:
+        return {}
+
+    net_g = unit.get("net_g")
+    if net_g is None:
+        net_g = pack.get("net_g")
+
+    return {
+        "item_hei": pack.get("item_hei"),
+        "item_wid": pack.get("item_wid"),
+        "item_dep": pack.get("item_dep"),
+        "net_g": net_g,
+        "len": unit.get("pkg_len") or pack.get("len"),
+        "wid": unit.get("pkg_wid") or pack.get("wid"),
+        "hei": unit.get("pkg_hei") or pack.get("hei"),
+        "brutto_g": brutto_from_net(article, net_g),
+    }
+
+
 def fill_packaging(row):
-    """Габариты и вес по артикулу. Пусто — значит в каталоге нет цифры."""
-    pack = PACKAGING.get(row.get("Артикул", ""))
-    if not pack:
-        return
+    """Габариты и вес по артикулу. Пусто — значит цифры нет ни в одном источнике.
+
+    Порядок источников для веса и упаковки: юнит-экономика владелицы, затем
+    packaging.json. Брутто не берём готовым нигде — считаем по правилу
+    владелицы от нетто, см. brutto_from_net.
+    """
+    article = row.get("Артикул", "")
+    unit = UNIT.get(article) or {}
+    pack = PACKAGING.get(article) or {}
+
+    net_g = unit.get("net_g")
+    if net_g is None:
+        net_g = pack.get("net_g")
+
     for col, key in PACK_FIELDS:
-        v = pack.get(key)
+        if key == "net_g":
+            v = net_g
+        elif key == "brutto_g":
+            v = brutto_from_net(article, net_g)
+        elif key == "len":
+            v = unit.get("pkg_len") or pack.get(key)
+        elif key == "wid":
+            v = unit.get("pkg_wid") or pack.get(key)
+        elif key == "hei":
+            v = unit.get("pkg_hei") or pack.get(key)
+        else:
+            v = pack.get(key)
         if v is not None:
             row.setdefault(col, v)
 
@@ -581,8 +657,13 @@ def size_group(art):
     return ""
 
 
-def size_issue(v):
-    """Что не так с размерами конкретной карточки."""
+def size_issue(v, article=None):
+    """Что не так с размерами конкретной карточки.
+
+    Брутто в `v` уже посчитан по правилу владелицы, поэтому противоречие
+    «брутто меньше нетто» на нём не всплывает. А в кабинете оно осталось,
+    и лист обязан о нём говорить — иначе правка потерялась бы из вида.
+    """
     ih, iw, idp = v.get("item_hei"), v.get("item_wid"), v.get("item_dep")
     l, w, h = v.get("len"), v.get("wid"), v.get("hei")
     out = []
@@ -607,6 +688,10 @@ def size_issue(v):
         # либо брутто занижен. Разница мелкая (10–30 г), но в поставке
         # она умножается на тираж.
         out.append(f"брутто {br} г меньше нетто {net} г")
+    cab = (PACKAGING.get(article) or {}) if article else {}
+    cab_net, cab_br = cab.get("net_g"), cab.get("brutto_g")
+    if cab_net is not None and cab_br is not None and cab_br < cab_net:
+        out.append(f"в кабинете брутто {cab_br} г меньше нетто {cab_net} г — править в кабинете")
     if not out:
         out.append("всё заполнено")
     return "; ".join(out)
@@ -635,14 +720,14 @@ def sheet_sizes(wb):
         # незаполненная по всему каталогу.
         return MEASURE if x is None else x
 
-    for art in sorted(PACKAGING):
-        v = PACKAGING[art]
+    for art in sorted(set(PACKAGING) | set(UNIT)):
+        v = pack_view(art)
         ws.append([art, size_group(art) or "прочее",
                    num(v.get("item_hei")), num(v.get("item_wid")), num(v.get("item_dep")),
                    num(v.get("net_g")),
                    num(v.get("len")), num(v.get("wid")), num(v.get("hei")),
                    num(v.get("brutto_g")),
-                   size_issue(v)])
+                   size_issue(v, art)])
     for col, wd in zip("ABCDEFGHIJK", (15, 21, 15, 9, 9, 13, 16, 9, 9, 14, 62)):
         ws.column_dimensions[col].width = wd
     for row in ws.iter_rows(min_row=2):
@@ -773,11 +858,19 @@ def strip_note(value):
     return left.strip() if len(note.split()) >= 3 else value
 
 
+# Колонки, где текст читает человек, а не парсер кабинета. Точка с запятой
+# в них не разделитель значений, а часть текста: описание владелица копирует
+# в карточку руками, и абзацы должны остаться абзацами.
+PROSE_COLUMNS = {"Описание"}
+
+
 def sep(value):
     """Наши разделители значений — в кабинетный «;».
 
     В разборах значения разделены переводом строки или « · », в файле кабинета —
     точкой с запятой. Файл должен грузиться обратно, поэтому приводим к нему.
+
+    К прозе не применяется: там перевод строки — абзац, а не новое значение.
     """
     return value.replace("\n", ";").replace(" · ", ";").strip()
 
@@ -788,12 +881,14 @@ def sep(value):
 CLEAR_PREFIXES = ("очистить", "не заполнено")
 
 
-def cell_value(current, decided):
+def cell_value(current, decided, column=None):
     """Что положить в ячейку и каким цветом её залить.
 
     current — то, что стоит в кабинете сейчас; decided — что сказал разбор.
+    column — имя колонки: у прозы разделители не схлопываются.
     Возвращает (значение, заливка или None).
     """
+    fmt = (lambda v: v.strip()) if column in PROSE_COLUMNS else sep
     if not decided:
         return current, None
     low = decided.lower()
@@ -805,7 +900,7 @@ def cell_value(current, decided):
         # «очистить» — поле надо опустошить; «не заполнено» — оно и так пусто.
         return "", (FILL_NEW if current else None)
     if decided.endswith(f"— {OK}"):
-        return sep(decided[:-len(f"— {OK}")]), None
+        return fmt(decided[:-len(f"— {OK}")]), None
     # Статус мог прийти с пояснением: «нужен замер — в поле 6 см, на слайде 50 мм».
     # Значение тогда не наше, а кабинетное, и ячейка просто помечается жёлтым.
     head = decided.split(" — ", 1)[0].strip()
@@ -814,8 +909,41 @@ def cell_value(current, decided):
         return current, FILL_ASK
     if head.lower().startswith(CLEAR_PREFIXES):
         return "", (FILL_NEW if current else None)
-    value = sep(strip_note(decided))
+    # У прозы пояснение не отрезаем: strip_note режет значение по « — », а в
+    # описании тире — часть фразы. На нём обрывались описания таблетниц:
+    # «Отличие этой сборки от простой круглой — крепления…» теряло всё правее.
+    value = fmt(decided) if column in PROSE_COLUMNS else fmt(strip_note(decided))
     return (current, None) if value == current else (value, FILL_NEW)
+
+
+# Длинное тире и среднее в карточку не идут: владелица держит в своих текстах
+# только короткий дефис, а «—» читается как след машинного текста. Правило
+# применяется на выходе, к готовому значению ячейки: в разборах тире остаётся
+# служебным разделителем («нужен замер — в поле 6 см»), и трогать его там нельзя.
+DASHES = str.maketrans({"—": "-", "–": "-"})
+
+
+def no_long_dash(value):
+    """Длинное и среднее тире — в короткий дефис."""
+    return value.translate(DASHES) if isinstance(value, str) else value
+
+
+def capitalized_items(value):
+    """Каждая позиция комплектации с заглавной буквы (правило владелицы 03.09).
+
+    Позиции разделены «;», как в кабинете, и заглавной становится первая буква
+    каждой — не только первой позиции. Остальные буквы не трогаем: внутри
+    встречаются размеры и обозначения, которым регистр менять нельзя
+    («мешок-контейнер … 15 × 17 см», «TPR»).
+    """
+    if not isinstance(value, str) or not value.strip():
+        return value
+    parts = []
+    for item in value.split(";"):
+        head = item.lstrip()
+        pad = item[:len(item) - len(head)]
+        parts.append(pad + (head[:1].upper() + head[1:] if head else head))
+    return ";".join(parts)
 
 
 def sheet_export(wb, group, cards, decided_all):
@@ -848,7 +976,10 @@ def sheet_export(wb, group, cards, decided_all):
                     if theirs == c and mine in decided:
                         ours = decided[mine]
                         break
-            value, fill = cell_value(current.get(c, ""), ours)
+            value, fill = cell_value(current.get(c, ""), ours, c)
+            value = no_long_dash(value)
+            if c == "Комплектация":
+                value = capitalized_items(value)
             line.append(value)
             fills.append(fill)
         facts = FACTS.get(art, {})
@@ -873,6 +1004,127 @@ def sheet_export(wb, group, cards, decided_all):
     return ws.max_row - 2          # минус строка заголовков и строка подсказок
 
 
+def find_examples(decided_all):
+    """Живой пример зелёной и жёлтой ячейки из самой книги.
+
+    Не выдумываем и не хардкодим: берём то, что реально попало в листы, — иначе
+    объяснение разъедется с файлом при первой же правке разбора.
+    """
+    green = yellow = None
+    for group in sorted(EXPORT):
+        cards = EXPORT[group]
+        for art in sorted(cards["rows"]):
+            if art in DISCONTINUED:
+                continue
+            current = dict(zip(cards["cols"], cards["rows"][art]))
+            for col, ours in decided_all.get(art, {}).items():
+                if col not in current:
+                    continue
+                value, fill = cell_value(current[col], ours, col)
+                if fill is FILL_NEW and not green and col not in ("Описание",):
+                    green = (group, art, col, current[col], value)
+                elif fill is FILL_ASK and not yellow:
+                    yellow = (group, art, col, current[col], ours)
+            if green and yellow:
+                return green, yellow
+    return green, yellow
+
+
+def sheet_howto(wb, decided_all):
+    """Лист «Как читать файл»: что значит цвет, на примерах из этой же книги."""
+    green, yellow = find_examples(decided_all)
+    ws = wb.create_sheet("Как читать файл", 0)
+
+    def say(sample, what, text, fill=None):
+        ws.append(["", what, text])
+        r = ws.max_row
+        if fill:
+            ws.cell(r, 1).fill = fill
+        ws.cell(r, 1).value = sample
+        ws.cell(r, 2).font = Font(bold=True)
+        ws.cell(r, 3).alignment = Alignment(wrap_text=True, vertical="top")
+        return r
+
+    say("", "ЧТО ЭТО ЗА ФАЙЛ",
+        "Это не список «что вносить». Это копия ваших карточек, какими они должны стать "
+        "после правок. Один лист — одна категория кабинета. Колонки и их порядок взяты "
+        "из вашей выгрузки, у каждой группы свои. Вторая строка листа — подсказки WB "
+        "из того же файла.")
+    say("", "", "")
+    say("", "ЦВЕТ ОТВЕЧАЕТ НА ОДИН ВОПРОС", "Что делать с этой ячейкой.")
+    say("", "", "")
+
+    if green:
+        g_grp, g_art, g_col, g_was, g_now = green
+        say("образец", "🟩 ЗЕЛЁНАЯ",
+            "Я поменял значение. Это и есть правка — ради неё файл и нужен.\n\n"
+            f"Пример из этой книги: лист «{g_grp}», карточка {g_art}, колонка «{g_col}».\n"
+            f"Было:  {g_was}\n"
+            f"Стало: {g_now}\n\n"
+            "Почему именно так — в файле разбора этой группы, папка docs/seo/descriptions/.",
+            FILL_NEW)
+        say("", "", "")
+
+    if yellow:
+        y_grp, y_art, y_col, y_was, y_why = yellow
+        say("образец", "🟨 ЖЁЛТАЯ",
+            "Я НЕ менял значение, но ему нельзя верить. Жёлтая ячейка — это вопрос к вам: "
+            "нужен замер, фотография или ваш ответ. Молча ставить своё я не стал.\n\n"
+            f"Пример: лист «{y_grp}», карточка {y_art}, колонка «{y_col}».\n"
+            f"Стоит и осталось: {y_was or '(пусто)'}\n"
+            f"Причина: {y_why}\n\n"
+            "Все такие вопросы собраны в конце файла разбора группы, раздел «Открытые вопросы».",
+            FILL_ASK)
+        say("", "", "")
+
+    say("образец", "⬜ СЕРАЯ",
+        "Четыре последние колонки листа: заказов за год, вопросов покупателей, остаток, "
+        "себестоимость. ЭТОГО НЕТ В КАБИНЕТЕ — я добавил, чтобы было видно, насколько "
+        "карточка важна, прежде чем тратить на неё время.\n\n"
+        "ВАЖНО: когда будете копировать лист в шаблон для загрузки — эти четыре колонки "
+        "надо отрезать, иначе файл не примут.", FILL_REF)
+    say("", "", "")
+    say("", "БЕЛАЯ", "Значение из кабинета, разбор его не трогал. Всё в порядке, смотреть не нужно.")
+    say("", "", "")
+    say("", "ПУСТАЯ",
+        "В кабинете пусто, и чем заполнить — мы пока не знаем. Пометку туда писать нельзя: "
+        "файл грузится в кабинет, и такой текст уехал бы прямо в карточку.")
+    say("", "", "")
+    say("", "КАК РАБОТАТЬ",
+        "1. Пробегите по зелёным ячейкам — это все изменения.\n"
+        "2. Потом по жёлтым — это всё, что я хочу у вас спросить.\n"
+        "3. Остального можно не касаться: там либо значение из кабинета, либо пусто.")
+    say("", "", "")
+    say("", "РАЗДЕЛИТЕЛЬ", "Несколько значений одного поля разделены точкой с запятой — "
+                            "так же, как в выгрузке кабинета.")
+    say("", "СНЯТОЕ С ПРОИЗВОДСТВА",
+        "В книгу не идёт, даже если карточка ещё висит в кабинете и попадает в выгрузку. "
+        "Сейчас это палочка-кость AAND1ST202BL, скакалка со счётчиком ACRB1SK201BC, "
+        "шпатель голубой AKTA2KN101BL и латексный набор ACRB5FR400CL. "
+        "Снимете что-то ещё — скажите, добавлю.")
+    say("", "ЖДУТ ЭВИРМУ",
+        "Бандажи, ножи для пиццы, пробки и шпатели разобраны не были — в их листах цветных "
+        "пометок нет вовсе, там просто то, что стоит в кабинете.\n\n"
+        "Мешки для стирки разобраны (12 карточек из 14), но дальнейшая работа по ним тоже "
+        "отложена до среза. Что уже сделано — зелёные и жёлтые ячейки на их листе, они "
+        "в силе; нового разбора не будет, пока не придёт срез.\n\n"
+        "Запросы для съёма выписаны в tasks/todo.md: «мешки для стирки», «мешок для стирки "
+        "обуви», «мешок для стирки большой», «сетка для стирки белья в машинке большая».")
+    say("", "ОСТАЛЬНЫЕ ЛИСТЫ",
+        "«Инфографика» — что переделать на слайдах, по группам. Мячи и массажёры срочно, "
+        "там медицинские заявления.\n"
+        "«Размеры и вес» — габариты предмета и упаковки по всему каталогу, с колонкой "
+        "«Что не так».")
+
+    ws.column_dimensions["A"].width = 11
+    ws.column_dimensions["B"].width = 26
+    ws.column_dimensions["C"].width = 108
+    for row in ws.iter_rows():
+        row[0].alignment = Alignment(horizontal="center", vertical="center")
+        row[1].alignment = Alignment(wrap_text=True, vertical="top")
+    return ws
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="kartochki_arols.xlsx")
@@ -880,49 +1132,19 @@ def main():
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
-    intro = wb.create_sheet("Как заливать")
+    intro = wb.create_sheet("Порядок заливки")
     for line in [
-        ["Структура", "Один лист на категорию кабинета. Колонки и их порядок взяты "
-                      "из вашей выгрузки от 03.09 — у каждой группы свои поля. "
-                      "Вторая строка листа — подсказки WB из того же файла."],
-        ["Значения", "В ячейке всегда лежит то, что должно стоять в карточке после правки. "
-                     "Служебных пометок вроде «нужен замер» в ячейках нет: файл пригоден "
-                     "для загрузки обратно, и такой текст уехал бы прямо в карточку."],
-        ["🟩 Зелёная ячейка", "Значение изменено по разбору — это и есть правка. "
-                              "Обоснование каждой — в docs/seo/descriptions/."],
-        ["🟨 Жёлтая ячейка", "Значение оставлено как в кабинете, но оно под вопросом: "
-                             "ждём замер, фотографию или ваш ответ. Список вопросов — "
-                             "в конце файла разбора соответствующей группы."],
-        ["⬜ Серая ячейка", "Справочные колонки в конце листа — заказы, вопросы, остаток, "
-                            "себестоимость. В кабинет НЕ заливаются, показывают, насколько "
-                            "карточка важна. При копировании в шаблон их надо отрезать."],
-        ["Белая ячейка", "Значение из кабинета, разбор его не трогал."],
-        ["Пустая ячейка", "В кабинете пусто, и чем заполнить — мы пока не знаем. "
-                          "Писать туда пометку нельзя: она попадёт в карточку."],
-        ["Разделитель", "Несколько значений одного поля разделены точкой с запятой — "
-                        "так же, как в выгрузке кабинета."],
         ["Порядок", "Сначала характеристики, затем наименование, затем описание."],
         ["Мячи", "Заливать описания только после правки инфографики: "
                  "docs/seo/infographics/myachi-106-107-109.md."],
-        ["Инфографика", "Отдельный лист: что переделать на слайдах, по группам. Мячи и массажёры — "
-                        "срочно, там медицинские заявления. Таблетницы — не срочно."],
-        ["Размеры и вес", "Отдельный лист по всему каталогу: габариты предмета и упаковки, вес "
-                          "нетто и брутто рядом, с колонкой «Что не так»."],
+        ["Таблетницы", "Строку про крепления в трёх карточках 101* подтвердить перед заливкой."],
         ["Код ТН ВЭД", "Из вашей матрицы «ТН ВЭД × ОКПД 2» — тот код, что помечен зелёным. "
                        "Разбор и расхождения с прежними кодами — docs/marking/codes-marking.md."],
-        ["Снятое с производства", "В книгу не идёт, даже если карточка ещё висит в кабинете "
-                                  "и попадает в выгрузку. Сейчас это палочка-кость AAND1ST202BL, "
-                                  "скакалка со счётчиком ACRB1SK201BC, шпатель голубой AKTA2KN101BL "
-                                  "и латексный набор ACRB5FR400CL. Список — docs/seo/discontinued.json."],
-        ["Бандажи, ножи,\nпробки", "Разбора по ним ещё не было — ждём срез Эвирмы. В ячейках лежит "
-                                   "то, что стоит в кабинете, цветных пометок нет."],
+        ["Наименования", "Пересобраны по годовому отчёту кабинета: каждая карточка получила "
+                         "запрос, по которому она реально продаёт, а не самый частотный."],
+        ["Что значит цвет", "Отдельный лист «Как читать файл» — он первый в книге."],
     ]:
         intro.append(line)
-    intro.column_dimensions["A"].width = 18
-    intro.column_dimensions["B"].width = 95
-    for row in intro.iter_rows():
-        row[0].font = Font(bold=True)
-        row[1].alignment = Alignment(wrap_text=True, vertical="top")
 
     per_article = all_per_article()
     n_info = sheet_info(wb)
@@ -935,6 +1157,7 @@ def main():
     # Один лист на категорию кабинета, с её собственными полями. Решения разборов
     # ложатся поверх значений кабинета и подсвечиваются цветом — см. sheet_export.
     decided = analysed_by_article()
+    sheet_howto(wb, decided)
     total = 0
     for group in sorted(EXPORT):
         n = sheet_export(wb, group, EXPORT[group], decided)
