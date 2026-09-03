@@ -362,6 +362,7 @@ GROUPS = [
     ("Скакалки", "skakalki.md", parse_generic),
     ("Фитнес-резинки", "espandery.md", parse_generic),
     ("Шпатели кондитерские", "shpateli-konditerskie.md", parse_generic),
+    ("Пробки для бутылок", "probki-dlya-butylok.md", parse_generic),
 ]
 
 # Порядок колонок в листе. Список задаёт только очерёдность известных полей —
