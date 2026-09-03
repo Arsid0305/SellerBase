@@ -109,11 +109,15 @@ def main():
                     if not args.dry_run:
                         theirs.cell(r, ci).value = b
                     dashed += 1
-                elif col in columns:
+                elif col in columns or src.fill_type == "solid":
+                    # Ячейка подсвечена как «не залито» — значит владелице
+                    # нужно видеть, ЧЕМ заменить. Раньше переносилось только
+                    # «Описание», и она получала зелёный фон поверх старого
+                    # значения: подсветка есть, а нового текста нет.
                     if not args.dry_run:
                         theirs.cell(r, ci).value = b
                     changed += 1
-                    print(f"  {name} · {art} · {col}: {len(str(a))} → {len(str(b))} знаков")
+                    print(f"  {name} · {art} · {col}: {str(a)[:40]!r} → {str(b)[:40]!r}")
                 else:
                     other.setdefault(col, []).append(f"{name}/{art}")
 
