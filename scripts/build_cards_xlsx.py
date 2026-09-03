@@ -442,15 +442,6 @@ def brutto_from_net(article, net_g):
 FACTS = json.loads((ROOT / "docs" / "seo" / "catalog-facts.json").read_text(encoding="utf-8")) \
     if (ROOT / "docs" / "seo" / "catalog-facts.json").exists() else {}
 
-# Снимок кабинета для групп, по которым разбора ещё НЕ было: владелица 03.09
-# попросила листы, но разбор отложила до среза Эвирмы. Поэтому здесь не
-# «что вносить», а «что стоит сейчас» — колонки так и подписаны, чтобы лист
-# нельзя было спутать с заданием на заливку.
-SNAPSHOT = json.loads((ROOT / "docs" / "seo" / "cabinet-snapshot.json").read_text(encoding="utf-8")) \
-    if (ROOT / "docs" / "seo" / "cabinet-snapshot.json").exists() else {}
-
-NO_ANALYSIS = "разбора не было — ждём срез Эвирмы"
-
 FACT_FIELDS = [
     ("Заказов за год", "orders_year"),
     ("Вопросов покупателей", "questions"),
@@ -598,57 +589,6 @@ def tnved(article):
     return TNVED[max(match, key=len)] if match else ""
 
 
-def sheet_snapshot(wb, name, cards):
-    """Лист по группе без разбора: что стоит в кабинете сейчас.
-
-    Отличается от обычного листа подписями колонок. В разобранных группах
-    «Наименование» значит «внести это»; здесь — «сейчас стоит вот это»,
-    и путать их нельзя, иначе владелица зальёт обратно то же самое.
-    """
-    rows = []
-    for art in sorted(cards):
-        c = cards[art]
-        row = {"Артикул": art, "nm_id": c.get("nm_id"),
-               "Наименование сейчас в кабинете": c.get("title") or "не заполнено",
-               "Описание сейчас в кабинете": c.get("descr") or "не заполнено",
-               "Статус": NO_ANALYSIS,
-               "Код ТН ВЭД": tnved(art) or "нет в матрице кодов"}
-        for k, v in (c.get("chars") or {}).items():
-            row[k] = v.replace(" · ", "\n")
-        fill_packaging(row)
-        fill_facts(row)
-        row.setdefault("Бренд", BRAND)
-        row.setdefault("Страна производства", COUNTRY)
-        rows.append(row)
-
-    head = ["Артикул", "nm_id", "Статус", "Наименование сейчас в кабинете",
-            "Описание сейчас в кабинете", "Код ТН ВЭД"]
-    tail = ["Длина упаковки", "Ширина упаковки", "Высота упаковки",
-            "Вес товара с упаковкой (г)", "Заказов за год", "Вопросов покупателей",
-            "Остаток на складах", "Себестоимость, ₽", "Бренд", "Страна производства"]
-    mid = sorted({k for r in rows for k in r} - set(head) - set(tail))
-    cols = head + mid + tail
-
-    ws = wb.create_sheet(name)
-    ws.append(cols)
-    for c in ws[1]:
-        c.font = Font(bold=True)
-    for r in rows:
-        ws.append([r.get(c, "не заполнено") for c in cols])
-    widths = {"Артикул": 15, "nm_id": 12, "Статус": 26,
-              "Наименование сейчас в кабинете": 46, "Описание сейчас в кабинете": 90,
-              "Код ТН ВЭД": 16}
-    for i, c in enumerate(cols, 1):
-        ws.column_dimensions[ws.cell(1, i).column_letter].width = widths.get(c, 22)
-    for row in ws.iter_rows(min_row=2):
-        for cell in row:
-            cell.alignment = Alignment(wrap_text=True, vertical="top")
-    ws.freeze_panes = "A2"
-    return len(rows)
-
-
-# Группа по префиксу артикула — только для листа размеров, где строки идут
-# по всему каталогу, а не по разобранным группам.
 SIZE_GROUPS = [
     ("ACRA7TB", "Таблетницы"),
     ("ACRB1MS10", "Мячи и массажёры"),
@@ -1231,16 +1171,6 @@ def main():
         gone = len(EXPORT[group]["rows"]) - len(live)
         note = f", снятых пропущено {gone}" if gone else ""
         print(f"{group}: {n} карточек, разобрано {touched}{note}")
-
-    # Группы, которых в выгрузке нет: их данные лежат в снимке от 03.09.
-    # Ключ «_отложено» перечисляет то, что владелица просила не трогать.
-    postponed = SNAPSHOT.get("_отложено", {})
-    for name in SNAPSHOT:
-        if name == "_отложено" or name in postponed or name in EXPORT:
-            continue
-        n = sheet_snapshot(wb, name, SNAPSHOT[name])
-        total += n
-        print(f"{name}: {n} карточек — снимок кабинета, выгрузки по группе нет")
 
     wb.save(a.out)
     print(f"записано {total} карточек → {a.out}")
