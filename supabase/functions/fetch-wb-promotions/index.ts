@@ -1,13 +1,24 @@
-// fetch-wb-promotions — тянет календарь акций WB + участвующие SKU.
+// fetch-wb-promotions — тянет календарь акций WB, метрики участия и участвующие SKU.
 // WB API: dp-calendar-api.wildberries.ru/api/v1/calendar/promotions
+//         + /promotions/details   — агрегаты участия и пороги бустинга
+//         + /promotions/nomenclatures — состав, ТОЛЬКО для обычных акций
 // UPSERT в wb_promotions + wb_promotion_items.
 // Горизонт по умолчанию: now()..now()+30d. Можно ?from=YYYY-MM-DD&to=YYYY-MM-DD.
+//
+// Про состав авто-акций: WB отдаёт 422 на /nomenclatures для type='auto' при любом
+// значении inAction (проверено 04.09.2026 на четырёх живых акциях). Раньше функция
+// всё равно ходила туда и молча получала 422 на каждую акцию — таблица участников
+// оставалась пустой. Теперь для авто-акций запрос не делается вовсе, а вместо
+// состава сохраняются агрегаты из /details: сколько наших товаров участвует,
+// сколько нет, процент участия и пороги бустинга.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const JOB_NAME = "fetch-wb-promotions";
 const WB_BASE = "https://dp-calendar-api.wildberries.ru";
+// Сколько id акций уходит в /details за один запрос.
+const DETAILS_BATCH = 10;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +38,17 @@ interface WbPromotion {
   startDateTime: string;
   endDateTime: string;
   type: string;
+}
+
+interface WbPromotionDetails {
+  id: number;
+  description?: string;
+  advantages?: string[];
+  inPromoActionTotal?: number;
+  notInPromoActionTotal?: number;
+  participationPercentage?: number;
+  exceptionProductsCount?: number;
+  ranging?: unknown;
 }
 
 interface WbNomenclature {
@@ -115,13 +137,46 @@ Deno.serve(async (req: Request) => {
       if (error) throw new Error(`wb_promotions upsert: ${error.message}`);
     }
 
+    // Детали: агрегаты участия и пороги бустинга. Метод принимает несколько id
+    // за раз, поэтому идём пачками — так на 30 акций уходит три запроса, а не тридцать.
+    let detailsOk = 0;
+    for (let i = 0; i < promos.length; i += DETAILS_BATCH) {
+      const batch = promos.slice(i, i + DETAILS_BATCH);
+      const qs = batch.map((p) => `promotionIDs=${p.id}`).join("&");
+      try {
+        const raw = await fetchJson(`${WB_BASE}/api/v1/calendar/promotions/details?${qs}`, token);
+        const list = (raw as { data?: { promotions?: WbPromotionDetails[] } })?.data?.promotions ?? [];
+        for (const d of list) {
+          const { error } = await supabase.from("wb_promotions").update({
+            description: d.description ?? null,
+            advantages: d.advantages ?? null,
+            in_promo_total: d.inPromoActionTotal ?? null,
+            not_in_promo_total: d.notInPromoActionTotal ?? null,
+            participation_pct: d.participationPercentage ?? null,
+            exception_count: d.exceptionProductsCount ?? null,
+            ranging: d.ranging ?? null,
+            details_fetched_at: new Date().toISOString(),
+          }).eq("promotion_id", d.id);
+          if (error) throw new Error(`wb_promotions details update ${d.id}: ${error.message}`);
+          detailsOk += 1;
+        }
+      } catch (e) {
+        // Детали — не повод ронять весь прогон: календарь уже сохранён.
+        console.error(`details batch ${i}: ${e instanceof Error ? e.message : e}`);
+      }
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+
     let totalItems = 0;
     for (const promo of promos) {
+      // Состав участников. Для авто-акций WB закрыл метод: 422 при любом inAction.
+      // Не ходим туда вовсе — вместо состава по таким акциям работают агрегаты выше.
+      if (promo.type === "auto") continue;
+
       const debugRaws: Record<string, unknown> = {};
       // Тянем И inAction=true (уже выбранные), И inAction=false (доступные, но не выбранные).
       // Без false-варианта матрица в /promo пустая — владелица не видит SKU которые МОЖЕТ добавить.
-      // Авто-акции (type='auto'): WB сам назначает SKU, inAction=false отдаёт 422 — пропускаем.
-      const variants: boolean[] = promo.type === "auto" ? [true] : [true, false];
+      const variants: boolean[] = [true, false];
       for (const inAction of variants) {
         const nUrl = `${WB_BASE}/api/v1/calendar/promotions/nomenclatures`
           + `?promotionID=${promo.id}`
@@ -174,11 +229,18 @@ Deno.serve(async (req: Request) => {
       finished_at: new Date().toISOString(),
       rows_in: promos.length,
       rows_out: totalItems,
-      meta: { start: startISO, end: endISO, promotions: promos.length, items: totalItems },
+      meta: {
+        start: startISO,
+        end: endISO,
+        promotions: promos.length,
+        details: detailsOk,
+        items: totalItems,
+        auto_skipped: promos.filter((p) => p.type === "auto").length,
+      },
     }).eq("id", jobId);
 
     return new Response(
-      JSON.stringify({ ok: true, promotions: promos.length, items: totalItems }),
+      JSON.stringify({ ok: true, promotions: promos.length, details: detailsOk, items: totalItems }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
