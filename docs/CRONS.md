@@ -3,21 +3,62 @@
 Все cron'ы крутятся через `pg_cron` + `pg_net` в Supabase (включены миграцией `0008_enable_pg_net_pg_cron.sql`).
 Расписания заданы в SQL через `cron.schedule(...)`. Просмотреть активные: `SELECT * FROM cron.job;`
 
-| Cron job                          | Schedule (UTC)  | МСК     | Edge function              | Что делает                                                                | Миграция                                       |
-|-----------------------------------|-----------------|---------|----------------------------|---------------------------------------------------------------------------|------------------------------------------------|
-| `fetch-wb-tariffs-daily`          | `0 1 * * *`     | 04:00   | `fetch-wb-tariffs`         | Тарифы коробов WB.                                                        | Dashboard (вне миграций)                       |
-| `fetch-wb-goods-returns-daily`    | `0 2 * * *`     | 05:00   | `fetch-wb-goods-returns`   | Обновляет events возвратов за последние 30 дней.                          | `20260613_wb_goods_returns_events.sql`         |
-| `fetch-wb-funnel-daily`           | `0 3 * * *`     | 06:00   | `fetch-wb-funnel`          | Воронка заказы→выкуп за вчера.                                            | Dashboard (вне миграций)                       |
-| `fetch-wb-report-weekly`          | `0 3 * * 2`     | 06:00 вт | `fetch-wb-report`          | Финансовые отчёты WB Report API за неделю.                                | Dashboard (вне миграций)                       |
-| `fetch-wb-funnel-aggregate-daily` | `0 4 * * *`     | 07:00   | `fetch-wb-funnel-aggregate`| Пересчитывает воронку за последние 30 дней (совпадает с окном WB-кабинета). | `20260611_wb_sales_funnel_period.sql`          |
-| `fetch-wb-commissions-weekly`     | `0 5 * * 1`     | 08:00 пн | `fetch-wb-commissions`    | Обновляет таблицу комиссий WB раз в неделю.                               | `20260613_margin_polish.sql`                   |
-| `fetch-wb-stocks-daily`           | `0 6 * * *`     | 09:00   | `fetch-wb-stocks`          | Текущие остатки на складах WB.                                            | Dashboard (вне миграций)                       |
-| `fetch-wb-content-weekly`         | `0 6 * * 2`     | 09:00 вт | `fetch-wb-content`        | Синхронизирует карточки товаров с WB Content API: title, brand, category/subject_name, photo_url, rating, reviews_count, last_content_sync_at. | `20260618_cron_fetch_wb_content.sql`           |
-| `telegram-alerts-daily`           | `0 8 * * *`     | 11:00   | `telegram-alerts`          | 5 проверок: маржа, выкуп, дефицит, cron, новые SKU без cost. Шлёт только если есть проблемы. | `20260618_telegram_alerts_cron.sql`            |
-| `fetch-wb-sales-30min`            | `*/30 * * * *`  | каждые 30 мин | `fetch-wb-sales`           | Тянет продажи из WB Statistics API `/api/v1/supplier/sales`, UPSERT по `srid`. | `20260614_cron_fetch_wb_sales.sql`             |
-| `fetch-wb-orders-30min`           | `*/30 * * * *`  | каждые 30 мин | `fetch-wb-orders`          | Тянет заказы из WB Statistics API `/api/v1/supplier/orders`, UPSERT по `(g_number, date)`. | `20260619120002_cron_fetch_wb_orders.sql`      |
+| Cron job | Schedule (UTC) | МСК | Что вызывает | Что делает |
+|---|---|---|---|---|
+| `fetch-wb-sales-30min` | `*/30 * * * *` | каждые 30 мин | `fetch-wb-sales` | Продажи из Statistics API, UPSERT по `srid` |
+| `fetch-wb-orders-30min` | `*/30 * * * *` | каждые 30 мин | `fetch-wb-orders` | Заказы из Statistics API, UPSERT по `(g_number, date)` |
+| `detect-anomalies-hourly` | `0 * * * *` | ежечасно | `detect-anomalies` | Ищет аномалии в свежих данных |
+| `clean-stale-jobs-hourly` | `17 * * * *` | ежечасно | SQL `clean_stale_running_jobs_all('2 hours')` | Закрывает задания, зависшие в статусе `running` |
+| `fetch-wb-tariffs-daily` | `0 1 * * *` | 04:00 | `fetch-wb-tariffs` | Тарифы коробов WB |
+| `refresh-sku-weekly-metrics-daily` | `0 1 * * *` | 04:00 | SQL `refresh_sku_weekly_metrics(текущий год)` | Пересчёт недельных метрик по SKU |
+| `fetch-wb-goods-returns-daily` | `0 2 * * *` | 05:00 | `fetch-wb-goods-returns` | События возвратов за 30 дней |
+| `fetch-wb-prices-daily` | `0 2 * * *` | 05:00 | `fetch-wb-prices` | Цены и скидки |
+| `fetch-wb-feedback-daily` | `30 2 * * *` | 05:30 | `fetch-wb-feedback` | Отзывы покупателей |
+| `fetch-wb-questions-daily` | `40 2 * * *` | 05:40 | `fetch-wb-questions` | Вопросы к карточкам |
+| `fetch-wb-funnel-daily` | `0 3 * * *` | 06:00 | `fetch-wb-funnel` | Воронка заказы → выкуп за вчера |
+| `fetch-wb-report-weekly` | `0 3 * * 2` | 06:00 вт | `fetch-wb-report` | Финансовый отчёт о реализации за неделю |
+| `fetch-wb-funnel-aggregate-daily` | `0 4 * * *` | 07:00 | `fetch-wb-funnel-aggregate` | Пересчёт воронки за 30 дней — окно WB-кабинета |
+| `fetch-wb-commissions-weekly` | `0 5 * * 1` | 08:00 пн | `fetch-wb-commissions` | Комиссии WB |
+| `fetch-wb-stocks-daily` | `0 6 * * *` | 09:00 | `fetch-wb-stocks` | Остатки на складах |
+| `fetch-wb-content-weekly` | `0 6 * * 2` | 09:00 вт | `fetch-wb-content` | Карточки: наименование, категория, фото, рейтинг, отзывы |
+| `telegram-indices-reminder-monday` | `0 6 * * 1` | 09:00 пн | `telegram-indices-reminder` | Напоминание по индексам |
+| `telegram-alerts-daily` | `0 8 * * *` | 11:00 | `telegram-alerts` | Пять проверок: маржа, выкуп, дефицит, здоровье cron, новые SKU без себестоимости. Молчит, если проблем нет |
 
-⚠️ Часть cron'ов (`fetch-wb-stocks-daily`, `fetch-wb-tariffs-daily`, `fetch-wb-funnel-daily`, `fetch-wb-report-weekly`) исторически добавлены через Supabase Dashboard, а не миграциями — это технический долг. При воссоздании БД они НЕ восстановятся автоматически. Решение: вынести их в миграции при возможности.
+### Отключённые задания (`active = false`)
+
+Стоят в `cron.job`, но не запускаются. Не удалены — чтобы вернуть, достаточно `alter_job`.
+
+| Cron job | Schedule | Почему выключен |
+|---|---|---|
+| `fetch-wb-supplies-daily` | `0 3 * * *` | WB отдаёт **405** на `ag-supplies`: 160 ошибок в `ingestion_log`, последняя 21.08.2026. Метод API изменился |
+| `fetch-wb-supplies-6h` | `17 */6 * * *` | То же, дубль расписания того же задания |
+| `fetch-wb-ads-hourly` | `15 * * * *` | 758 ошибок, все — «зависла в статусе `running`, закрыта уборщиком». Последняя 21.08.2026 |
+
+**Таблица выше собрана из `cron.job` 04.09.2026.** Раньше здесь было 13 заданий
+из 21 — недоставало обоих SQL-заданий, цен, отзывов, вопросов, аномалий,
+напоминания по индексам и всех трёх отключённых.
+
+### Заведён миграцией, но в базе его нет
+
+| Cron job | Миграция | Факт |
+|---|---|---|
+| `fetch-wb-promotions-daily` | `20260622000003_cron_fetch_wb_promotions.sql`, расписание `30 1 * * *` (04:30 МСК) | **в `cron.job` отсутствует.** `wb_promotions` и `wb_promotion_items` не обновлялись с **12.06.2026**, по 13 строк в каждой — матрица `/promo` показывает данные трёхмесячной давности |
+
+Миграция заводит задание сама (`unschedule` → `schedule`), значит либо она не доехала
+до этой базы, либо задание удалили из Dashboard позже. Возврат — применение той же
+миграции через MCP `apply_migration`; отмена — `cron.unschedule`. Решение о возврате
+за владелицей: это участие в акциях WB, а не техника.
+
+⚠️ **Прежнее замечание про Dashboard снято.** Раньше здесь стояло, что четыре задания
+(`fetch-wb-stocks-daily`, `fetch-wb-tariffs-daily`, `fetch-wb-funnel-daily`,
+`fetch-wb-report-weekly`) заведены руками и при воссоздании БД не восстановятся.
+На 04.09.2026 все 21 задание имеют файл миграции с `cron.schedule` —
+`20260620200001_cron_x_cron_secret.sql` пересоздал их скопом.
+
+⚠️ **Сверять состав заданий по именам файлов миграций нельзя.** Миграции применяются
+через MCP `apply_migration`, который присваивает свою метку времени — в
+`supabase_migrations.schema_migrations` 164 версии на 128 файлов в репозитории,
+и имена не совпадают. Единственная надёжная проверка — `SELECT * FROM cron.job`.
 
 ⚠️ Старый ручной cron `fetch-wb-content-daily` (0 0 * * *) удаляется миграцией `20260618_unschedule_old_fetch_wb_content_daily.sql` после применения через CI — заменяется на `fetch-wb-content-weekly`.
 
@@ -48,10 +89,13 @@ SELECT cron.unschedule('fetch-wb-sales-30min');
 ```
 
 ### Запустить функцию вручную (без cron'a)
-```bash
-supabase functions invoke fetch-wb-sales --no-verify-jwt
-```
-Или через curl с `Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY`.
+
+**Supabase CLI в проекте нет** — запуск тем же способом, что и cron, из SQL.
+Секреты берутся из Vault, знать их не нужно. Готовый запрос — в `CLAUDE.md`,
+раздел «Деплой и запуск Edge Functions».
+
+Результат смотреть в `public.ingestion_log`, **не** в `cron.job_run_details`:
+pg_cron считает успехом постановку запроса, а не ответ функции.
 
 ---
 
