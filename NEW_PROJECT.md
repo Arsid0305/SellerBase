@@ -38,7 +38,6 @@ supabase/
   migrations/          — SQL миграции
   seed/                — начальные данные (app_settings)
   functions/           — Edge Functions (fetch-wb-*)
-sql/views/             — расчётные view
 ```
 
 ## 6. Standard Packages

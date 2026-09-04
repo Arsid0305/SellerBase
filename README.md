@@ -15,7 +15,7 @@ Data-платформа для управления бизнесом на мар
 | Коды ТН ВЭД и «Честный ЗНАК» | [docs/marking/codes-marking.md](docs/marking/codes-marking.md) |
 | Понять правила работы ИИ в репо | [CLAUDE.md](CLAUDE.md) · [SYSTEM.md](SYSTEM.md) |
 | Правила проекта | [tasks/rules.md](tasks/rules.md) |
-| Уроки/паттерны | [tasks/lessons.md](tasks/lessons.md) |
+| Уроки/паттерны | `arsid0305/llm_wiki/wiki/lessons.md` (в этом репо своего файла нет) |
 | Расписания cron | [docs/CRONS.md](docs/CRONS.md) |
 | Провести аудит | [docs/AUDIT_PROMPT.md](docs/AUDIT_PROMPT.md) |
 | Безопасность | [SECURITY.md](SECURITY.md) |
@@ -25,21 +25,22 @@ Data-платформа для управления бизнесом на мар
 - Frontend: Next.js 15 / React 19, feature-sliced (`apps/web`), TanStack Query и Table, Tailwind
 - Backend: Supabase — PostgreSQL, Edge Functions, `pg_cron` + `pg_net`, Vault
 - Package manager: pnpm, монорепо
-- SQL: `sql/views/`, миграции в `supabase/migrations/`
+- SQL: всё в `supabase/migrations/` — и таблицы, и view (21 миграция создаёт view)
 - Бот: `telegram-webhook` + `telegram-alerts`
 
 ## Структура
 
 ```
 apps/web/             — фронтенд (Next.js): app, entities, features, widgets, shared
-sql/views/            — SQL-представления
 supabase/
-  functions/          — Edge Functions (24 шт.) + _shared
-  migrations/         — миграции
-scripts/              — вспомогательные скрипты
+  functions/          — Edge Functions (27 шт.) + _shared
+  migrations/         — миграции, включая все view
+scripts/              — вспомогательные скрипты (сборка книги карточек, импорт выгрузок)
+yc-functions/         — Yandex Cloud Functions, наследие обхода блокировки WB по IP
+                        ⚠️ cron туда больше не ходит, см. docs/PLAN.md
 branding/             — брендинг / assets
 docs/                 — состояние системы, аудиты, cron, SEO-контур, маркировка
-tasks/                — todo / SESSION_LOG / rules / lessons
+tasks/                — todo / SESSION_LOG / rules + книги владелицы в excel-from-owner/
 ```
 
 ## Инфраструктура

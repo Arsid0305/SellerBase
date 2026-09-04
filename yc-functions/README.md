@@ -1,5 +1,18 @@
 # Yandex Cloud Functions — SellerBase WB ingestion
 
+> ⚠️ **Слой не используется с 2026 года — проверено 04.09.2026 по `cron.job`.**
+> Оба задания, `fetch-wb-stocks-daily` и `fetch-wb-report-weekly`, бьют
+> в Supabase Edge Functions, а не в `functions.yandexcloud.net`. Строки
+> «pg_cron расписание» ниже описывают состояние, которого больше нет.
+>
+> Обход, ради которого слой заводился (WB отдавал 429 на foreign IP для
+> `reportDetailByPeriod`), сейчас не нужен: `fetch-wb-report` с Supabase
+> отрабатывает штатно — 7 успешных прогонов, последний 01.09.2026,
+> ни одной ошибки в `ingestion_log` за 45 дней.
+>
+> Каталог оставлен как рабочий обходной путь на случай, если WB вернёт
+> блокировку по IP. Судьба слоя — решение владелицы, см. `tasks/todo.md`.
+
 Зачем нужно: WB API режет `/api/v5/supplier/reportDetailByPeriod` с foreign IP (Frankfurt / Supabase eu-central-1 = 429). YC Functions работают из РФ-датацентров — WB пропускает.
 
 ## Структура

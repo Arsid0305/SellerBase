@@ -3,6 +3,8 @@
 !.env.example
 
 node_modules/
+__pycache__/
+*.pyc
 dist/
 build/
 .next/
