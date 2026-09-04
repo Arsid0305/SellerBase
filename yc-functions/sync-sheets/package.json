@@ -1,9 +1,0 @@
-{
-  "name": "sync-sheets",
-  "version": "0.2.0",
-  "main": "index.js",
-  "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
-    "ws": "^8.18.0"
-  }
-}

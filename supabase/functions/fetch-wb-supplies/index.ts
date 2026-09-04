@@ -1,6 +1,21 @@
-// fetch-wb-supplies v2 — FBW-поставки WB.
-// API: GET supplies-api.wildberries.ru/api/v1/supplies?limit=1000&next=<cursor>
-//      GET supplies-api.wildberries.ru/api/v1/supplies/{id}/goods
+// fetch-wb-supplies v3 — FBW-поставки WB.
+//
+// API (проверено 04.09.2026 через probe-wb-api):
+//   POST supplies-api.wildberries.ru/api/v1/supplies        — список, тело {}
+//   GET  supplies-api.wildberries.ru/api/v1/supplies/{id}       — детали
+//   GET  supplies-api.wildberries.ru/api/v1/supplies/{id}/goods — состав
+//
+// Что изменилось у WB и почему функция стояла с 21.08:
+//   • список переведён с GET на POST — прежний GET отдаёт 405 Method Not Allowed
+//     (путь тот же, отсюда 405, а не 404). Это и есть те 160 ошибок в журнале;
+//   • форма ответа другая: плоский массив вместо {next, supplies:[...]},
+//     без курсора и без полей name / warehouseName / status / boxesCount;
+//   • состав позиции тоже приходит плоским массивом, поле nmID вместо nmId
+//     и techSize вместо sizeName.
+//
+// Склад, количества по стадиям приёмки и стоимость платной приёмки отдаёт
+// GET /api/v1/supplies/{id} — отдельным запросом на поставку.
+//
 // Категория токена: «Поставки» / FBW. Env: WB_TOKEN_READ ?? WB_API_TOKEN.
 // UPSERT в wb_supplies_v2 и wb_supply_items_v2.
 
@@ -10,7 +25,16 @@ import { checkCronSecret } from "../_shared/auth.ts";
 
 const JOB_NAME = "fetch-wb-supplies";
 const WB_BASE = "https://supplies-api.wildberries.ru";
-const PAGE_LIMIT = 1000;
+
+// Список приходит целиком одним запросом — постраничности у метода нет.
+// А вот детали и состав — по запросу на поставку, поэтому за один прогон
+// обогащаем ограниченное число: WB держит лимит на частоту, а Edge Function —
+// на длительность. Очередь всегда начинается с тех, у кого деталей ещё нет.
+const DETAILS_PER_RUN_DEFAULT = 25;
+// 1200 мс не хватило: на 22-й поставке WB ответил 429 (прогон 04.09).
+const PAUSE_MS = 2000;
+// Сколько ждать, если WB не назвал срок в заголовке.
+const RETRY_FALLBACK_MS = 10_000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,74 +48,180 @@ function adminClient(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-interface WbSupply {
-  id: string;
-  name?: string;
-  dateCreated?: string;
-  warehouseId?: number;
-  warehouseName?: string;
-  status?: string;
-  boxesCount?: number;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Запись списка поставок: то, что отдаёт POST /api/v1/supplies. */
+interface WbSupplyListRow {
+  supplyID: number | null;
+  preorderID: number | null;
+  createDate?: string | null;
+  supplyDate?: string | null;
+  factDate?: string | null;
+  updatedDate?: string | null;
+  statusID?: number | null;
+  boxTypeID?: number | null;
+  isBoxOnPallet?: boolean | null;
 }
 
-interface WbSuppliesResponse {
-  next?: number;
-  supplies?: WbSupply[];
+/** Детали поставки: GET /api/v1/supplies/{id}. */
+interface WbSupplyDetails {
+  statusID?: number | null;
+  boxTypeID?: number | null;
+  supplyDate?: string | null;
+  factDate?: string | null;
+  updatedDate?: string | null;
+  warehouseID?: number | null;
+  warehouseName?: string | null;
+  actualWarehouseID?: number | null;
+  actualWarehouseName?: string | null;
+  transitWarehouseName?: string | null;
+  acceptanceCost?: number | null;
+  paidAcceptanceCoefficient?: number | null;
+  rejectReason?: string | null;
+  quantity?: number | null;
+  readyForSaleQuantity?: number | null;
+  acceptedQuantity?: number | null;
+  unloadingQuantity?: number | null;
+  isBoxOnPallet?: boolean | null;
 }
 
+/** Позиция поставки: GET /api/v1/supplies/{id}/goods. */
 interface WbGood {
-  nmId?: number;
-  barcode?: string;
-  quantity?: number;
-  sizeName?: string;
+  nmID?: number | null;
+  barcode?: string | null;
+  vendorCode?: string | null;
+  quantity?: number | null;
+  techSize?: string | null;
+  color?: string | null;
+  tnved?: string | null;
+  needKiz?: boolean | null;
+  readyForSaleQuantity?: number | null;
+  unloadingQuantity?: number | null;
+  acceptedQuantity?: number | null;
 }
 
-interface WbGoodsResponse {
-  goods?: WbGood[];
+/**
+ * Запрос к WB с одной повторной попыткой на 429.
+ *
+ * WB ограничивает частоту и при превышении отвечает 429, называя срок ожидания
+ * в заголовке X-RateLimit-Retry (секунды). Ждём именно столько: угадывать паузу
+ * вслепую значит либо терять поставки, либо держать функцию впустую.
+ */
+async function wbFetch(url: string, token: string, init?: RequestInit): Promise<unknown> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const resp = await fetch(url, {
+      ...init,
+      headers: { Authorization: token, "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    });
+    if (resp.ok) return resp.json();
+
+    const body = (await resp.text()).slice(0, 300);
+    if (resp.status === 429 && attempt === 0) {
+      const retryHeader = resp.headers.get("X-RateLimit-Retry") ?? resp.headers.get("x-ratelimit-retry");
+      const waitMs = Number(retryHeader) > 0 ? Number(retryHeader) * 1000 : RETRY_FALLBACK_MS;
+      await sleep(waitMs);
+      continue;
+    }
+    throw new Error(`WB ${resp.status} ${url}: ${body}`);
+  }
+  throw new Error(`WB 429 ${url}: лимит частоты не отпустил после повтора`);
 }
 
-async function fetchSuppliesPage(token: string, next: number): Promise<WbSuppliesResponse> {
-  const url = `${WB_BASE}/api/v1/supplies?limit=${PAGE_LIMIT}&next=${next}`;
-  const resp = await fetch(url, { method: "GET", headers: { Authorization: token } });
-  if (!resp.ok) throw new Error(`WB supplies ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
-  return (await resp.json()) as WbSuppliesResponse;
+/** Список поставок целиком. Пустое тело — WB отдаёт всю историю сразу. */
+async function fetchSupplyList(token: string): Promise<WbSupplyListRow[]> {
+  const json = await wbFetch(`${WB_BASE}/api/v1/supplies`, token, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  if (!Array.isArray(json)) throw new Error("WB supplies: ожидался массив, пришло другое");
+  return json as WbSupplyListRow[];
 }
 
-async function fetchGoods(token: string, supplyId: string): Promise<WbGood[]> {
-  const url = `${WB_BASE}/api/v1/supplies/${encodeURIComponent(supplyId)}/goods`;
-  const resp = await fetch(url, { method: "GET", headers: { Authorization: token } });
-  if (!resp.ok) throw new Error(`WB goods ${supplyId} ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
-  const json = (await resp.json()) as WbGoodsResponse;
-  return json.goods ?? [];
+/**
+ * Ключ строки. supplyID появляется не сразу: пока поставка — преордер, есть
+ * только preorderID. Чтобы одна и та же поставка не задвоилась при переходе
+ * из преордера в поставку, ключом всегда служит preorderID, когда он есть.
+ */
+function rowKey(r: { supplyID: number | null; preorderID: number | null }): string | null {
+  if (r.preorderID) return `p${r.preorderID}`;
+  if (r.supplyID) return `s${r.supplyID}`;
+  return null;
 }
 
-async function upsertSupplies(sb: SupabaseClient, rows: WbSupply[]): Promise<void> {
-  if (rows.length === 0) return;
-  const payload = rows.map((s) => ({
-    id: s.id,
-    name: s.name ?? null,
-    date_created: s.dateCreated ?? null,
-    warehouse_id: s.warehouseId ?? null,
-    warehouse_name: s.warehouseName ?? null,
-    status: s.status ?? null,
-    boxes_count: s.boxesCount ?? null,
-  }));
+async function upsertList(sb: SupabaseClient, rows: WbSupplyListRow[]): Promise<number> {
+  const payload = rows
+    .map((r) => {
+      const id = rowKey(r);
+      if (!id) return null;
+      return {
+        id,
+        supply_id_num: r.supplyID ?? null,
+        preorder_id: r.preorderID ?? null,
+        date_created: r.createDate ?? null,
+        supply_date: r.supplyDate ?? null,
+        fact_date: r.factDate ?? null,
+        updated_date: r.updatedDate ?? null,
+        status_id: r.statusID ?? null,
+        box_type_id: r.boxTypeID ?? null,
+        is_box_on_pallet: r.isBoxOnPallet ?? null,
+        fetched_at: new Date().toISOString(),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  if (payload.length === 0) return 0;
   const { error } = await sb.from("wb_supplies_v2").upsert(payload, { onConflict: "id" });
   if (error) throw new Error(`upsert wb_supplies_v2: ${error.message}`);
+  return payload.length;
 }
 
-async function upsertGoods(sb: SupabaseClient, supplyId: string, goods: WbGood[]): Promise<void> {
-  if (goods.length === 0) return;
-  await sb.from("wb_supply_items_v2").delete().eq("supply_id", supplyId);
+async function saveDetails(sb: SupabaseClient, id: string, d: WbSupplyDetails): Promise<void> {
+  const { error } = await sb.from("wb_supplies_v2").update({
+    warehouse_id: d.warehouseID ?? null,
+    warehouse_name: d.warehouseName ?? null,
+    actual_warehouse_id: d.actualWarehouseID ?? null,
+    actual_warehouse_name: d.actualWarehouseName ?? null,
+    transit_warehouse_name: d.transitWarehouseName || null,
+    acceptance_cost: d.acceptanceCost ?? null,
+    paid_acceptance_coef: d.paidAcceptanceCoefficient ?? null,
+    reject_reason: d.rejectReason ?? null,
+    quantity: d.quantity ?? null,
+    ready_for_sale_quantity: d.readyForSaleQuantity ?? null,
+    accepted_quantity: d.acceptedQuantity ?? null,
+    unloading_quantity: d.unloadingQuantity ?? null,
+    status_id: d.statusID ?? null,
+    box_type_id: d.boxTypeID ?? null,
+    supply_date: d.supplyDate ?? null,
+    fact_date: d.factDate ?? null,
+    updated_date: d.updatedDate ?? null,
+    details_fetched_at: new Date().toISOString(),
+  }).eq("id", id);
+  if (error) throw new Error(`update details ${id}: ${error.message}`);
+}
+
+async function saveGoods(sb: SupabaseClient, id: string, goods: WbGood[]): Promise<number> {
+  // Состав поставки перезаписывается целиком: позиции могут исчезать,
+  // а не только меняться в количестве.
+  await sb.from("wb_supply_items_v2").delete().eq("supply_id", id);
+  if (goods.length === 0) return 0;
   const payload = goods.map((g) => ({
-    supply_id: supplyId,
-    nm_id: g.nmId ?? null,
+    supply_id: id,
+    nm_id: g.nmID ?? null,
     barcode: g.barcode ?? null,
+    vendor_code: g.vendorCode ?? null,
     quantity: g.quantity ?? 0,
-    size_name: g.sizeName ?? null,
+    size_name: g.techSize ?? null,
+    color: g.color ?? null,
+    tnved: g.tnved ?? null,
+    need_kiz: g.needKiz ?? null,
+    ready_for_sale_quantity: g.readyForSaleQuantity ?? null,
+    unloading_quantity: g.unloadingQuantity ?? null,
+    accepted_quantity: g.acceptedQuantity ?? null,
+    fetched_at: new Date().toISOString(),
   }));
   const { error } = await sb.from("wb_supply_items_v2").insert(payload);
-  if (error) throw new Error(`insert wb_supply_items_v2 (${supplyId}): ${error.message}`);
+  if (error) throw new Error(`insert wb_supply_items_v2 (${id}): ${error.message}`);
+  return payload.length;
 }
 
 // Логируем в ingestion_log — общий журнал всех ingestion-функций.
@@ -137,41 +267,71 @@ Deno.serve(async (req) => {
   if (!cron.ok) return cron.response;
 
   const supabase = adminClient();
+  const url = new URL(req.url);
+  const perRun = Math.max(1, Math.min(
+    Number(url.searchParams.get("details") ?? DETAILS_PER_RUN_DEFAULT) || DETAILS_PER_RUN_DEFAULT,
+    200,
+  ));
+
   const jobId = await openJob(supabase);
   try {
     const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
     if (!token) throw new Error("WB_TOKEN_READ / WB_API_TOKEN not set");
 
-    let next = 0;
-    let totalSupplies = 0;
-    let totalGoods = 0;
-    for (let page = 0; page < 50; page++) {
-      const resp = await fetchSuppliesPage(token, next);
-      const supplies = resp.supplies ?? [];
-      if (supplies.length === 0) break;
-      await upsertSupplies(supabase, supplies);
-      totalSupplies += supplies.length;
+    const list = await fetchSupplyList(token);
+    const listed = await upsertList(supabase, list);
 
-      for (const s of supplies) {
-        try {
-          const goods = await fetchGoods(token, s.id);
-          await upsertGoods(supabase, s.id, goods);
-          totalGoods += goods.length;
-        } catch (e) {
-          console.error(`goods ${s.id}:`, e);
-        }
+    // Очередь на обогащение: сначала те, у кого деталей нет вовсе (NULL идёт
+    // первым), затем самые давно обновлённые. За несколько прогонов круг
+    // замыкается, свежие данные приходят к тем, кого дольше всех не трогали.
+    // Сравнить updated_date с details_fetched_at прямо в фильтре нельзя:
+    // PostgREST сопоставляет колонку со значением, а не с другой колонкой, —
+    // такой фильтр молча превратился бы в сравнение со строкой.
+    // Поставка без supplyID (ещё преордер) деталей не имеет — её пропускаем.
+    const { data: queue, error: qErr } = await supabase
+      .from("wb_supplies_v2")
+      .select("id, supply_id_num, updated_date, details_fetched_at")
+      .not("supply_id_num", "is", null)
+      .order("details_fetched_at", { ascending: true, nullsFirst: true })
+      .order("updated_date", { ascending: false })
+      .limit(perRun);
+    if (qErr) throw new Error(`queue: ${qErr.message}`);
+
+    let detailsOk = 0;
+    let goodsRows = 0;
+    const failed: string[] = [];
+
+    for (const row of (queue ?? []) as Array<{ id: string; supply_id_num: number }>) {
+      try {
+        const d = await wbFetch(`${WB_BASE}/api/v1/supplies/${row.supply_id_num}`, token);
+        await saveDetails(supabase, row.id, d as WbSupplyDetails);
+        detailsOk += 1;
+        await sleep(PAUSE_MS);
+
+        const g = await wbFetch(`${WB_BASE}/api/v1/supplies/${row.supply_id_num}/goods`, token);
+        goodsRows += await saveGoods(supabase, row.id, Array.isArray(g) ? (g as WbGood[]) : []);
+        await sleep(PAUSE_MS);
+      } catch (e) {
+        // Одна недоступная поставка не должна ронять прогон: остальные нужнее.
+        failed.push(`${row.id}: ${e instanceof Error ? e.message : e}`);
       }
-
-      if (typeof resp.next !== "number" || resp.next === next || supplies.length < PAGE_LIMIT) break;
-      next = resp.next;
     }
 
-    await closeJob(supabase, jobId, "ok", totalSupplies, totalGoods, null, {
-      supplies: totalSupplies,
-      goods: totalGoods,
+    const { count: pending } = await supabase
+      .from("wb_supplies_v2")
+      .select("id", { count: "exact", head: true })
+      .not("supply_id_num", "is", null)
+      .is("details_fetched_at", null);
+
+    await closeJob(supabase, jobId, "ok", listed, goodsRows, null, {
+      listed,
+      details: detailsOk,
+      goods: goodsRows,
+      pending_details: pending ?? null,
+      failed: failed.slice(0, 10),
     });
     return new Response(
-      JSON.stringify({ ok: true, supplies: totalSupplies, goods: totalGoods }),
+      JSON.stringify({ ok: true, listed, details: detailsOk, goods: goodsRows, pending_details: pending ?? null }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
