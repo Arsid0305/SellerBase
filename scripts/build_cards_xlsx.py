@@ -957,6 +957,15 @@ def sheet_export(wb, group, cards, decided_all):
         current.update({k: v for k, v in (LIVE.get(art) or {}).items()
                         if not k.startswith("_")})
         decided = decided_all.get(art, {})
+        # Код ТН ВЭД — наше решение, а не то, что стоит в кабинете. Раньше он
+        # брался только из выгрузки: у мячей и массажёров там 9019 10 900 9,
+        # хотя целевой код 9506 91 900 0, а у игрушек и мешков пусто. Матрица
+        # применялась лишь на служебном листе, до листов групп не доходила —
+        # сторонний аудит 04.09 насчитал 36 таких строк. Подставляем целевой
+        # код как обычную правку: он подсветится и попадёт в кабинет.
+        target_code = tnved(art)
+        if target_code and not decided.get("Код ТН ВЭД"):
+            decided = {**decided, "Код ТН ВЭД": target_code}
         line, fills = [], []
         for c in cols:
             ours = decided.get(c)

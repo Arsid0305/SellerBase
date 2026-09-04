@@ -18,6 +18,7 @@ Data-платформа для управления бизнесом на мар
 | Уроки/паттерны | `arsid0305/llm_wiki/wiki/lessons.md` (в этом репо своего файла нет) |
 | Расписания cron | [docs/CRONS.md](docs/CRONS.md) |
 | Провести аудит | [docs/AUDIT_PROMPT.md](docs/AUDIT_PROMPT.md) |
+| Разбор внешних аудитов 04.09 | [docs/AUDIT_2026-09-04_RAZBOR.md](docs/AUDIT_2026-09-04_RAZBOR.md) |
 | Безопасность | [SECURITY.md](SECURITY.md) |
 
 ## Стек
