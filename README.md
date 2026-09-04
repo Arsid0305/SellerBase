@@ -36,8 +36,6 @@ supabase/
   functions/          — Edge Functions (27 шт.) + _shared
   migrations/         — миграции, включая все view
 scripts/              — вспомогательные скрипты (сборка книги карточек, импорт выгрузок)
-yc-functions/         — Yandex Cloud Functions, наследие обхода блокировки WB по IP
-                        ⚠️ cron туда больше не ходит, см. docs/PLAN.md
 branding/             — брендинг / assets
 docs/                 — состояние системы, аудиты, cron, SEO-контур, маркировка
 tasks/                — todo / SESSION_LOG / rules + книги владелицы в excel-from-owner/
