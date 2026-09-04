@@ -72,9 +72,27 @@
 и `v_wb_promotions_boost` остаются пустыми. Cron акций тоже не включён:
 включать его имеет смысл вместе с деплоем.
 
-**`fetch-wb-supplies` — WB отдаёт 405 на `ag-supplies`.** Владелица сказала
-«чинить», работа не начата: до неё разбирались акции. 160 ошибок, оба задания
-отключены.
+**`fetch-wb-supplies` — причина найдена, правка не написана.** Разведка через
+`probe-wb-api` 04.09:
+
+| запрос | ответ |
+|---|---|
+| `GET /api/v1/supplies` | 405 Method Not Allowed |
+| `GET /api/v1/supplies?limit=10&next=0` | 405 |
+| **`POST /api/v1/supplies` с телом `{limit, offset}`** | **200, данные пришли** |
+| `POST /api/v1/supplies/list` | 405 |
+| `GET /api/v1/warehouses` | 404 «This method is temporarily disabled», release-notes id=570 |
+| `GET /api/v1/acceptance/coefficients` | 404 path not found |
+
+**WB перевёл метод с GET на POST** — путь тот же, отсюда 405, а не 404: сервер
+говорит «такой адрес есть, но не этим способом». Ответ пришёл списком объектов
+`{phone, supplyID, preorderID, createDate, supplyDate, factDate, updatedDate,
+statusID, boxTypeID, isBoxOnPallet}` — постраничность через `offset`, а не
+через курсор `next`, на который рассчитан нынешний код.
+
+Правка не написана намеренно: менять функцию наспех в ночь смысла нет, к тому же
+второй её запрос — `/api/v1/supplies/{id}/goods` — тоже нужно проверить, а деплой
+накануне был отклонён. Работа на завтра, диагноз готов.
 
 **`fetch-wb-ads`** — 758 ошибок «зависла в running», задание отключено.
 
@@ -91,8 +109,9 @@
 1. Объяснить владелице простыми словами, что такое `yc-functions/`, и решить судьбу слоя.
 2. Дождаться решения по деплою `fetch-wb-promotions`; после деплоя включить cron
    и проверить, что колонки участия заполнились.
-3. Чинить `fetch-wb-supplies`: разведать актуальные пути `supplies-api` через
-   `probe-wb-api`, как это сработало с акциями.
+3. Дописать `fetch-wb-supplies` под POST: тело `{limit, offset}` вместо
+   query-курсора `next`, проверить `/{id}/goods` тем же способом, затем
+   включить `fetch-wb-supplies-daily` и снять дубль `-6h`.
 4. Убрать тестовые записи из `wb_promotions` — спросить перед удалением.
 
 ---
