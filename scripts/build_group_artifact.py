@@ -1,8 +1,12 @@
 """Собирает один сводный HTML на товарную группу из markdown репозитория.
 
-Источник истины — сами файлы `docs/seo/`, артефакт лишь их рендер: разбор
-(fill-plan) + заливка (descriptions) + слайды и видео (infographics). Раньше
-на группу приходилось по два артефакта с расходящимся наполнением; теперь один.
+Источник истины — сами файлы `docs/seo/`, артефакт лишь их рендер: заливка
+(descriptions) + слайды и видео (infographics). Раньше на группу
+приходилось по два артефакта с расходящимся наполнением; теперь один.
+
+Каталог `fill-plan/` удалён 03.09.2026: разборы полей переехали в сами файлы
+descriptions, метод перебора — в `docs/seo/card-assembly.md`. Части «Разбор»
+у групп больше нет.
 
 Запуск:  python3 scripts/build_group_artifact.py [имя-группы ...]
 Вывод:   build/artifacts/<группа>.html
@@ -21,29 +25,25 @@ GROUPS = {
     "myachi": (
         "Мячи",
         "Массажные мячи 6 / 7 / 9 см · 15 карточек · подгруппа 103 выведена из продажи",
-        [("Разбор", "fill-plan/massage-balls-106-107-109.md"),
-         ("Заливка", "descriptions/myachi-106-107-109.md"),
+        [("Заливка", "descriptions/myachi-106-107-109.md"),
          ("Инфографика", "infographics/myachi-106-107-109.md")],
     ),
     "massagers": (
         "Массажёры",
         "Роликовые массажёры 101 · 3 карточки · лента 110 см, три цвета",
-        [("Разбор", "fill-plan/massagers-roller-101.md"),
-         ("Заливка", "descriptions/massagers-roller-101.md"),
+        [("Заливка", "descriptions/massagers-roller-101.md"),
          ("Инфографика", "infographics/massagers-roller-101.md")],
     ),
     "meshki": (
         "Мешки для стирки",
         "12 карточек · предмет 1005 · четыре подгруппы, у шести карточек жёсткий каркас",
-        [("Разбор", "fill-plan/meshki-stirki-1005.md"),
-         ("Заливка", "descriptions/meshki-dlya-stirki.md"),
+        [("Заливка", "descriptions/meshki-dlya-stirki.md"),
          ("Инфографика", "infographics/meshki-stirki.md")],
     ),
     "tabletnitsy": (
         "Таблетницы",
         "Предмет 2323 · 10 карточек · три конструкции от трёх поставщиков · 684 заказа за год",
-        [("Разбор", "fill-plan/tabletnitsy.md"),
-         ("Заливка", "descriptions/tabletnitsy.md"),
+        [("Заливка", "descriptions/tabletnitsy.md"),
          ("Инфографика", "infographics/tabletnitsy.md")],
     ),
 }
@@ -229,7 +229,6 @@ footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);
 """
 
 PART_NOTE = {
-    "Разбор": "откуда взялись решения: состав группы, рынок, отзывы, фотографии",
     "Заливка": "что вносится в кабинет: наименования, значения полей, описания",
     "Инфографика": "что переделать на слайдах и в видео",
 }
