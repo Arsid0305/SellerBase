@@ -3,6 +3,28 @@ import { wbPhotoUrl } from '@/shared/lib/wb-photo';
 import type { PnlAggregate, PnlSkuRow, DailyRevenuePoint, PeriodRange } from './types';
 import type { ExpenseCategory, PnlKpis, ProfitMarginPoint } from '@/features/pnl/types';
 
+/**
+ * Ошибка загрузки финансовых данных.
+ *
+ * Раньше сбой запроса возвращал пустой массив или нули, и кабинет показывал
+ * «выручка 0 ₽» — то есть день без продаж вместо «данные не пришли». Для
+ * финансовых экранов это подмена: по такой картинке принимают решения.
+ *
+ * Теперь сбой поднимается вверх и попадает в error.tsx сегмента (app):
+ * пользователь видит, что данные не загрузились, и кнопку «Повторить».
+ * Ноль остаётся значением, а не заглушкой: он показывается только когда
+ * запрос прошёл и вернул ноль.
+ */
+export class PnlDataError extends Error {
+  constructor(source: string, cause: unknown) {
+    const detail = cause instanceof Error ? cause.message
+      : typeof cause === 'object' && cause && 'message' in cause ? String((cause as { message: unknown }).message)
+      : String(cause);
+    super(`Не удалось загрузить финансовые данные (${source}): ${detail}`);
+    this.name = 'PnlDataError';
+  }
+}
+
 function toNumber(v: unknown): number {
   if (v == null) return 0;
   if (typeof v === 'number') return v;
@@ -22,7 +44,7 @@ async function fetchFullPnlRows(range: PeriodRange): Promise<PnlSkuRow[]> {
   });
   if (error) {
     console.error('[fetchFullPnlRows] RPC error', error);
-    return [];
+    throw new PnlDataError('P&L по SKU', error);
   }
   return (data ?? []) as PnlSkuRow[];
 }
@@ -63,8 +85,8 @@ async function fetchManualExpensesByCategory(range: PeriodRange): Promise<Manual
     p_from: range.from,
     p_to: range.to,
   });
-  if (error || !data) return [];
-  return (data as ManualExpenseByCategory[]).map((r) => ({
+  if (error) throw new PnlDataError('ручные расходы', error);
+  return ((data ?? []) as ManualExpenseByCategory[]).map((r) => ({
     category: r.category,
     amount_rub: toNumber(r.amount_rub),
   }));
@@ -150,9 +172,7 @@ async function fetchWbExtraExpenses(
     p_from: range.from,
     p_to: range.to,
   });
-  if (error || !data) {
-    return { storage: 0, deduction: 0, penalty: 0 };
-  }
+  if (error) throw new PnlDataError('удержания и штрафы WB', error);
   const rows = (data ?? []) as Array<{ storage_rub: number; deduction_rub: number; penalty_rub: number }>;
   const r = rows[0] ?? { storage_rub: 0, deduction_rub: 0, penalty_rub: 0 };
   return {
@@ -191,7 +211,7 @@ export async function fetchDailyMarginSeries(range: PeriodRange): Promise<Profit
   });
   if (error) {
     console.error('[fetchDailyMarginSeries] rpc error', error);
-    return buildEmptyMargin(range);
+    throw new PnlDataError('маржа по дням', error);
   }
   type Row = {
     rr_dt: string;
@@ -203,10 +223,6 @@ export async function fetchDailyMarginSeries(range: PeriodRange): Promise<Profit
     map.set(r.rr_dt, toNumber(r.margin_pct));
   }
   return buildMarginFromMap(range, map);
-}
-
-function buildEmptyMargin(range: PeriodRange): ProfitMarginPoint[] {
-  return buildMarginFromMap(range, new Map());
 }
 
 function buildMarginFromMap(
@@ -232,7 +248,7 @@ export async function fetchDailyRevenue(range: PeriodRange): Promise<DailyRevenu
   });
   if (error) {
     console.error('[fetchDailyRevenue] rpc error', error);
-    return buildEmptyRevenueSeries(range);
+    throw new PnlDataError('выручка по дням', error);
   }
   type Row = {
     rr_dt: string;
@@ -285,10 +301,6 @@ type Parts = {
   tax: number;
   marginPct: number;
 };
-
-function buildEmptyRevenueSeries(range: PeriodRange): DailyRevenuePoint[] {
-  return buildSeriesFromMap(range, new Map());
-}
 
 type Granularity = 'day' | 'week' | 'month';
 
