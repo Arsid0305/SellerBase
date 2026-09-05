@@ -1,23 +1,27 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { requireAuth } from '@/shared/lib/auth/require-auth';
+
+// ⛔ Отправка поставок на WB отключена решением владелицы 05.09.2026:
+// «абсолютно все записи на ВБ отменяются, только ручные».
+//
+// Маршрут отвечает 403 и до Edge Function `create-wb-supply` не доходит. Второй
+// заслон стоит в самой функции — на случай вызова в обход этого маршрута.
+// Прежняя реализация лежит в истории git:
+// `git log -- apps/web/src/app/api/supplies/plan/[id]/send-to-wb/route.ts`.
+//
+// Отдельная причина не возвращать это бездумно: функция при сбое загрузки
+// товаров всё равно помечала поставку отправленной, то есть в кабинете могла
+// оказаться неполная поставка, а в системе — запись об успехе.
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+const DISABLED_MESSAGE =
+  'Отправка поставок на Wildberries отключена решением владелицы 05.09.2026. ' +
+  'Поставки создаются вручную в кабинете.';
+
+export async function POST() {
   const auth = await requireAuth();
   if (auth instanceof NextResponse) return auth;
 
-  const { id } = await params;
-  const planId = Number(id);
-  if (!Number.isFinite(planId) || planId <= 0) {
-    return NextResponse.json({ error: 'invalid plan id' }, { status: 400 });
-  }
-
-  const supabase = createAdminClient();
-  const { data, error } = await supabase.functions.invoke('create-wb-supply', {
-    body: { plan_id: planId },
-  });
-  if (error) return NextResponse.json({ error: error.message }, { status: 502 });
-  return NextResponse.json(data);
+  return NextResponse.json({ error: DISABLED_MESSAGE }, { status: 403 });
 }

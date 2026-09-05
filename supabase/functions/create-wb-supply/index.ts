@@ -28,8 +28,32 @@ function adminClient(): SupabaseClient {
 
 type PlanItem = { sku_id: number; qty: number; barcode: string | null; wb_article: number | null; my_article: string | null };
 
+// ⛔ ЗАПИСЬ НА WB ОТКЛЮЧЕНА — решение владелицы 05.09.2026:
+// «абсолютно все записи на ВБ отменяются, только ручные».
+//
+// Функция оставлена в репозитории, но ничего не отправляет: любой вызов
+// возвращает 403. Включать обратно — только по прямому распоряжению владелицы
+// и не раньше, чем будут закрыты три вещи, найденные аудитом 04.09:
+//   1) отдельный WB_TOKEN_WRITE вместо read-токена;
+//   2) существующая таблица журнала операций (аудит писался в integration_jobs,
+//      которой в схеме нет, — след действия терялся);
+//   3) проверка фактического результата на стороне WB, а не «ok» по факту
+//      отправки запроса.
+const WRITE_TO_WB_DISABLED = true;
+const WRITE_DISABLED_RESPONSE = {
+  ok: false,
+  error: "Запись на Wildberries отключена решением владелицы 05.09.2026. " +
+    "Цены и поставки заводятся вручную в кабинете.",
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (WRITE_TO_WB_DISABLED) {
+    return new Response(JSON.stringify(WRITE_DISABLED_RESPONSE), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "method not allowed" }), {
       status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -23,6 +23,11 @@ export function PriceEditCell({ nmId, currentPrice, discountPct, history, onSave
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
+  // ⛔ Запись цен на WB отключена решением владелицы 05.09.2026: «абсолютно все
+  // записи на ВБ отменяются, только ручные». Маршрут отвечает 403, поэтому
+  // редактирование здесь выключено — показываем цену без карандаша.
+  const WRITE_DISABLED = true;
+
   async function save() {
     const price = Number(value);
     if (!Number.isFinite(price) || price <= 0) {
@@ -52,6 +57,17 @@ export function PriceEditCell({ nmId, currentPrice, discountPct, history, onSave
     } finally {
       setSaving(false);
     }
+  }
+
+  if (WRITE_DISABLED) {
+    return (
+      <div className="flex flex-col items-end gap-0.5">
+        <span className="tabular-nums" title="Цена меняется вручную в кабинете WB">
+          {currentPrice == null ? '—' : formatRub(currentPrice)}
+        </span>
+        <PriceSparkline history={history} />
+      </div>
+    );
   }
 
   if (!editing) {
