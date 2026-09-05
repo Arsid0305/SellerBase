@@ -8,7 +8,7 @@ import {
   fetchPlanChinaItems,
 } from '@/entities/supplies';
 import { fetchSuppliers } from '@/entities/suppliers';
-import { SupplyPlanEditor, SendToWbButton, type SupplyEditorRow } from '@/features/supplies';
+import { SupplyPlanEditor, SupplyPlanActions, type SupplyEditorRow } from '@/features/supplies';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -120,7 +120,7 @@ export default async function SupplyDetailPage({ params }: { params: Params }) {
       />
 
       {!isNew && planId != null && (
-        <SendToWbButton planId={planId} status={plan?.status ?? 'draft'} />
+        <SupplyPlanActions planId={planId} />
       )}
     </div>
   );
