@@ -54,10 +54,12 @@ export async function withRetry<T>(label: string, fn: () => Promise<T>, attempts
  * не удалось — исключение. Пусть сбой будет виден, чем работа уйдёт в
  * тишину и мониторинг снова покажет неправду.
  *
- * Повтор идемпотентен: перед второй вставкой ищем уже созданную запись.
- * Иначе потерянный ответ на удавшейся вставке плодил бы дубли, а первая
- * строка висела бы в «running» до уборщика и попадала в журнал как ошибка.
- * Замечание ревью-бота на PR #300 — проверено, справедливо.
+ * Повтор идемпотентен: перед второй вставкой ищем уже созданную запись по
+ * метке прогона (meta.run_key). Иначе потерянный ответ на удавшейся вставке
+ * плодил бы дубли, а первая строка висела бы в «running» до уборщика и
+ * попадала в журнал как ошибка. Искать по имени задания и времени тоже нельзя:
+ * два прогона одного задания могут идти внахлёст, и второй присвоил бы себе
+ * чужую строку. Оба замечания — от ревью-бота, PR #300 и #301.
  */
 export async function openJobLog(
   supabase: SupabaseClient,
@@ -65,12 +67,21 @@ export async function openJobLog(
   meta: Record<string, unknown>,
   attempts = 3,
 ): Promise<number> {
+  // Метка прогона. Кладём её в meta при вставке и по ней же ищем запись, если
+  // ответ потеряется. Искать по job_name и времени нельзя: openJobLog вызывают
+  // и без advisory-lock, поэтому два прогона одного задания могут идти внахлёст
+  // (ручной запуск поверх cron, а воронка идёт больше минуты). Тогда второй
+  // подхватил бы строку первого, оба писали бы в неё, и результат того, кто
+  // финишировал раньше, затёрся бы. Замечание ревью-бота на PR #301.
+  const runKey = crypto.randomUUID();
+  const metaWithKey = { ...meta, run_key: runKey };
+
   let lastMessage = "";
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const { data, error } = await supabase
         .from("ingestion_log")
-        .insert({ job_name: jobName, meta })
+        .insert({ job_name: jobName, meta: metaWithKey })
         .select("id")
         .single();
       if (error) throw new Error(`не удалось открыть ingestion_log: ${error.message}`);
@@ -83,13 +94,12 @@ export async function openJobLog(
       // Вставка могла пройти, а ответ потеряться. Слепой повтор создал бы
       // вторую строку, первая осталась бы навсегда в «running», и уборщик
       // зомби записал бы её как ошибку — то есть повтор портил бы ровно тот
-      // журнал, ради которого всё и затевалось. Поэтому сначала ищем свою
-      // запись: status по умолчанию «running», started_at по умолчанию now().
-      // Нашли — берём её id вместо новой вставки.
-      const orphan = await findOpenRun(supabase, jobName);
-      if (orphan != null) {
-        console.warn(`[openJobLog ${jobName}] ответ потерян, но запись ${orphan} создалась — продолжаем с ней`);
-        return orphan;
+      // журнал, ради которого всё и затевалось. Ищем строго свою запись —
+      // по метке прогона, а не по имени задания.
+      const mine = await findRunByKey(supabase, jobName, runKey);
+      if (mine != null) {
+        console.warn(`[openJobLog ${jobName}] ответ потерян, но запись ${mine} создалась — продолжаем с ней`);
+        return mine;
       }
 
       console.warn(`[openJobLog ${jobName}] попытка ${attempt} из ${attempts}: ${lastMessage} — повтор`);
@@ -99,16 +109,17 @@ export async function openJobLog(
   throw new Error(`openJobLog ${jobName}: ${lastMessage}`);
 }
 
-/** Незакрытая запись этого задания за последние две минуты — то есть наша. */
-async function findOpenRun(supabase: SupabaseClient, jobName: string): Promise<number | null> {
-  const since = new Date(Date.now() - 2 * 60_000).toISOString();
+/** Запись именно этого вызова — по метке, положенной в meta.run_key. */
+async function findRunByKey(
+  supabase: SupabaseClient,
+  jobName: string,
+  runKey: string,
+): Promise<number | null> {
   const { data, error } = await supabase
     .from("ingestion_log")
     .select("id")
     .eq("job_name", jobName)
-    .eq("status", "running")
-    .gte("started_at", since)
-    .order("started_at", { ascending: false })
+    .eq("meta->>run_key", runKey)
     .limit(1);
   if (error || !data || data.length === 0) return null;
   return (data[0] as { id: number }).id;
