@@ -1,6 +1,77 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 /**
+ * Сбой на пути «функция → шлюз», а не отказ базы: запрос не дождался
+ * свободного соединения в пуле PostgREST и был убит по таймауту (504 ровно
+ * через 5 секунд, в логах PostgREST — «Thread killed by timeout manager»).
+ * Такое лечится повтором; ошибка в данных — нет.
+ */
+export function isTransient(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes("gateway timeout") ||
+    m.includes("timeout") ||
+    m.includes("fetch failed") ||
+    m.includes("connection closed") ||
+    m.includes("502") ||
+    m.includes("503") ||
+    m.includes("504");
+}
+
+export async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastMessage = "";
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastMessage = e instanceof Error ? e.message : String(e);
+      if (!isTransient(lastMessage) || attempt === attempts) throw e;
+      console.warn(`[${label}] попытка ${attempt} из ${attempts}: ${lastMessage} — повтор`);
+      await new Promise((r) => setTimeout(r, attempt * 1500));
+    }
+  }
+  throw new Error(`${label}: ${lastMessage}`);
+}
+
+/**
+ * Открывает запись о запуске в ingestion_log и возвращает её id.
+ *
+ * 09.09.2026. Раньше функции писали так:
+ *
+ *     const { data: logRow } = await supabase.from("ingestion_log")...
+ *     const jobId: number = logRow?.id ?? 0;
+ *
+ * Ошибка вставки не проверялась вовсе. Когда POST в журнал получал 504,
+ * logRow оказывался null, jobId становился нулём — и дальше функция делала
+ * всю работу вслепую: данные собирала и записывала, а финальный
+ * `.eq("id", 0)` обновлял несуществующую строку и молча ничего не менял.
+ * В журнале не оставалось ни следа запуска.
+ *
+ * Именно так 09.09 воронка собрала 71 строку в 06:01, но проверка
+ * cron-здоровья, которая смотрит в журнал, доложила «нет свежего успеха
+ * 36 часов». Мониторинг соврал, хотя система работала.
+ *
+ * Теперь: три попытки на транзиентной ошибке, а если журнал открыть так и
+ * не удалось — исключение. Пусть сбой будет виден, чем работа уйдёт в
+ * тишину и мониторинг снова покажет неправду.
+ */
+export async function openJobLog(
+  supabase: SupabaseClient,
+  jobName: string,
+  meta: Record<string, unknown>,
+): Promise<number> {
+  return await withRetry(`openJobLog ${jobName}`, async () => {
+    const { data, error } = await supabase
+      .from("ingestion_log")
+      .insert({ job_name: jobName, meta })
+      .select("id")
+      .single();
+    if (error) throw new Error(`не удалось открыть ingestion_log: ${error.message}`);
+    if (!data?.id) throw new Error("ingestion_log вернул пустой id");
+    return data.id as number;
+  });
+}
+
+/**
  * Обёртка для фетчеров: регистрирует запуск в ingestion_log, ловит ошибки,
  * всегда пишет финальный статус. По любому исходу старые данные остаются нетронуты.
  *
@@ -40,17 +111,15 @@ export async function runJob<T>(
     gotLock = true;
   }
 
-  // 3. Открыть запись в ingestion_log.
-  const { data: logRow, error: insErr } = await supabase
-    .from("ingestion_log")
-    .insert({ job_name: jobName, meta })
-    .select("id")
-    .single();
-  if (insErr || !logRow) {
+  // 3. Открыть запись в ingestion_log (с повтором — см. openJobLog).
+  let jobId: number;
+  try {
+    jobId = await openJobLog(supabase, jobName, meta);
+  } catch (e) {
     if (gotLock) await supabase.rpc("release_job_lock", { p_job_name: jobName });
-    return { ok: false, jobId: -1, error: `Failed to open ingestion_log: ${insErr?.message}` };
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, jobId: -1, error: `Failed to open ingestion_log: ${message}` };
   }
-  const jobId: number = logRow.id;
 
   try {
     const { rows_in, rows_out, result, meta: bodyMeta } = await body();
