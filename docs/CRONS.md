@@ -5,8 +5,8 @@
 
 | Cron job | Schedule (UTC) | МСК | Что вызывает | Что делает |
 |---|---|---|---|---|
-| `fetch-wb-sales-30min` | `*/30 * * * *` | каждые 30 мин | `fetch-wb-sales` | Продажи из Statistics API, UPSERT по `srid` |
-| `fetch-wb-orders-30min` | `*/30 * * * *` | каждые 30 мин | `fetch-wb-orders` | Заказы из Statistics API, UPSERT по `(g_number, date)` |
+| `fetch-wb-orders-hourly` | `5 * * * *` | ежечасно в :05 | `fetch-wb-orders` | Заказы из Statistics API, UPSERT по `(g_number, date)` |
+| `fetch-wb-sales-hourly` | `20 * * * *` | ежечасно в :20 | `fetch-wb-sales` | Продажи из Statistics API, UPSERT по `srid` |
 | `detect-anomalies-hourly` | `0 * * * *` | ежечасно | `detect-anomalies` | Ищет аномалии в свежих данных |
 | `clean-stale-jobs-hourly` | `17 * * * *` | ежечасно | SQL `clean_stale_running_jobs_all('2 hours')` | Закрывает задания, зависшие в статусе `running` |
 | `fetch-wb-tariffs-daily` | `0 1 * * *` | 04:00 | `fetch-wb-tariffs` | Тарифы коробов WB |

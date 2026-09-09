@@ -4,10 +4,21 @@
 // Запуск: cron каждые 30 мин (см. миграцию 20260619120002_cron_fetch_wb_orders.sql).
 //
 // dateFrom = max(last_change_date) - 1 час (overlap), либо ?days=N для бэкфилла.
+//
+// 05.09.2026 закрыты три дыры, найденные аудитом:
+//   1) не было checkCronSecret — функцию мог дёрнуть любой, у кого есть JWT;
+//   2) не было advisory-lock: cron ходит каждые 30 минут, а бэкфилл на 90 дней
+//      идёт дольше — два прогона наслаивались и писали одно и то же;
+//   3) в catch запись шла в колонку `error`, которой в ingestion_log нет
+//      (там `error_text`). Обновление падало, задание оставалось в статусе
+//      running — те самые «зависла, закрыта уборщиком» в журнале.
+// Теперь журнал и блокировку ведёт runJob из _shared/ingestion.ts.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { paginateByLastChangeDate, wbGet } from "../_shared/wb-client.ts";
+import { checkCronSecret } from "../_shared/auth.ts";
+import { runJob } from "../_shared/ingestion.ts";
 
 const JOB_NAME = "fetch-wb-orders";
 const WB_BASE = "https://statistics-api.wildberries.ru";
@@ -73,7 +84,29 @@ async function upsertInBatches(
   }
 }
 
-async function run(supabase: SupabaseClient, jobId: number, dateFromStart: string) {
+/** С какой даты тянуть: инкрементально от последней записи или ?days=N. */
+async function resolveDateFrom(supabase: SupabaseClient, days: number | null): Promise<string> {
+  if (days) {
+    const d = new Date(Date.now() - days * 86_400_000);
+    return d.toISOString().replace(/\.\d{3}Z$/, "");
+  }
+  // инкрементально: max(last_change_date) - 1 час overlap, иначе 7 дней назад
+  const { data } = await supabase
+    .from("wb_orders_fact")
+    .select("last_change_date")
+    .order("last_change_date", { ascending: false })
+    .limit(1)
+    .single();
+  if (data?.last_change_date) {
+    const t = new Date(data.last_change_date);
+    t.setHours(t.getHours() - 1);
+    return t.toISOString().replace(/\.\d{3}Z$/, "");
+  }
+  const t = new Date(Date.now() - 7 * 86_400_000);
+  return t.toISOString().replace(/\.\d{3}Z$/, "");
+}
+
+async function run(supabase: SupabaseClient, dateFromStart: string) {
   const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
   if (!token) throw new Error("WB_TOKEN_READ / WB_API_TOKEN not set");
 
@@ -127,81 +160,42 @@ async function run(supabase: SupabaseClient, jobId: number, dateFromStart: strin
     },
   });
 
-  await supabase
-    .from("ingestion_log")
-    .update({
-      status: "ok",
-      finished_at: new Date().toISOString(),
-      rows_in: totalSeen,
-      rows_out: totalOut,
-      meta: { dateFromStart, pages },
-    })
-    .eq("id", jobId);
-
-  return { totalIn: totalSeen, totalOut };
+  return { totalIn: totalSeen, totalOut, pages };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const cron = checkCronSecret(req);
+  if (!cron.ok) return cron.response;
+
   const supabase = adminClient();
-  const { data: logRow, error: logErr } = await supabase
-    .from("ingestion_log")
-    .insert({ job_name: JOB_NAME, meta: {} })
-    .select("id")
-    .single();
-  if (logErr || !logRow) {
-    return new Response(JSON.stringify({ error: `init ingestion_log: ${logErr?.message}` }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+  const url = new URL(req.url);
+  const daysParam = url.searchParams.get("days");
+  const days = daysParam ? Math.max(1, Math.min(90, parseInt(daysParam, 10))) : null;
+
+  const outcome = await runJob(supabase, JOB_NAME, { days }, async () => {
+    const dateFromStart = await resolveDateFrom(supabase, days);
+    const { totalIn, totalOut, pages } = await run(supabase, dateFromStart);
+    return {
+      rows_in: totalIn,
+      rows_out: totalOut,
+      result: { dateFromStart, pages, totalIn, totalOut },
+    };
+  });
+
+  if (outcome.skipped) {
+    return new Response(
+      JSON.stringify({ ok: true, skipped: true, reason: "предыдущий прогон ещё идёт" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  if (!outcome.ok) {
+    return new Response(JSON.stringify({ ok: false, error: outcome.error }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  const jobId = logRow.id;
-
-  try {
-    const url = new URL(req.url);
-    const daysParam = url.searchParams.get("days");
-    const days = daysParam ? Math.max(1, Math.min(90, parseInt(daysParam, 10))) : null;
-
-    let dateFromStart: string;
-    if (days) {
-      const d = new Date(Date.now() - days * 86_400_000);
-      dateFromStart = d.toISOString().replace(/\.\d{3}Z$/, "");
-    } else {
-      // инкрементально: max(last_change_date) - 1 час overlap, иначе 7 дней назад
-      const { data } = await supabase
-        .from("wb_orders_fact")
-        .select("last_change_date")
-        .order("last_change_date", { ascending: false })
-        .limit(1)
-        .single();
-      if (data?.last_change_date) {
-        const t = new Date(data.last_change_date);
-        t.setHours(t.getHours() - 1);
-        dateFromStart = t.toISOString().replace(/\.\d{3}Z$/, "");
-      } else {
-        const t = new Date(Date.now() - 7 * 86_400_000);
-        dateFromStart = t.toISOString().replace(/\.\d{3}Z$/, "");
-      }
-    }
-
-    const result = await run(supabase, jobId, dateFromStart);
-    return new Response(JSON.stringify({ ok: true, ...result, dateFromStart }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    await supabase
-      .from("ingestion_log")
-      .update({
-        status: "error",
-        finished_at: new Date().toISOString(),
-        error: msg,
-      })
-      .eq("id", jobId);
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  return new Response(JSON.stringify({ ok: true, ...outcome.result }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });

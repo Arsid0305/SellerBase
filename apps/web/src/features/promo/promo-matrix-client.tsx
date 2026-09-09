@@ -8,8 +8,7 @@ import { formatRub, formatInt } from '@/shared/lib/format';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import type { MatrixPromo, MatrixSku } from '@/entities/promo/matrix-queries';
 import { setParticipationAction, bulkSetParticipationAction } from './actions';
-import { PriceEditCell } from './price-edit-cell';
-import { useRouter } from 'next/navigation';
+import { PriceCell } from './price-cell';
 
 const fmtRub = (n: number | null) => (n == null ? '—' : formatRub(n));
 
@@ -87,11 +86,9 @@ export function PromoMatrixClient({
   promos: MatrixPromo[];
   skus: MatrixSku[];
 }) {
-  const router = useRouter();
   const [filter, setFilter] = useState<Filter>('all');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-  const handlePriceSaved = () => startTransition(() => router.refresh());
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -292,7 +289,6 @@ export function PromoMatrixClient({
                     promos={promos}
                     busyKey={busyKey}
                     onToggle={handleToggle}
-                    onPriceSaved={handlePriceSaved}
                   />
                 ))
               )}
@@ -317,13 +313,11 @@ function SkuMatrixRow({
   promos,
   busyKey,
   onToggle,
-  onPriceSaved,
 }: {
   sku: MatrixSku;
   promos: MatrixPromo[];
   busyKey: string | null;
   onToggle: (promotionId: number, nmId: number, current: boolean | null) => void;
-  onPriceSaved: () => void;
 }) {
   return (
     <tr className="border-t border-border">
@@ -380,13 +374,7 @@ function SkuMatrixRow({
         {sku.turnoverDays == null ? '—' : `${sku.turnoverDays} д`}
       </td>
       <td className="border-r border-border px-3 py-2 text-right tabular-nums">
-        <PriceEditCell
-          nmId={sku.nmId}
-          currentPrice={sku.currentPrice}
-          discountPct={sku.discountPct}
-          history={sku.priceHistory}
-          onSaved={onPriceSaved}
-        />
+        <PriceCell currentPrice={sku.currentPrice} history={sku.priceHistory} />
       </td>
       <td
         className={cn(

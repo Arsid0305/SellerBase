@@ -3,14 +3,29 @@
 // stock_zero, anomaly_detected (margin negative за 7д).
 // Не дублирует события: перед INSERT проверяет наличие события того же типа за последние 24ч.
 // State (рейтинг 7д назад, последняя дата продажи) хранится в anomaly_state.
-// verify_jwt = false (вызывается из pg_cron, см. 20260620010002_cron_detect_anomalies.sql).
+// verify_jwt = true; cron ходит с service_role-ключом и X-Cron-Secret
+// (см. 20260620010002_cron_detect_anomalies.sql).
+//
+// 09.09.2026 — почему проверки идут последовательно, а не через Promise.all.
+// Раз в сутки прогон падал с «Gateway Timeout». По логам шлюза видно точно:
+// шесть запросов уходили в одну миллисекунду, четыре возвращались за 83–129 мс,
+// а два висели ровно 5 секунд и получали 504; PostgREST в тот же момент писал
+// «Warp server error: Thread killed by timeout manager». То есть запросы не
+// выполнялись вовсе — они не дождались свободного соединения в пуле и были
+// убиты по таймауту. Сами запросы дешёвые: выборка отчётов за 14 дней идёт
+// 1,5 мс по индексу (277 строк), расчёт P&L — 100 мс. Вся работа функции
+// укладывается в ~150 мс, поэтому параллельность не давала выигрыша, а залп
+// из шести соединений исчерпывал пул. Проверки выстроены в цепочку.
+// Повтор (withRetry) оставлен на случай, если соединение займёт кто-то ещё.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkCronSecret } from "../_shared/auth.ts";
+import { runJob } from "../_shared/ingestion.ts";
 
 const JOB_NAME = "detect-anomalies";
 const DEDUP_WINDOW_HOURS = 24;
+const RETRY_ATTEMPTS = 3;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +37,34 @@ function adminClient(): SupabaseClient {
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY env not set");
   return createClient(url, key, { auth: { persistSession: false } });
+}
+
+// Сбой на пути «функция → шлюз», а не отказ базы: запрос не дождался
+// соединения и был убит. Такое лечится повтором, ошибка в данных — нет.
+function isTransient(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes("gateway timeout") ||
+    m.includes("timeout") ||
+    m.includes("fetch failed") ||
+    m.includes("connection closed") ||
+    m.includes("502") ||
+    m.includes("503") ||
+    m.includes("504");
+}
+
+async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  let lastMessage = "";
+  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastMessage = e instanceof Error ? e.message : String(e);
+      if (!isTransient(lastMessage) || attempt === RETRY_ATTEMPTS) throw e;
+      console.warn(`[${label}] попытка ${attempt} из ${RETRY_ATTEMPTS}: ${lastMessage} — повтор`);
+      await new Promise((r) => setTimeout(r, attempt * 1500));
+    }
+  }
+  throw new Error(`${label}: ${lastMessage}`);
 }
 
 function dateStr(d: Date): string {
@@ -52,12 +95,15 @@ async function filterDuplicates(
   const types = [...new Set(candidates.map((c) => c.event_type))];
   const since = new Date(Date.now() - DEDUP_WINDOW_HOURS * 3_600_000).toISOString();
 
-  const { data, error } = await supabase
-    .from("sku_events")
-    .select("sku_id, event_type")
-    .in("event_type", types)
-    .gte("event_dt", since);
-  if (error) throw new Error(`sku_events dedup check failed: ${error.message}`);
+  const data = await withRetry("sku_events dedup", async () => {
+    const { data, error } = await supabase
+      .from("sku_events")
+      .select("sku_id, event_type")
+      .in("event_type", types)
+      .gte("event_dt", since);
+    if (error) throw new Error(`sku_events dedup check failed: ${error.message}`);
+    return data;
+  });
 
   const seen = new Set((data ?? []).map((r: { sku_id: number; event_type: string }) => `${r.sku_id}:${r.event_type}`));
   return candidates.filter((c) => !seen.has(`${c.sku_id}:${c.event_type}`));
@@ -66,16 +112,18 @@ async function filterDuplicates(
 async function insertEvents(supabase: SupabaseClient, events: NewEvent[]): Promise<number> {
   const deduped = await filterDuplicates(supabase, events);
   if (deduped.length === 0) return 0;
-  const { error } = await supabase.from("sku_events").insert(
-    deduped.map((e) => ({
-      sku_id: e.sku_id,
-      event_type: e.event_type,
-      severity: e.severity,
-      title: e.title,
-      details: e.details,
-    })),
-  );
-  if (error) throw new Error(`sku_events insert failed: ${error.message}`);
+  await withRetry("sku_events insert", async () => {
+    const { error } = await supabase.from("sku_events").insert(
+      deduped.map((e) => ({
+        sku_id: e.sku_id,
+        event_type: e.event_type,
+        severity: e.severity,
+        title: e.title,
+        details: e.details,
+      })),
+    );
+    if (error) throw new Error(`sku_events insert failed: ${error.message}`);
+  });
   return deduped.length;
 }
 
@@ -95,13 +143,16 @@ async function detectSalesStopped(supabase: SupabaseClient, skus: SkuRow[]): Pro
   const d0 = dateStr(today);
   const d14 = dateStr(new Date(today.getTime() - 14 * 86_400_000));
 
-  const { data, error } = await supabase
-    .from("wb_reports_fact")
-    .select("nm_id, rr_dt, quantity")
-    .gte("rr_dt", d14)
-    .lte("rr_dt", d0)
-    .range(0, 100_000);
-  if (error) throw new Error(`detectSalesStopped: ${error.message}`);
+  const data = await withRetry("detectSalesStopped", async () => {
+    const { data, error } = await supabase
+      .from("wb_reports_fact")
+      .select("nm_id, rr_dt, quantity")
+      .gte("rr_dt", d14)
+      .lte("rr_dt", d0)
+      .range(0, 100_000);
+    if (error) throw new Error(`detectSalesStopped: ${error.message}`);
+    return data;
+  });
 
   const lastSaleByNm = new Map<number, string>();
   for (const r of (data ?? []) as Array<{ nm_id: number; rr_dt: string; quantity: number | null }>) {
@@ -136,12 +187,15 @@ async function detectCostUpdated(supabase: SupabaseClient, skus: SkuRow[]): Prom
   const skuIds = skus.map((s) => s.id);
   if (skuIds.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("sku_cost_history")
-    .select("sku_id, cost_rub, valid_from, valid_to")
-    .in("sku_id", skuIds)
-    .order("valid_from", { ascending: false });
-  if (error) throw new Error(`detectCostUpdated: ${error.message}`);
+  const data = await withRetry("detectCostUpdated", async () => {
+    const { data, error } = await supabase
+      .from("sku_cost_history")
+      .select("sku_id, cost_rub, valid_from, valid_to")
+      .in("sku_id", skuIds)
+      .order("valid_from", { ascending: false });
+    if (error) throw new Error(`detectCostUpdated: ${error.message}`);
+    return data;
+  });
 
   type Hist = { sku_id: number; cost_rub: number; valid_from: string; valid_to: string | null };
   const bySku = new Map<number, Hist[]>();
@@ -182,11 +236,14 @@ async function detectCostUpdated(supabase: SupabaseClient, skus: SkuRow[]): Prom
 // 3. Rating drop — рейтинг упал на 0.3+ за последние 7д (через anomaly_state снапшот).
 // ============================================================
 async function detectRatingChanged(supabase: SupabaseClient, skus: SkuRow[]): Promise<NewEvent[]> {
-  const { data: stateRows, error: stateErr } = await supabase
-    .from("anomaly_state")
-    .select("sku_id, value, updated_at")
-    .eq("metric", "rating");
-  if (stateErr) throw new Error(`detectRatingChanged: ${stateErr.message}`);
+  const stateRows = await withRetry("detectRatingChanged", async () => {
+    const { data, error } = await supabase
+      .from("anomaly_state")
+      .select("sku_id, value, updated_at")
+      .eq("metric", "rating");
+    if (error) throw new Error(`detectRatingChanged: ${error.message}`);
+    return data;
+  });
 
   type StateRow = { sku_id: number; value: { rating: number }; updated_at: string };
   const stateBySku = new Map<number, StateRow>();
@@ -222,10 +279,12 @@ async function detectRatingChanged(supabase: SupabaseClient, skus: SkuRow[]): Pr
   }
 
   if (upserts.length > 0) {
-    const { error } = await supabase
-      .from("anomaly_state")
-      .upsert(upserts, { onConflict: "sku_id,metric" });
-    if (error) throw new Error(`detectRatingChanged upsert state: ${error.message}`);
+    await withRetry("detectRatingChanged upsert state", async () => {
+      const { error } = await supabase
+        .from("anomaly_state")
+        .upsert(upserts, { onConflict: "sku_id,metric" });
+      if (error) throw new Error(`detectRatingChanged upsert state: ${error.message}`);
+    });
   }
 
   return events;
@@ -235,8 +294,11 @@ async function detectRatingChanged(supabase: SupabaseClient, skus: SkuRow[]): Pr
 // 4. Stock zero — суммарный quantity по wb_stocks стал 0 (раньше было > 0).
 // ============================================================
 async function detectStockZero(supabase: SupabaseClient, skus: SkuRow[]): Promise<NewEvent[]> {
-  const { data, error } = await supabase.from("wb_stocks").select("nm_id, quantity");
-  if (error) throw new Error(`detectStockZero: ${error.message}`);
+  const data = await withRetry("detectStockZero", async () => {
+    const { data, error } = await supabase.from("wb_stocks").select("nm_id, quantity");
+    if (error) throw new Error(`detectStockZero: ${error.message}`);
+    return data;
+  });
 
   const stockByNm = new Map<number, number>();
   for (const r of (data ?? []) as Array<{ nm_id: number | null; quantity: number | null }>) {
@@ -244,11 +306,14 @@ async function detectStockZero(supabase: SupabaseClient, skus: SkuRow[]): Promis
     stockByNm.set(r.nm_id, (stockByNm.get(r.nm_id) ?? 0) + toNum(r.quantity));
   }
 
-  const { data: stateRows, error: stateErr } = await supabase
-    .from("anomaly_state")
-    .select("sku_id, value")
-    .eq("metric", "stock_total");
-  if (stateErr) throw new Error(`detectStockZero state: ${stateErr.message}`);
+  const stateRows = await withRetry("detectStockZero state", async () => {
+    const { data, error } = await supabase
+      .from("anomaly_state")
+      .select("sku_id, value")
+      .eq("metric", "stock_total");
+    if (error) throw new Error(`detectStockZero state: ${error.message}`);
+    return data;
+  });
 
   type StateRow = { sku_id: number; value: { qty: number } };
   const stateBySku = new Map<number, StateRow>();
@@ -275,10 +340,12 @@ async function detectStockZero(supabase: SupabaseClient, skus: SkuRow[]): Promis
   }
 
   if (upserts.length > 0) {
-    const { error: upErr } = await supabase
-      .from("anomaly_state")
-      .upsert(upserts, { onConflict: "sku_id,metric" });
-    if (upErr) throw new Error(`detectStockZero upsert state: ${upErr.message}`);
+    await withRetry("detectStockZero upsert state", async () => {
+      const { error } = await supabase
+        .from("anomaly_state")
+        .upsert(upserts, { onConflict: "sku_id,metric" });
+      if (error) throw new Error(`detectStockZero upsert state: ${error.message}`);
+    });
   }
 
   return events;
@@ -292,8 +359,11 @@ async function detectMarginNegative(supabase: SupabaseClient, skus: SkuRow[]): P
   const d0 = dateStr(today);
   const d7 = dateStr(new Date(today.getTime() - 7 * 86_400_000));
 
-  const { data, error } = await supabase.rpc("get_full_pnl_by_period", { p_from: d7, p_to: d0 });
-  if (error) throw new Error(`detectMarginNegative: ${error.message}`);
+  const data = await withRetry("detectMarginNegative", async () => {
+    const { data, error } = await supabase.rpc("get_full_pnl_by_period", { p_from: d7, p_to: d0 });
+    if (error) throw new Error(`detectMarginNegative: ${error.message}`);
+    return data;
+  });
 
   const myArticleById = new Map(skus.map((s) => [s.id, s.my_article]));
   const events: NewEvent[] = [];
@@ -327,26 +397,22 @@ async function run(supabase: SupabaseClient): Promise<{
   inserted: number;
   byCheck: Record<string, { candidates: number; inserted: number }>;
 }> {
-  const { data: skusRaw, error: skuErr } = await supabase
-    .from("sku_catalog")
-    .select("id, wb_article, my_article, rating, is_active");
-  if (skuErr) throw new Error(`load sku_catalog failed: ${skuErr.message}`);
+  const skusRaw = await withRetry("load sku_catalog", async () => {
+    const { data, error } = await supabase
+      .from("sku_catalog")
+      .select("id, wb_article, my_article, rating, is_active");
+    if (error) throw new Error(`load sku_catalog failed: ${error.message}`);
+    return data;
+  });
   const skus = (skusRaw ?? []) as SkuRow[];
 
-  const [salesStopped, costUpdated, ratingChanged, stockZero, marginNegative] = await Promise.all([
-    detectSalesStopped(supabase, skus),
-    detectCostUpdated(supabase, skus),
-    detectRatingChanged(supabase, skus),
-    detectStockZero(supabase, skus),
-    detectMarginNegative(supabase, skus),
-  ]);
-
+  // Последовательно, а не Promise.all — см. пояснение в шапке файла.
   const checks: Record<string, NewEvent[]> = {
-    sales_stopped: salesStopped,
-    cost_updated: costUpdated,
-    rating_changed: ratingChanged,
-    stock_zero: stockZero,
-    margin_negative: marginNegative,
+    sales_stopped: await detectSalesStopped(supabase, skus),
+    cost_updated: await detectCostUpdated(supabase, skus),
+    rating_changed: await detectRatingChanged(supabase, skus),
+    stock_zero: await detectStockZero(supabase, skus),
+    margin_negative: await detectMarginNegative(supabase, skus),
   };
 
   const byCheck: Record<string, { candidates: number; inserted: number }> = {};
@@ -367,48 +433,33 @@ Deno.serve(async (req) => {
   if (!gate.ok) return gate.response;
 
   const supabase = adminClient();
-  const { data: logRow, error: logErr } = await supabase
-    .from("ingestion_log")
-    .insert({ job_name: JOB_NAME, meta: {} })
-    .select("id")
-    .single();
-  if (logErr || !logRow) {
-    return new Response(JSON.stringify({ error: `init ingestion_log: ${logErr?.message}` }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  const jobId = logRow.id;
 
-  try {
+  // Журнал и защиту от наложения прогонов ведёт runJob — та же обёртка, что у
+  // фетчеров. До 09.09.2026 функция вела ingestion_log сама и работала без
+  // advisory-lock: два прогона могли идти внахлёст и записать одно событие дважды.
+  const outcome = await runJob(supabase, JOB_NAME, {}, async () => {
     const result = await run(supabase);
+    return {
+      rows_in: 0,
+      rows_out: result.inserted,
+      result,
+      meta: { byCheck: result.byCheck },
+    };
+  });
 
-    await supabase
-      .from("ingestion_log")
-      .update({
-        status: "ok",
-        finished_at: new Date().toISOString(),
-        rows_out: result.inserted,
-        meta: { byCheck: result.byCheck },
-      })
-      .eq("id", jobId);
-
-    return new Response(JSON.stringify({ ok: true, ...result }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    await supabase
-      .from("ingestion_log")
-      .update({
-        status: "error",
-        finished_at: new Date().toISOString(),
-        error_text: msg,
-      })
-      .eq("id", jobId);
-    return new Response(JSON.stringify({ error: msg }), {
+  if (outcome.skipped) {
+    return new Response(
+      JSON.stringify({ ok: true, skipped: true, reason: "предыдущий прогон ещё идёт" }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  if (!outcome.ok) {
+    return new Response(JSON.stringify({ ok: false, error: outcome.error }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  return new Response(JSON.stringify({ ok: true, ...outcome.result }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });
