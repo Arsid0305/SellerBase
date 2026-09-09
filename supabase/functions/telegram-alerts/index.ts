@@ -1,11 +1,12 @@
 // telegram-alerts — ежедневная проверка ключевых метрик и алерт владелице в Telegram.
-// Запускается раз в день кроном.
-// 11 проверок параллельно: маржа, выкуп, дефицит, простой cron-задач, новые SKU без cost,
-// акции ВБ заканчивающиеся завтра, обнулившийся остаток активных SKU, упавший рейтинг,
-// устаревшие тарифы ВБ-комиссии, критические аномалии из sku_events (детектор),
-// удержания и штрафы за неделю (реклама, платные отзывы, транзит).
-// Если все проверки зелёные — ничего не отправляет (не спамим «всё ок»).
-// verify_jwt = false (вызывается из pg_cron).
+// Запускается раз в день кроном в 08:10 UTC (11:10 МСК).
+// 13 проверок ПОСЛЕДОВАТЕЛЬНО (почему — см. комментарий в Deno.serve ниже):
+// заказы и выкупы за вчера, маржа, выкуп, дефицит, простой cron-задач, новые SKU
+// без cost, акции ВБ заканчивающиеся завтра, обнулившийся остаток активных SKU,
+// удержания и штрафы за неделю, упавший рейтинг, устаревшие тарифы ВБ-комиссии,
+// критические аномалии из sku_events (детектор).
+// Сводка отправляется всегда; подробности — только по красным и оранжевым.
+// verify_jwt = true; cron ходит с service_role-ключом и X-Cron-Secret.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -992,21 +993,55 @@ Deno.serve(async (req: Request) => {
   try {
     const supabase = adminClient();
 
-    const results = await Promise.all([
-      checkYesterdayOrders(supabase),
-      checkYesterdayBuyouts(supabase),
-      checkMargin(supabase),
-      checkBuyout(supabase),
-      checkDeficit(supabase),
-      checkCronHealth(supabase),
-      checkNewSkuNoCost(supabase),
-      checkPromotionsEndingSoon(supabase),
-      checkOutOfStockActiveSku(supabase),
-      checkDeductions(supabase),
-      checkLowRating(supabase),
-      checkStaleCommissions(supabase),
-      checkAnomalies(supabase),
-    ]);
+    // Проверки идут последовательно, а не через Promise.all.
+    //
+    // 09.09.2026: сводка каждый день теряла две строки — «Дефицит: не удалось
+    // посчитать» и «Комиссии WB: не удалось проверить». По логам шлюза за
+    // 08:00:02 видно причину: тринадцать проверок стартовали разом и слали
+    // восемнадцать запросов в одну миллисекунду. Шестнадцать проходили, но по
+    // 1000–4128 мс вместо обычных 20–130 — это очередь за соединением; два
+    // последних (sku_catalog и wb_commissions_by_subject) не дожидались вовсе и
+    // получали 504 ровно через 5 секунд. Запросы дешёвые: расчёт P&L за 30 дней
+    // — 122 мс, оборачиваемость — 1178 мс даже под той нагрузкой. Ломала их не
+    // сложность, а залп: пул PostgREST исчерпывался, лишние убивались по
+    // таймауту. Та же болезнь была у detect-anomalies и вылечена так же.
+    //
+    // Тринадцать проверок подряд — около двух секунд. Для задания раз в сутки
+    // это ничто, а параллельность не давала выигрыша и теряла данные.
+    const checks: Array<[string, (c: SupabaseClient) => Promise<CheckResult>]> = [
+      ["yesterday_orders", checkYesterdayOrders],
+      ["yesterday_buyouts", checkYesterdayBuyouts],
+      ["margin", checkMargin],
+      ["buyout", checkBuyout],
+      ["deficit", checkDeficit],
+      ["cron_health", checkCronHealth],
+      ["new_sku_no_cost", checkNewSkuNoCost],
+      ["promotions_ending", checkPromotionsEndingSoon],
+      ["out_of_stock", checkOutOfStockActiveSku],
+      ["deductions", checkDeductions],
+      ["low_rating", checkLowRating],
+      ["stale_commissions", checkStaleCommissions],
+      ["anomalies", checkAnomalies],
+    ];
+
+    const results: CheckResult[] = [];
+    for (const [name, fn] of checks) {
+      try {
+        results.push(await fn(supabase));
+      } catch (e) {
+        // Упавшая проверка не должна уносить всю сводку: остальные строки
+        // владелице нужнее, чем отсутствие письма целиком.
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`[telegram-alerts] проверка ${name} упала: ${msg}`);
+        results.push({
+          name,
+          ok: false,
+          severity: "yellow",
+          summary: `${name}: проверка не выполнилась`,
+          message: `🟡 *${name}* — проверка не выполнилась (${msg})`,
+        });
+      }
+    }
 
     const alerts = results.filter((r) => r.message != null);
 
