@@ -14,7 +14,7 @@ export async function runJob<T>(
   supabase: SupabaseClient,
   jobName: string,
   meta: Record<string, unknown>,
-  body: () => Promise<{ rows_in: number; rows_out: number; result: T }>,
+  body: () => Promise<{ rows_in: number; rows_out: number; result: T; meta?: Record<string, unknown> }>,
 ): Promise<{ ok: boolean; jobId: number; error?: string; result?: T; skipped?: boolean }> {
   // 1. Очистить зомби (running старше 1 часа без finish).
   await supabase.rpc("clean_stale_running_jobs", { p_job_name: jobName });
@@ -53,10 +53,18 @@ export async function runJob<T>(
   const jobId: number = logRow.id;
 
   try {
-    const { rows_in, rows_out, result } = await body();
+    const { rows_in, rows_out, result, meta: bodyMeta } = await body();
     await supabase
       .from("ingestion_log")
-      .update({ status: "ok", finished_at: new Date().toISOString(), rows_in, rows_out })
+      .update({
+        status: "ok",
+        finished_at: new Date().toISOString(),
+        rows_in,
+        rows_out,
+        // Итоговые подробности прогона известны только после работы, а meta
+        // при открытии записи пишется до неё — дописываем поверх.
+        ...(bodyMeta ? { meta: { ...meta, ...bodyMeta } } : {}),
+      })
       .eq("id", jobId);
     return { ok: true, jobId, result };
   } catch (e) {
