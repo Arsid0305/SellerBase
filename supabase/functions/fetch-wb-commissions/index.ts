@@ -6,6 +6,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkCronSecret } from "../_shared/auth.ts";
+import { openJobLog } from "../_shared/ingestion.ts";
 
 const JOB_NAME = "fetch-wb-commissions";
 const WB_URL = "https://common-api.wildberries.ru/api/v1/tariffs/commission?locale=ru";
@@ -35,9 +36,19 @@ Deno.serve(async (req: Request) => {
   if (!gate.ok) return gate.response;
 
   const supabase = adminClient();
-  const { data: logRow } = await supabase.from("ingestion_log")
-    .insert({ job_name: JOB_NAME, meta: {} }).select("id").single();
-  const jobId: number = logRow?.id ?? 0;
+  // Журнал открываем до работы. Если он не открылся даже с повторами —
+  // не начинаем: без записи о запуске работа уйдёт в тишину, а мониторинг
+  // покажет «нет свежего успеха», как это случилось с воронкой 09.09.
+  let jobId: number;
+  try {
+    jobId = await openJobLog(supabase, JOB_NAME, {});
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[${JOB_NAME}] журнал не открылся: ${msg}`);
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
