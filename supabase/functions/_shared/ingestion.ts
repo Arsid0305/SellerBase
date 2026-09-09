@@ -53,22 +53,65 @@ export async function withRetry<T>(label: string, fn: () => Promise<T>, attempts
  * Теперь: три попытки на транзиентной ошибке, а если журнал открыть так и
  * не удалось — исключение. Пусть сбой будет виден, чем работа уйдёт в
  * тишину и мониторинг снова покажет неправду.
+ *
+ * Повтор идемпотентен: перед второй вставкой ищем уже созданную запись.
+ * Иначе потерянный ответ на удавшейся вставке плодил бы дубли, а первая
+ * строка висела бы в «running» до уборщика и попадала в журнал как ошибка.
+ * Замечание ревью-бота на PR #300 — проверено, справедливо.
  */
 export async function openJobLog(
   supabase: SupabaseClient,
   jobName: string,
   meta: Record<string, unknown>,
+  attempts = 3,
 ): Promise<number> {
-  return await withRetry(`openJobLog ${jobName}`, async () => {
-    const { data, error } = await supabase
-      .from("ingestion_log")
-      .insert({ job_name: jobName, meta })
-      .select("id")
-      .single();
-    if (error) throw new Error(`не удалось открыть ingestion_log: ${error.message}`);
-    if (!data?.id) throw new Error("ingestion_log вернул пустой id");
-    return data.id as number;
-  });
+  let lastMessage = "";
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const { data, error } = await supabase
+        .from("ingestion_log")
+        .insert({ job_name: jobName, meta })
+        .select("id")
+        .single();
+      if (error) throw new Error(`не удалось открыть ingestion_log: ${error.message}`);
+      if (!data?.id) throw new Error("ingestion_log вернул пустой id");
+      return data.id as number;
+    } catch (e) {
+      lastMessage = e instanceof Error ? e.message : String(e);
+      if (!isTransient(lastMessage) || attempt === attempts) throw e;
+
+      // Вставка могла пройти, а ответ потеряться. Слепой повтор создал бы
+      // вторую строку, первая осталась бы навсегда в «running», и уборщик
+      // зомби записал бы её как ошибку — то есть повтор портил бы ровно тот
+      // журнал, ради которого всё и затевалось. Поэтому сначала ищем свою
+      // запись: status по умолчанию «running», started_at по умолчанию now().
+      // Нашли — берём её id вместо новой вставки.
+      const orphan = await findOpenRun(supabase, jobName);
+      if (orphan != null) {
+        console.warn(`[openJobLog ${jobName}] ответ потерян, но запись ${orphan} создалась — продолжаем с ней`);
+        return orphan;
+      }
+
+      console.warn(`[openJobLog ${jobName}] попытка ${attempt} из ${attempts}: ${lastMessage} — повтор`);
+      await new Promise((r) => setTimeout(r, attempt * 1500));
+    }
+  }
+  throw new Error(`openJobLog ${jobName}: ${lastMessage}`);
+}
+
+/** Незакрытая запись этого задания за последние две минуты — то есть наша. */
+async function findOpenRun(supabase: SupabaseClient, jobName: string): Promise<number | null> {
+  const since = new Date(Date.now() - 2 * 60_000).toISOString();
+  const { data, error } = await supabase
+    .from("ingestion_log")
+    .select("id")
+    .eq("job_name", jobName)
+    .eq("status", "running")
+    .gte("started_at", since)
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (error || !data || data.length === 0) return null;
+  return (data[0] as { id: number }).id;
 }
 
 /**
