@@ -60,3 +60,31 @@ verify_jwt = true
 
 [functions.fetch-wb-ads]
 verify_jwt = true
+
+# Дозаполнено 10.09.2026: восемь функций были в репо, но не в этом файле —
+# `supabase functions deploy` без имени их пропускал.
+
+[functions.fetch-wb-prices]
+verify_jwt = true
+
+[functions.fetch-wb-feedback]
+verify_jwt = true
+
+[functions.fetch-wb-questions]
+verify_jwt = true
+
+[functions.fetch-wb-supplies]
+verify_jwt = true
+
+[functions.fetch-wb-subject-charcs]
+verify_jwt = true
+
+[functions.telegram-indices-reminder]
+verify_jwt = true
+
+[functions.probe-wb-api]
+verify_jwt = true
+
+# Заглушка: WB удалил свой эндпоинт, функция отвечает 410 и ничего не делает.
+[functions.fetch-wb-turnover]
+verify_jwt = true

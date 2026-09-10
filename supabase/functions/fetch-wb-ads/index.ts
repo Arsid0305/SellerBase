@@ -1,6 +1,6 @@
 // fetch-wb-ads — фетч расходов на рекламу из WB Advert API.
 // Шаг 1: GET /adv/v1/promotion/count — список кампаний.
-// Шаг 2: POST /adv/v2/fullstats — детальная статистика (views/clicks/spend/orders)
+// Шаг 2: GET /adv/v3/fullstats — детальная статистика (views/clicks/spend/orders)
 //        по дням, в т.ч. в разрезе nm_id (карточек товара).
 // UPSERT в wb_ads_fact по (campaign_id, date, nm_id_key). Логирует в ingestion_log.
 //
@@ -9,12 +9,14 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkCronSecret } from "../_shared/auth.ts";
 
 const JOB_NAME = "fetch-wb-ads";
 const WB_BASE = "https://advert-api.wildberries.ru";
 const BATCH_SIZE = 1000;
-// fullstats принимает максимум 100 кампаний и 31 дату за один запрос.
-const CAMPAIGNS_PER_CALL = 100;
+// fullstats v3 принимает максимум 50 кампаний за запрос: на 100 отвечает
+// «number of advert cannot be more than 50» (проверено живым вызовом 10.09.2026).
+const CAMPAIGNS_PER_CALL = 50;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -146,17 +148,27 @@ async function fetchCampaignIds(token: string): Promise<WbCampaign[]> {
   throw new Error(`wb promotion/count ${res.status}: ${await res.text()}`);
 }
 
+// Статистика кампаний. WB отключил POST /adv/v2/fullstats — с 21.08.2026 он отвечал
+// «path not found», и функция падала каждый час. Замена — GET /adv/v3/fullstats:
+// параметры уходят в строке запроса (ids через запятую, beginDate/endDate), а не телом.
+// Ответ той же формы, плюс поле canceled (отмены заказов) — его пока не сохраняем.
 async function fetchFullstats(
   token: string,
   campaignIds: number[],
   dates: string[],
 ): Promise<WbFullstatsCampaign[]> {
-  const url = `${WB_BASE}/adv/v2/fullstats`;
-  const body = campaignIds.map((id) => ({ id, dates }));
-  const res = await fetchWithRetry(url, token, { method: "POST", body: JSON.stringify(body) });
+  const sorted = [...dates].sort();
+  const url = `${WB_BASE}/adv/v3/fullstats`
+    + `?ids=${campaignIds.join(",")}`
+    + `&beginDate=${sorted[0]}`
+    + `&endDate=${sorted[sorted.length - 1]}`;
+  const res = await fetchWithRetry(url, token);
   if (!res.ok) throw new Error(`wb fullstats ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+  // v3 может завернуть массив в {data:[...]} — принимаем обе формы.
+  const inner = (data as { data?: unknown })?.data;
+  return Array.isArray(inner) ? (inner as WbFullstatsCampaign[]) : [];
 }
 
 async function upsertInBatches(
@@ -295,6 +307,9 @@ async function run(supabase: SupabaseClient, jobId: number, days: number) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const gate = checkCronSecret(req);
+  if (!gate.ok) return gate.response;
+
   const supabase = adminClient();
   const { data: logRow, error: logErr } = await supabase
     .from("ingestion_log")
@@ -325,7 +340,11 @@ Deno.serve(async (req) => {
       .update({
         status: "error",
         finished_at: new Date().toISOString(),
-        error: msg,
+        // Колонка называется error_text. Пока здесь стояло `error`, база
+        // отбивала всю запись целиком: прогон оставался «running», причина
+        // не сохранялась, и уборщик закрывал его через час. Так набралось
+        // 1481 «ошибок» без единой причины.
+        error_text: msg,
       })
       .eq("id", jobId);
     return new Response(JSON.stringify({ error: msg }), {
