@@ -46,6 +46,7 @@ HEAD = PatternFill("solid", fgColor="1F3864")
 HEAD_REQ = PatternFill("solid", fgColor="922B21")
 HINT = PatternFill("solid", fgColor="EDEDED")
 KEY = PatternFill("solid", fgColor="FFF2CC")
+WORK = PatternFill("solid", fgColor="595959")
 THIN = Side(style="thin", color="BFBFBF")
 
 
@@ -164,6 +165,10 @@ def style_header(ws, columns, key_names=()):
         if base_name(title) in {base_name(k) for k in key_names}:
             cell.fill = KEY
             cell.font = Font(bold=True, color="7D6608", size=10)
+        elif str(col["hint"]).startswith("РАБОЧАЯ КОЛОНКА"):
+            # Серый: в Ozon не уходит, поле для нашей работы.
+            cell.fill = WORK
+            cell.font = Font(bold=True, color="FFFFFF", size=10)
 
         hint = ws.cell(row=2, column=i, value=col["hint"])
         hint.font = Font(size=8, color="595959", italic=True)
@@ -264,13 +269,34 @@ def build(folder, out_path):
     ranges = write_reference_sheet(ref_ws, cats)
 
     # 2. Товары — общий список. Категория решает, в какой шаблон уйдёт строка.
+    #
+    # Кроме колонок шаблона добавлен рабочий блок: он в Ozon не уходит, но без
+    # него разбор негде вести. Ядро запросов — то, подо что пишется текст;
+    # медиа-задания — по образцу книги WB, где «Инфографика» отдельной колонкой.
+    # Медиа сейчас не разбираем, колонки заведены под будущую работу.
     goods = wb.create_sheet("Товары", 0)
+    work_cols = [
+        {"name": "Ядро запросов", "required": False,
+         "hint": "РАБОЧАЯ КОЛОНКА, в Ozon не уходит. Запросы из отчёта «Поисковые запросы», подо что пишется текст."},
+        {"name": "Инфографика — задание", "required": False,
+         "hint": "РАБОЧАЯ КОЛОНКА. Что переделать на слайдах. Не разбираем сейчас."},
+        {"name": "Видео — задание", "required": False,
+         "hint": "РАБОЧАЯ КОЛОНКА. Ozon с конца 2025 считает медиа по видео, а не по фото 360. Не разбираем сейчас."},
+        {"name": "Видеообложка — задание", "required": False,
+         "hint": "РАБОЧАЯ КОЛОНКА. Отдельный элемент, влияет на блок «Медиа» контент-рейтинга. Не разбираем сейчас."},
+        {"name": "Rich-контент — задание", "required": False,
+         "hint": "РАБОЧАЯ КОЛОНКА. Что показать в rich. Не разбираем сейчас."},
+        {"name": "Контент-рейтинг", "required": False,
+         "hint": "РАБОЧАЯ КОЛОНКА. Из кабинета: «Товары и цены». Ozon рекомендует держать выше 85."},
+        {"name": "Статус разбора", "required": False,
+         "hint": "РАБОЧАЯ КОЛОНКА. Где мы по этой карточке."},
+    ]
     goods_cols = [
         {"name": "Артикул*", "required": True,
          "hint": "Ваш код товара. По нему строка связывается с листом категории."},
         {"name": "Категория*", "required": True,
          "hint": "Из списка. Определяет, в какой шаблон Ozon уйдёт строка."},
-    ] + [c for c in common_cols if base_name(c["name"]) != "Артикул"]
+    ] + [c for c in common_cols if base_name(c["name"]) != "Артикул"] + work_cols
     style_header(goods, goods_cols, KEY_COLUMNS)
 
     cat_list = sorted(cats)
