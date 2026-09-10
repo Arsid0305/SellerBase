@@ -10,6 +10,8 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { openJobLog } from "../_shared/ingestion.ts";
+import { checkCronSecret } from "../_shared/auth.ts";
 
 const JOB_NAME = "sync-sheets";
 const REQUIRED_TABS = ["Дашборд", "PL WB", "PL WB (нед)"];
@@ -215,6 +217,9 @@ async function shareWith(token: string, fileId: string, email?: string) {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const gate = checkCronSecret(req);
+  if (!gate.ok) return gate.response;
+
   const supabase = adminClient();
   const url = new URL(req.url);
   const year = parseInt(url.searchParams.get("year") || "2025", 10);
@@ -222,9 +227,20 @@ Deno.serve(async (req: Request) => {
   const forceCreate = url.searchParams.get("create") === "1";
   const explicitSheetId = url.searchParams.get("sheet_id");
 
-  const { data: logRow } = await supabase.from("ingestion_log")
-    .insert({ job_name: JOB_NAME, meta: { year, cleanup } }).select("id").single();
-  const jobId: number = logRow?.id ?? 0;
+  // Журнал открываем до работы, с повторами. Раньше стояло `?? 0`: если запись
+  // не открылась, прогон шёл дальше с id=0, итог уходил в никуда, и мониторинг
+  // показывал «нет свежего успеха» при работающей функции. Так воронка
+  // «не работала 36 часов» 09.09.2026, хотя данные приходили.
+  let jobId: number;
+  try {
+    jobId = await openJobLog(supabase, JOB_NAME, { year, cleanup });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[${JOB_NAME}] журнал не открылся: ${msg}`);
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const sa = parseSa();

@@ -53,21 +53,105 @@ export async function withRetry<T>(label: string, fn: () => Promise<T>, attempts
  * Теперь: три попытки на транзиентной ошибке, а если журнал открыть так и
  * не удалось — исключение. Пусть сбой будет виден, чем работа уйдёт в
  * тишину и мониторинг снова покажет неправду.
+ *
+ * Повтор идемпотентен: у каждого вызова своя метка (колонка run_key с
+ * уникальным индексом), и повторная вставка с той же меткой возвращает уже
+ * созданную строку. Иначе потерянный ответ на удавшейся вставке
+ * плодил бы дубли, а первая строка висела бы в «running» до уборщика и
+ * попадала в журнал как ошибка. Искать по имени задания и времени тоже нельзя:
+ * два прогона одного задания могут идти внахлёст, и второй присвоил бы себе
+ * чужую строку. Оба замечания — от ревью-бота, PR #300 и #301.
  */
 export async function openJobLog(
   supabase: SupabaseClient,
   jobName: string,
   meta: Record<string, unknown>,
+  attempts = 3,
 ): Promise<number> {
-  return await withRetry(`openJobLog ${jobName}`, async () => {
+  // Метка прогона. Уходит в колонку run_key (уникальный индекс) и дублируется
+  // в meta для читаемости. По ней же ищем запись, если ответ потеряется.
+  // Искать по job_name и времени нельзя: openJobLog вызывают
+  // и без advisory-lock, поэтому два прогона одного задания могут идти внахлёст
+  // (ручной запуск поверх cron, а воронка идёт больше минуты). Тогда второй
+  // подхватил бы строку первого, оба писали бы в неё, и результат того, кто
+  // финишировал раньше, затёрся бы. Замечание ревью-бота на PR #301.
+  const runKey = crypto.randomUUID();
+  const metaWithKey = { ...meta, run_key: runKey };
+
+  let lastMessage = "";
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      // upsert, а не insert: повтор с той же меткой вернёт уже созданную
+      // строку вместо второй. Одной проверки перед повтором мало — первая
+      // вставка может быть ещё в процессе, поиск честно ничего не найдёт,
+      // и обе завершатся. Запрет держит база (уникальный индекс по run_key,
+      // миграция 20260910160000). Замечание ревью-бота на PR #301.
+      const { data, error } = await supabase
+        .from("ingestion_log")
+        .upsert(
+          { job_name: jobName, run_key: runKey, meta: metaWithKey },
+          { onConflict: "run_key" },
+        )
+        .select("id")
+        .single();
+      if (error) throw new Error(`не удалось открыть ingestion_log: ${error.message}`);
+      if (!data?.id) throw new Error("ingestion_log вернул пустой id");
+      return data.id as number;
+    } catch (e) {
+      lastMessage = e instanceof Error ? e.message : String(e);
+      // Ошибка в данных повтору не подлежит — сразу наружу.
+      if (!isTransient(lastMessage)) throw e;
+
+      // Вставка могла пройти, а ответ потеряться. Слепой повтор создал бы
+      // вторую строку, первая осталась бы навсегда в «running», и уборщик
+      // зомби записал бы её как ошибку — то есть повтор портил бы ровно тот
+      // журнал, ради которого всё и затевалось. Ищем строго свою запись —
+      // по метке прогона, а не по имени задания.
+      //
+      // Проверяем и на ПОСЛЕДНЕЙ попытке тоже. Раньше выход по исчерпанию
+      // попыток стоял до поиска, и самый показательный случай — последняя
+      // вставка прошла, ответ потерялся — заканчивался исключением и 503,
+      // а записанная строка навсегда оставалась в «running». Замечание
+      // ревью-бота на PR #301.
+      const mine = await findRunByKey(supabase, jobName, runKey);
+      if (mine != null) {
+        console.warn(`[openJobLog ${jobName}] ответ потерян, но запись ${mine} создалась — продолжаем с ней`);
+        return mine;
+      }
+
+      if (attempt === attempts) throw e;
+
+      console.warn(`[openJobLog ${jobName}] попытка ${attempt} из ${attempts}: ${lastMessage} — повтор`);
+      await new Promise((r) => setTimeout(r, attempt * 1500));
+    }
+  }
+  throw new Error(`openJobLog ${jobName}: ${lastMessage}`);
+}
+
+/**
+ * Запись именно этого вызова — по колонке run_key, она проиндексирована.
+ * Возвращает null, только если записи действительно нет.
+ *
+ * Сбой самого поиска нельзя молча читать как «записи нет»: мы пошли бы
+ * вставлять вторую строку. Дубль теперь не пройдёт — база его отобьёт, — но
+ * ошибка вставки вместо честного продолжения всё равно хуже, чем повторить
+ * поиск. Поэтому поиск повторяется сам, а если так и не удался — бросает.
+ * Замечание ревью-бота на PR #301.
+ */
+async function findRunByKey(
+  supabase: SupabaseClient,
+  jobName: string,
+  runKey: string,
+): Promise<number | null> {
+  return await withRetry(`findRunByKey ${jobName}`, async () => {
     const { data, error } = await supabase
       .from("ingestion_log")
-      .insert({ job_name: jobName, meta })
       .select("id")
-      .single();
-    if (error) throw new Error(`не удалось открыть ingestion_log: ${error.message}`);
-    if (!data?.id) throw new Error("ingestion_log вернул пустой id");
-    return data.id as number;
+      .eq("run_key", runKey)
+      .limit(1);
+    if (error) throw new Error(`поиск записи по метке не удался: ${error.message}`);
+    if (!data || data.length === 0) return null;
+    return (data[0] as { id: number }).id;
   });
 }
 

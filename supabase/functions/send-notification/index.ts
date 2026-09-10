@@ -8,6 +8,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkCronSecret } from "../_shared/auth.ts";
 import webpush from "https://esm.sh/web-push@3.6.7";
 
 const TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
@@ -64,6 +65,9 @@ function severityEmoji(s: Severity): string {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const gate = checkCronSecret(req);
+  if (!gate.ok) return gate.response;
 
   const json = (b: unknown, status = 200) =>
     new Response(JSON.stringify(b), {

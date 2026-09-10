@@ -1,5 +1,5 @@
 // telegram-alerts — ежедневная проверка ключевых метрик и алерт владелице в Telegram.
-// Запускается раз в день кроном в 08:10 UTC (11:10 МСК).
+// Запускается раз в день кроном в 08:25 UTC (11:25 МСК).
 // 13 проверок ПОСЛЕДОВАТЕЛЬНО (почему — см. комментарий в Deno.serve ниже):
 // заказы и выкупы за вчера, маржа, выкуп, дефицит, простой cron-задач, новые SKU
 // без cost, акции ВБ заканчивающиеся завтра, обнулившийся остаток активных SKU,
@@ -42,6 +42,14 @@ interface CheckResult {
 
 function emoji(s: CheckResult["severity"]): string {
   return s === "red" ? "🔴" : s === "orange" ? "🟠" : s === "yellow" ? "🟡" : "🟢";
+}
+
+// Текст ошибки приходит откуда угодно — из PostgREST, из WB, из рантайма — и
+// может содержать «_», «*», «[», «`». Сводка уходит с parse_mode: "Markdown",
+// поэтому любой непарный символ разметки делает всё сообщение недействительным.
+// Проще вычистить их, чем экранировать: читаемость строки от этого не страдает.
+function stripMarkdown(text: string): string {
+  return text.replace(/[_*`\[\]]/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
 function fmtPct(n: number): string {
@@ -107,7 +115,7 @@ async function checkMargin(supabase: SupabaseClient): Promise<CheckResult> {
       ok: false,
       severity: "yellow",
       summary: "Маржа: не удалось посчитать",
-      message: `🟡 *Маржа* — не удалось посчитать (${curErr?.message ?? prevErr?.message})`,
+      message: `🟡 *Маржа* — не удалось посчитать (${stripMarkdown(curErr?.message ?? prevErr?.message ?? "")})`,
     };
   }
 
@@ -345,7 +353,7 @@ async function checkDeficit(supabase: SupabaseClient): Promise<CheckResult> {
       ok: false,
       severity: "yellow",
       summary: "Дефицит: не удалось посчитать",
-      message: `🟡 *Дефицит* — не удалось посчитать (${pnlErr?.message ?? turErr?.message ?? skuErr?.message})`,
+      message: `🟡 *Дефицит* — не удалось посчитать (${stripMarkdown(pnlErr?.message ?? turErr?.message ?? skuErr?.message ?? "")})`,
     };
   }
 
@@ -444,7 +452,7 @@ async function checkCronHealth(supabase: SupabaseClient): Promise<CheckResult> {
       ok: false,
       severity: "yellow",
       summary: "Cron: не удалось проверить",
-      message: `🟡 *Cron* — не удалось прочитать v_job_health (${error.message})`,
+      message: `🟡 *Cron* — не удалось прочитать v_job_health (${stripMarkdown(error.message)})`,
     };
   }
 
@@ -526,7 +534,7 @@ async function checkNewSkuNoCost(supabase: SupabaseClient): Promise<CheckResult>
       ok: false,
       severity: "yellow",
       summary: "Новых SKU без cost: не удалось проверить",
-      message: `🟡 *Новые SKU* — не удалось проверить (${error.message})`,
+      message: `🟡 *Новые товары* — не удалось проверить (${stripMarkdown(error.message)})`,
     };
   }
 
@@ -575,7 +583,7 @@ async function checkPromotionsEndingSoon(supabase: SupabaseClient): Promise<Chec
 
   const endDate = new Date(`${tomorrow}T00:00:00`);
   const ddmm = `${String(endDate.getDate()).padStart(2, "0")}.${String(endDate.getMonth() + 1).padStart(2, "0")}`;
-  const listStr = rows.map((r) => `«${r.name ?? "без названия"}»`).join(", ");
+  const listStr = rows.map((r) => `«${stripMarkdown(r.name ?? "без названия")}»`).join(", ");
 
   return {
     name: "promotions_ending",
@@ -600,7 +608,7 @@ async function checkOutOfStockActiveSku(supabase: SupabaseClient): Promise<Check
       ok: false,
       severity: "yellow",
       summary: "Товары без остатка: не удалось проверить",
-      message: `🟡 *Остатки ВБ* — не удалось проверить (${skuErr?.message ?? stockErr?.message})`,
+      message: `🟡 *Остатки ВБ* — не удалось проверить (${stripMarkdown(skuErr?.message ?? stockErr?.message ?? "")})`,
     };
   }
 
@@ -655,7 +663,7 @@ async function checkLowRating(supabase: SupabaseClient): Promise<CheckResult> {
       ok: false,
       severity: "yellow",
       summary: "SKU с рейтингом <4.0: не удалось проверить",
-      message: `🟡 *Рейтинг* — не удалось проверить (${error.message})`,
+      message: `🟡 *Рейтинг* — не удалось проверить (${stripMarkdown(error.message)})`,
     };
   }
 
@@ -697,7 +705,7 @@ async function checkStaleCommissions(supabase: SupabaseClient): Promise<CheckRes
       ok: false,
       severity: "yellow",
       summary: "Комиссии WB: не удалось проверить",
-      message: `🟡 *Тарифы ВБ-комиссии* — не удалось проверить (${error.message})`,
+      message: `🟡 *Тарифы ВБ-комиссии* — не удалось проверить (${stripMarkdown(error.message)})`,
     };
   }
 
@@ -764,7 +772,7 @@ async function checkAnomalies(supabase: SupabaseClient): Promise<CheckResult> {
   );
 
   const top5 = rows.slice(0, 5)
-    .map((r) => `${articleById.get(r.sku_id) ?? `sku#${r.sku_id}`} — ${r.title}`)
+    .map((r) => `${articleById.get(r.sku_id) ?? `sku#${r.sku_id}`} — ${stripMarkdown(r.title)}`)
     .join("\n");
 
   return {
@@ -889,7 +897,7 @@ async function checkDeductions(supabase: SupabaseClient): Promise<CheckResult> {
       ok: false,
       severity: "yellow",
       summary: "Удержания: не удалось посчитать",
-      message: `🟡 *Удержания* — не удалось посчитать (${error.message})`,
+      message: `🟡 *Удержания* — не удалось посчитать (${stripMarkdown(error.message)})`,
     };
   }
 
@@ -937,7 +945,7 @@ async function checkDeductions(supabase: SupabaseClient): Promise<CheckResult> {
   const lines = [...byLabel.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
-    .map(([label, sum]) => `• ${label}: ${rub(sum)}`)
+    .map(([label, sum]) => `• ${stripMarkdown(label)}: ${rub(sum)}`)
     .join("\n");
 
   return {
@@ -1008,37 +1016,46 @@ Deno.serve(async (req: Request) => {
     //
     // Тринадцать проверок подряд — около двух секунд. Для задания раз в сутки
     // это ничто, а параллельность не давала выигрыша и теряла данные.
-    const checks: Array<[string, (c: SupabaseClient) => Promise<CheckResult>]> = [
-      ["yesterday_orders", checkYesterdayOrders],
-      ["yesterday_buyouts", checkYesterdayBuyouts],
-      ["margin", checkMargin],
-      ["buyout", checkBuyout],
-      ["deficit", checkDeficit],
-      ["cron_health", checkCronHealth],
-      ["new_sku_no_cost", checkNewSkuNoCost],
-      ["promotions_ending", checkPromotionsEndingSoon],
-      ["out_of_stock", checkOutOfStockActiveSku],
-      ["deductions", checkDeductions],
-      ["low_rating", checkLowRating],
-      ["stale_commissions", checkStaleCommissions],
-      ["anomalies", checkAnomalies],
+    // Третий элемент — подпись для человека. Машинное имя (yesterday_orders,
+    // cron_health, low_rating) содержит подчёркивания, а сводка уходит с
+    // parse_mode: "Markdown", где «_» открывает курсив. Непарный символ делает
+    // разметку недействительной, Telegram отклоняет СООБЩЕНИЕ ЦЕЛИКОМ, а
+    // sendTelegram лишь возвращает false. То есть путь, задуманный ради
+    // сохранения остальных двенадцати строк, сам ронял всю сводку.
+    // Нашёл ревью-бот на PR #300 — проверено, замечание верное.
+    const checks: Array<[string, string, (c: SupabaseClient) => Promise<CheckResult>]> = [
+      ["yesterday_orders", "Заказы вчера", checkYesterdayOrders],
+      ["yesterday_buyouts", "Выкупы вчера", checkYesterdayBuyouts],
+      ["margin", "Маржа", checkMargin],
+      ["buyout", "Выкуп", checkBuyout],
+      ["deficit", "Дефицит", checkDeficit],
+      ["cron_health", "Расписания", checkCronHealth],
+      ["new_sku_no_cost", "Новые товары без себестоимости", checkNewSkuNoCost],
+      ["promotions_ending", "Акции", checkPromotionsEndingSoon],
+      ["out_of_stock", "Остатки", checkOutOfStockActiveSku],
+      ["deductions", "Удержания", checkDeductions],
+      ["low_rating", "Рейтинг", checkLowRating],
+      ["stale_commissions", "Комиссии WB", checkStaleCommissions],
+      ["anomalies", "Аномалии", checkAnomalies],
     ];
 
     const results: CheckResult[] = [];
-    for (const [name, fn] of checks) {
+    for (const [name, label, fn] of checks) {
       try {
         results.push(await fn(supabase));
       } catch (e) {
         // Упавшая проверка не должна уносить всю сводку: остальные строки
-        // владелице нужнее, чем отсутствие письма целиком.
+        // владелице нужнее, чем отсутствие письма целиком. Поэтому и в тексте
+        // строки, и в подробностях стоит подпись без подчёркиваний, а текст
+        // ошибки очищен от символов разметки — иначе Telegram отклонит письмо.
         const msg = e instanceof Error ? e.message : String(e);
         console.error(`[telegram-alerts] проверка ${name} упала: ${msg}`);
         results.push({
           name,
           ok: false,
           severity: "yellow",
-          summary: `${name}: проверка не выполнилась`,
-          message: `🟡 *${name}* — проверка не выполнилась (${msg})`,
+          summary: `${label}: проверка не выполнилась`,
+          message: `🟡 *${label}* — проверка не выполнилась (${stripMarkdown(msg)})`,
         });
       }
     }
