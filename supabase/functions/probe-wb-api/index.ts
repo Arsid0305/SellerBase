@@ -21,6 +21,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkCronSecret } from "../_shared/auth.ts";
+import { openJobLog } from "../_shared/ingestion.ts";
 
 const JOB_NAME = "probe-wb-api";
 const SNIPPET_DEFAULT = 600;
@@ -57,12 +58,20 @@ Deno.serve(async (req: Request) => {
   if (!gate.ok) return gate.response;
 
   const supabase = adminClient();
-  const { data: logRow } = await supabase
-    .from("ingestion_log")
-    .insert({ job_name: JOB_NAME, meta: {} })
-    .select("id")
-    .single();
-  const jobId: number = logRow?.id ?? 0;
+  // Журнал открываем до работы, с повторами. Раньше стояло `?? 0`: если запись
+  // не открылась, прогон шёл дальше с id=0, итог уходил в никуда, и мониторинг
+  // показывал «нет свежего успеха» при работающей функции. Так воронка
+  // «не работала 36 часов» 09.09.2026, хотя данные приходили.
+  let jobId: number;
+  try {
+    jobId = await openJobLog(supabase, JOB_NAME, {});
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[${JOB_NAME}] журнал не открылся: ${msg}`);
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const token = Deno.env.get("WB_TOKEN_READ") ?? Deno.env.get("WB_API_TOKEN");
