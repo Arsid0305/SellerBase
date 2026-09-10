@@ -4,27 +4,48 @@ import { createClient } from '@/shared/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 /**
- * Куда вернуть человека после входа.
+ * Куда вернуть человека после входа. Возвращает готовый абсолютный адрес,
+ * про который уже известно, что он наш.
  *
- * Раньше параметр `next` подставлялся как есть, и это уводило с сайта:
+ * Параметр `next` подставлялся как есть, и это уводило с сайта:
  * `new URL(next, origin)` при абсолютном адресе игнорирует базовый origin,
  * поэтому `?next=https://чужой-сайт` открывал чужой сайт сразу после
- * успешного входа. То же самое делают `//чужой-сайт` и `/\чужой-сайт` —
- * браузер читает их как внешний адрес, а не как путь.
+ * успешного входа. То же самое делают `//чужой-сайт` и `/\чужой-сайт`.
  *
- * Пропускаем только внутренний путь: один ведущий слэш и ничего похожего
- * на хост следом. Всё остальное — на главную.
+ * Проверки начала строки мало по двум причинам, обе проверены вживую.
+ *
+ * Первая: табуляцию, перевод строки и возврат каретки разборщик адресов
+ * выбрасывает молча, поэтому `/%09/чужой-сайт` приходит как
+ * `/\t/чужой-сайт`, проходит проверку на два слэша — и уже после разбора
+ * становится `//чужой-сайт`.
+ *
+ * Вторая: адрес нельзя разбирать дважды. `/..//чужой-сайт` даёт путь
+ * `//чужой-сайт` на нашем же origin — проверка origin довольна, но при
+ * повторном разборе в вызывающем коде этот путь снова читается как внешний
+ * хост. Поэтому наружу отдаётся уже абсолютный адрес, а не путь: второй
+ * разбор с ним ничего сделать не может.
  */
-function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith('/')) return '/';
-  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/';
-  return raw;
+function safeNext(raw: string | null, origin: string): string {
+  const fallback = `${origin}/`;
+  if (!raw) return fallback;
+
+  const cleaned = raw.replace(/[\t\n\r]/g, '');
+  if (!cleaned.startsWith('/')) return fallback;
+  if (cleaned.startsWith('//') || cleaned.startsWith('/\\')) return fallback;
+
+  try {
+    const target = new URL(cleaned, origin);
+    if (target.origin !== origin) return fallback;
+    return target.href;
+  } catch {
+    return fallback;
+  }
 }
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
-  const next = safeNext(url.searchParams.get('next'));
+  const next = safeNext(url.searchParams.get('next'), url.origin);
 
   if (!code) {
     return NextResponse.redirect(new URL('/login?error=missing_code', url.origin));
@@ -41,5 +62,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/login?error=auth_failed', url.origin));
   }
 
-  return NextResponse.redirect(new URL(next, url.origin));
+  return NextResponse.redirect(next);
 }
