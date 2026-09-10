@@ -51,6 +51,17 @@ BALL_WORDS = ("мяч", "мячик", "шарик")
 # без категории — пусть будет видно, что товар не пристроен.
 NO_TEMPLATE = {"Капы", "Прессы для чеснока", "Массажеры косметические", "Скребки"}
 
+# Решения владелицы от 10.09.2026. Держим здесь, чтобы не спрашивать заново:
+# это не открытые вопросы, а известные статусы.
+KNOWN_STATUS = {
+    "Капы": "Пока не продаются. Шаблон не нужен",
+    "Прессы для чеснока": "Сняты с продажи",
+}
+# По артикулу — там, где статус не от предмета, а от конкретного товара.
+KNOWN_STATUS_BY_ARTICLE = {
+    "ACRA7TB101WH": "Артикул будет добавлен позже",
+}
+
 WARN = PatternFill("solid", fgColor="FCE4D6")
 OK = PatternFill("solid", fgColor="E2EFDA")
 
@@ -188,16 +199,19 @@ def fill(unit_path, links_path, book_path):
             r += 1
 
     # Лист с тем, что не сошлось.
-    rep = wb.create_sheet("Что уточнить")
-    head = ["Артикул", "Название", "Предмет на WB", "Почему без категории"]
+    rep = wb.create_sheet("Без категории")
+    head = ["Артикул", "Название", "Предмет на WB", "Почему без категории", "Решение владелицы"]
     for i, h in enumerate(head, start=1):
         c = rep.cell(row=1, column=i, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="922B21")
-        rep.column_dimensions[chr(64 + i)].width = [22, 55, 26, 30][i - 1]
+        c.fill = PatternFill("solid", fgColor="1F3864")
+        rep.column_dimensions[chr(64 + i)].width = [22, 55, 26, 26, 40][i - 1]
     for r, item in enumerate(unresolved, start=2):
         for i, v in enumerate(item, start=1):
             rep.cell(row=r, column=i, value=v)
+        status = KNOWN_STATUS_BY_ARTICLE.get(item[0]) or KNOWN_STATUS.get(item[2], "")
+        c = rep.cell(row=r, column=5, value=status)
+        c.fill = OK if status else WARN
 
     wb.save(book_path)
     return len(products), by_cat, filled_tnved, unresolved
