@@ -89,18 +89,27 @@ export async function openJobLog(
       return data.id as number;
     } catch (e) {
       lastMessage = e instanceof Error ? e.message : String(e);
-      if (!isTransient(lastMessage) || attempt === attempts) throw e;
+      // Ошибка в данных повтору не подлежит — сразу наружу.
+      if (!isTransient(lastMessage)) throw e;
 
       // Вставка могла пройти, а ответ потеряться. Слепой повтор создал бы
       // вторую строку, первая осталась бы навсегда в «running», и уборщик
       // зомби записал бы её как ошибку — то есть повтор портил бы ровно тот
       // журнал, ради которого всё и затевалось. Ищем строго свою запись —
       // по метке прогона, а не по имени задания.
+      //
+      // Проверяем и на ПОСЛЕДНЕЙ попытке тоже. Раньше выход по исчерпанию
+      // попыток стоял до поиска, и самый показательный случай — последняя
+      // вставка прошла, ответ потерялся — заканчивался исключением и 503,
+      // а записанная строка навсегда оставалась в «running». Замечание
+      // ревью-бота на PR #301.
       const mine = await findRunByKey(supabase, jobName, runKey);
       if (mine != null) {
         console.warn(`[openJobLog ${jobName}] ответ потерян, но запись ${mine} создалась — продолжаем с ней`);
         return mine;
       }
+
+      if (attempt === attempts) throw e;
 
       console.warn(`[openJobLog ${jobName}] попытка ${attempt} из ${attempts}: ${lastMessage} — повтор`);
       await new Promise((r) => setTimeout(r, attempt * 1500));
@@ -109,20 +118,32 @@ export async function openJobLog(
   throw new Error(`openJobLog ${jobName}: ${lastMessage}`);
 }
 
-/** Запись именно этого вызова — по метке, положенной в meta.run_key. */
+/**
+ * Запись именно этого вызова — по метке, положенной в meta.run_key.
+ * Возвращает null, только если записи действительно нет.
+ *
+ * Сбой самого поиска нельзя молча читать как «записи нет»: тогда мы вставили
+ * бы вторую строку поверх уже существующей, а уникальности по run_key в
+ * таблице нет — получился бы дубль и зомби. Поэтому поиск повторяется сам, а
+ * если так и не удался — бросает. Лучше не открыть журнал (и это будет
+ * видно), чем тихо его задвоить. Замечание ревью-бота на PR #301.
+ */
 async function findRunByKey(
   supabase: SupabaseClient,
   jobName: string,
   runKey: string,
 ): Promise<number | null> {
-  const { data, error } = await supabase
-    .from("ingestion_log")
-    .select("id")
-    .eq("job_name", jobName)
-    .eq("meta->>run_key", runKey)
-    .limit(1);
-  if (error || !data || data.length === 0) return null;
-  return (data[0] as { id: number }).id;
+  return await withRetry(`findRunByKey ${jobName}`, async () => {
+    const { data, error } = await supabase
+      .from("ingestion_log")
+      .select("id")
+      .eq("job_name", jobName)
+      .eq("meta->>run_key", runKey)
+      .limit(1);
+    if (error) throw new Error(`поиск записи по метке не удался: ${error.message}`);
+    if (!data || data.length === 0) return null;
+    return (data[0] as { id: number }).id;
+  });
 }
 
 /**
