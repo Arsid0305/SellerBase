@@ -46,7 +46,11 @@ RISKY = ["медицинск", "лечебн", "реабилитац", "тера
 PHONE_RE = re.compile(r"(?<!\d)(?:\+7|8)[\s(-]?\d{3}[\s)-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}")
 LINK_RE = re.compile(r"(https?://|www\.|\b[a-z0-9-]+\.(ru|com|рф)\b)", re.I)
 CAPS_RE = re.compile(r"[А-ЯЁ]{4,}")
-BLOCK_RE = re.compile(r"^## ([A-Z0-9]{6,})\s*$(.*?)```\n(.*?)```", re.M | re.S)
+# В артикулах владелицы встречается кириллическая «С» (ACRB1MS106BС) — она
+# выглядит как латинская, но это другой символ. Пропускать такую строку
+# молча нельзя, поэтому заголовок ловим широко, а несовпадения печатаем.
+HEAD_RE = re.compile(r"^## (\S+)\s*$(.*?)(?=^## |\Z)", re.M | re.S)
+ARTICLE_RE = re.compile(r"^[A-Za-zА-ЯЁа-яё0-9]{6,}$")
 
 
 def check(text):
@@ -91,12 +95,18 @@ def check(text):
 
 
 def load(paths):
-    out = []
+    out, skipped = [], []
     for path in paths:
         src = open(path, encoding="utf-8").read()
-        for article, _head, body in BLOCK_RE.findall(src):
-            out.append((article, body.strip()))
-    return out
+        for article, section in HEAD_RE.findall(src):
+            block = re.search(r"```\n(.*?)```", section, re.S)
+            if not ARTICLE_RE.match(article):
+                continue
+            if not block:
+                skipped.append(f"{article}: заголовок есть, текста в кавычках нет")
+                continue
+            out.append((article, block.group(1).strip()))
+    return out, skipped
 
 
 def put_in_book(rows, book_path):
@@ -135,7 +145,9 @@ if __name__ == "__main__":
 
     paths = [a for a in sys.argv[1:] if a.endswith(".md")]
     book = next((a for a in sys.argv[1:] if a.endswith(".xlsx")), None)
-    rows = load(paths)
+    rows, skipped = load(paths)
+    for s_ in skipped:
+        print(f"ПРОПУЩЕН {s_}")
 
     bad = 0
     for article, text in rows:
@@ -151,7 +163,7 @@ if __name__ == "__main__":
             print(f"         └─ {w}")
 
     print(f"\nописаний {len(rows)}, с ошибками {bad}")
-    if bad:
+    if bad or skipped:
         sys.exit(1)
 
     if book:
