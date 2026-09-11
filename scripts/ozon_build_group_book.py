@@ -16,6 +16,7 @@
         docs/ozon/Озон_рабочая_книга.xlsx docs/ozon/Озон_по_группам.xlsx
 """
 
+import re
 import sys
 
 import openpyxl
@@ -39,6 +40,8 @@ FROM_GOODS = [
     ("Аннотация", 90, "текст"),
     ("Штрихкод (Серийный номер / EAN)", 18, "факт"),
     ("Бренд *", 12, "факт"),
+    ("Название модели (для объединения в одну карточку) *", 22, "владелица"),
+    ("Нужен код маркировки *", 14, "владелица"),
     ("Вес в упаковке, г *", 11, "факт"),
     ("Длина упаковки, мм *", 11, "факт"),
     ("Ширина упаковки, мм *", 11, "факт"),
@@ -54,10 +57,12 @@ RENAME = {
     "Аннотация": "Описание",
     "Штрихкод (Серийный номер / EAN)": "Штрихкод",
     "Бренд *": "Бренд",
-    "Вес в упаковке, г *": "Вес, г",
-    "Длина упаковки, мм *": "Длина, мм",
-    "Ширина упаковки, мм *": "Ширина, мм",
-    "Высота упаковки, мм *": "Высота, мм",
+    "Вес в упаковке, г *": "Вес упаковки, г",
+    "Длина упаковки, мм *": "Длина упаковки, мм",
+    "Ширина упаковки, мм *": "Ширина упаковки, мм",
+    "Высота упаковки, мм *": "Высота упаковки, мм",
+    "Название модели (для объединения в одну карточку) *": "Название модели",
+    "Нужен код маркировки *": "Нужен код маркировки",
     "Предельная цена без акций, руб. *": "Цена, руб",
     "НДС, % *": "НДС, %",
     "Ссылка на главное фото *": "Фото (ссылка)",
@@ -76,13 +81,20 @@ def read_goods(book):
 
 
 def read_category(book, name):
-    """Лист категории: строка 1 — заголовки, 2 — подсказки, данные с 3."""
+    """Лист категории: строка 1 — заголовки, 2 — подсказки, данные с 3.
+
+    Исключение — служебный лист «Без категории»: подсказок у него нет,
+    и данные идут со второй строки. Определяем по первой ячейке: если
+    в ней артикул, а не текст подсказки, значит это уже данные.
+    """
     if name not in book.sheetnames:
         return [], {}
     ws = book[name]
     header = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+    second = ws.cell(row=2, column=1).value
+    first_data_row = 2 if second and re.fullmatch(r"[A-ZА-Я0-9]{6,}", str(second).strip()) else 3
     by_article = {}
-    for r in range(3, ws.max_row + 1):
+    for r in range(first_data_row, ws.max_row + 1):
         article = ws.cell(row=r, column=1).value
         if not article:
             continue
@@ -98,7 +110,12 @@ def write_group(out, group, goods, cat_columns, cat_values):
 
     columns = [("Артикул", 15, "факт")]
     columns += [(RENAME.get(t, t), w, kind) for t, w, kind in FROM_GOODS]
-    columns += [(c, 20, "категория") for c in cat_columns]
+    # Оранжевым помечаем только то, без чего Ozon карточку не примет:
+    # у обязательных колонок в заголовке звёздочка. Необязательные поля
+    # (гарантия, срок годности, признак 18+) оставлены намеренно и
+    # красить их как недоделку нельзя.
+    columns += [(c, 20, "категория" if str(c).rstrip().endswith("*") else "необязательное")
+                for c in cat_columns]
 
     for i, (label, width, kind) in enumerate(columns, 1):
         cell = sheet.cell(row=1, column=i, value=label)
@@ -142,8 +159,9 @@ def write_intro(out, stats):
         ("Книга Ozon по группам", None, None, None, None),
         ("", None, None, None, None),
         ("Лист на группу. В строке товар, в колонках всё про него.", None, None, None, None),
-        ("Зелёное — заполнено. Оранжевое — надо заполнить. Серое — ждёт вашего решения.",
-         None, None, None, None),
+        ("Зелёное — заполнено. Оранжевое — обязательное поле Ozon, без него карточка "
+         "не зальётся. Серое — ждёт вашего решения. Пустое без заливки — необязательное, "
+         "оставлено намеренно.", None, None, None, None),
         ("", None, None, None, None),
         ("Группа", "Товаров", "Названий", "Описаний", "Что осталось"),
     ]
@@ -207,11 +225,19 @@ def main(src, dst):
 
         named = sum(1 for i in items if i.get("Название товара"))
         described = sum(1 for i in items if i.get("Аннотация"))
-        empty_cat = [
-            c for c in cat_columns
-            if not any(cat_values.get(i["Артикул *"], {}).get(c) for i in items)
-        ]
-        rest = ", ".join(empty_cat) if empty_cat else "характеристики заполнены"
+        # Считаем пустые ячейки по каждой колонке, а не «пусто у всех».
+        # Иначе код ТН ВЭД, которого нет у двух товаров из одиннадцати,
+        # в сводку не попадёт — а без него карточка не зальётся.
+        gaps = []
+        for c in cat_columns:
+            blank = sum(1 for i in items
+                        if not cat_values.get(i["Артикул *"], {}).get(c))
+            if blank:
+                required = str(c).rstrip().endswith("*")
+                mark = " (обязательное)" if required else ""
+                gaps.append((required, f"{c}{mark}: нет у {blank} из {len(items)}"))
+        gaps.sort(key=lambda g: not g[0])
+        rest = "; ".join(text for _, text in gaps) if gaps else "характеристики заполнены"
         stats.append((group, len(items), named, described, rest))
 
     write_intro(out, stats)
