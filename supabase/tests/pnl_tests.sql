@@ -40,10 +40,14 @@ VALUES ('TEST-SKU-2', 900000002, 'Test SKU 2', 200, true);
 -- ppvz_for_pay = 1700 за продажу (эффективная комиссия 300/шт = 1500 всего)
 -- logistics = 50/шт = 250, storage = 20/шт = 100, acquiring = 10/шт = 50, penalty = 0
 -- cogs = 500 × 5 = 2500
--- tax = 10000 × 0.06 = 600
--- net_profit = ppvz_total(8500) - logistics(250) - storage(100) - acquiring(50)
---              - deduction(0) - penalty(0) - cogs(2500) - tax(600) = 5000
--- margin_pct = 5000 / 10000 * 100 = 50%
+-- tax = retail_amount(5 × 1700 = 8500) × 0.06 = 510
+--   База налога — retail_amount, а не revenue: миграция
+--   20260702200000_tax_rub_from_retail_amount_6pct.sql.
+-- net_profit = ppvz_total(8500) - logistics(250) - storage(100)
+--              - deduction(0) - penalty(0) - cogs(2500) - tax(510) = 5140
+--   Эквайринг не вычитается: он уже внутри ppvz_for_pay
+--   (комментарий к функции в 20260905000100_daily_pnl_align_with_period.sql).
+-- margin_pct = 5140 / 10000 * 100 = 51,4%
 -- ---------------------------------------------------------------
 INSERT INTO wb_reports_fact (
   rrd_id, srid, nm_id, doc_type_name, sale_dt, rr_dt,
@@ -59,7 +63,8 @@ FROM generate_series(1, 5) AS g;
 
 -- ---------------------------------------------------------------
 -- SKU#2: 3 продажи по retail_price=1000, quantity=2 → revenue = 3 × (1000*2) = 6000
--- + 1 возврат retail_amount = 1500, quantity = 1 → revenue -= 1500 → revenue = 4500
+-- + 1 возврат: выручка считается по той же базе retail_price × quantity,
+--   то есть 1000 × 1 = 1000, а не по retail_amount → revenue = 5000
 -- units_sold = 3*2 - 1 = 5
 -- ppvz_for_pay по продажам = 800*3=2400, возврат не несёт ppvz (rr_dt тот же диапазон, ppvz=0)
 -- ---------------------------------------------------------------
@@ -101,8 +106,8 @@ SELECT is(
 -- 2. Revenue SKU#2: 3 продажи × (1000×2=2000) − возврат retail_amount 1500 = 6000 - 1500 = 4500
 SELECT is(
   (SELECT revenue_rub FROM get_pnl_by_period('2026-06-01', '2026-06-30') WHERE wb_article = 900000002),
-  4500::numeric,
-  'P&L: revenue_rub SKU#2 = 4500 (3×2000 продажи − 1500 возврат)'
+  5000::numeric,
+  'P&L: revenue_rub SKU#2 = 5000 (3×2000 продажи − 1000 возврат по retail_price)'
 );
 
 -- 3. units_sold SKU#2 = 3×2 - 1 = 5 (возврат уменьшает количество)
@@ -119,11 +124,11 @@ SELECT is(
   'P&L: cogs_rub SKU#1 = 2500 (500₽/шт × 5шт)'
 );
 
--- 5. tax_rub SKU#1 = revenue(10000) × tax_rate(0.06) = 600
+-- 5. tax_rub SKU#1 = retail_amount(8500) × tax_rate(0.06) = 510
 SELECT is(
   (SELECT tax_rub FROM get_pnl_by_period('2026-06-01', '2026-06-30') WHERE wb_article = 900000001),
-  600::numeric,
-  'P&L: tax_rub SKU#1 = 600 (10000 × 6%)'
+  510::numeric,
+  'P&L: tax_rub SKU#1 = 510 (retail_amount 8500 × 6%)'
 );
 
 -- 6. commission_rub SKU#1 = revenue(10000) − ppvz_for_pay_total(8500) = 1500
@@ -137,15 +142,15 @@ SELECT is(
 --    - deduction(0) - penalty(0) - cogs(2500) - tax(600) = 5000
 SELECT is(
   (SELECT net_profit_rub FROM get_pnl_by_period('2026-06-01', '2026-06-30') WHERE wb_article = 900000001),
-  5000::numeric,
-  'P&L: net_profit_rub SKU#1 = 5000 = ppvz − logistics − storage − acquiring − cogs − tax'
+  5140::numeric,
+  'P&L: net_profit_rub SKU#1 = 5140 = ppvz − logistics − storage − cogs − tax'
 );
 
 -- 8. margin_pct SKU#1 = 5000 / 10000 × 100 = 50
 SELECT is(
   (SELECT margin_pct FROM get_pnl_by_period('2026-06-01', '2026-06-30') WHERE wb_article = 900000001),
-  50::numeric,
-  'P&L: margin_pct SKU#1 = 50%'
+  51.4::numeric,
+  'P&L: margin_pct SKU#1 = 51,4%'
 );
 
 -- 9. margin_pct формула непротиворечива: profit/revenue*100 для произвольной строки SKU#2
