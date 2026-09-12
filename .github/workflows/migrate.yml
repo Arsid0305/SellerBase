@@ -51,41 +51,124 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
+      - name: Поставить psql
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      # Список версий читается из самой рабочей базы, а не вписан руками.
+      #
+      # 12.09.2026. Применение миграций падало с «Remote migration versions
+      # not found in local migrations directory», и падало не впервые: то же
+      # самое было 10.09. Причина — список ниже был записан константой и
+      # заканчивался на 20260624, а MCP apply_migration с тех пор добавил в
+      # историю рабочей базы ещё восемьдесят записей. Каждая новая правка
+      # базы через MCP ломала выкладку заново, и правило §27 («правки базы
+      # только через файл миграции») на деле не работало: файл до базы
+      # не доезжал.
+      #
+      # Адрес пула соединений перебирается так же, как в schema-drift.yml:
+      # у Supabase их несколько, и угадывать нельзя.
+      - name: Собрать список версий из рабочей базы
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          PROD_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -z "$PROJECT_REF" ] || [ -z "$PROD_PASSWORD" ]; then
+            echo "::error::нет секретов SUPABASE_PROJECT_REF или SUPABASE_DB_PASSWORD"
+            exit 1
+          fi
+
+          : > remote_versions.txt
+          for host in aws-1-eu-central-1.pooler.supabase.com \
+                      aws-0-eu-central-1.pooler.supabase.com; do
+            dsn="postgresql://postgres.${PROJECT_REF}@${host}:5432/postgres?sslmode=require&connect_timeout=15"
+            if PGPASSWORD="$PROD_PASSWORD" psql -X -q -t -A \
+                 -c 'select version from supabase_migrations.schema_migrations order by version' \
+                 "$dsn" > remote_versions.txt 2>/tmp/psql.err; then
+              echo "Рабочая база отвечает: $host"
+              break
+            fi
+            echo "Не отвечает $host: $(tr -d '\n' < /tmp/psql.err)"
+          done
+
+          if [ ! -s remote_versions.txt ]; then
+            echo "::error::не удалось прочитать историю миграций рабочей базы"
+            exit 1
+          fi
+          echo "версий в истории рабочей базы: $(wc -l < remote_versions.txt)"
+
       - name: Repair migration history (mark remote-only as applied) + create stubs
-        # Имена локальных файлов миграций исторически в формате 0004_xxx / 20260604_xxx — несовместимом
-        # с timestamp-форматом записей в supabase_migrations.schema_migrations (14-цифровые).
-        # MCP `apply_migration` тоже создаёт записи с timestamp current_time без соответствующего файла.
-        # CLI отказывается делать push если remote/local расходятся:
-        #   1) `migration repair --status applied` — помечает запись в remote table (no-op если уже applied).
-        #   2) ВДОБАВОК создаём stub-файл `<version>_stub_remote_only.sql` (комментарий) — `db push`
-        #      сверяет remote с local *файлами*, repair'а недостаточно. Stubs идемпотентны.
-        # Список = SELECT version FROM supabase_migrations.schema_migrations ORDER BY version.
-        # При появлении новых MCP-миграций — расширять.
+        # Имена локальных файлов миграций исторически в формате 0004_xxx /
+        # 20260604_xxx — несовместимом с timestamp-форматом записей в
+        # supabase_migrations.schema_migrations (14-цифровые). MCP
+        # apply_migration тоже создаёт записи с timestamp current_time без
+        # соответствующего файла. CLI отказывается делать push, если
+        # remote и local расходятся, поэтому для каждой записи без файла
+        # создаём stub «<version>_stub_remote_only.sql» — db push сверяет
+        # remote с local ФАЙЛАМИ, одного repair недостаточно.
+        #
+        # Обрабатываются только версии, у которых файла нет: у остальных
+        # он уже есть, и трогать их незачем.
         run: |
           set -e
-          VERSIONS="20260528183520 20260528223249 20260528224925 20260528225004 20260528225024 20260528225056
-                    20260529082554 20260529083929 20260529084434 20260529140435 20260530090942 20260530133404
-                    20260601191042 20260601191137 20260604192601 20260604192617 20260604192626 20260604192638
-                    20260605024138 20260605065121 20260605065139 20260605080643 20260605081930 20260605082433
-                    20260605143622 20260605205731 20260605205858 20260605210646 20260605212040 20260610081949
-                    20260610182319 20260611191737 20260611205237 20260611210258 20260611210657 20260611211755
-                    20260611212705 20260611215008 20260611215316 20260611220657 20260611221328 20260612122532
-                    20260612123417 20260612124414 20260612190154 20260613185105 20260613191053 20260614080830
-                    20260614202142 20260614211005 20260614213807 20260614232012 20260614233049 20260615161535
-                    20260618072707 20260618072713 20260618072724 20260618072732 20260618072739 20260618223903
-                    20260619084302 20260619085233 20260619171941 20260619171949 20260619172733 20260619172759
-                    20260619225915 20260619230817 20260619231005 20260619231129 20260619231141 20260620075216
-                    20260620075239 20260620075302 20260620075319 20260620102415 20260620133740 20260620202314
-                    20260620202332 20260620214737 20260621072537 20260621072933 20260621073226 20260621073543
-                    20260621073846 20260621073904 20260621074138 20260621074359 20260621074658 20260622145242
-                    20260622145353 20260624162336"
-          for v in $VERSIONS; do
-            supabase migration repair --status applied "$v" || true
-            STUB="supabase/migrations/${v}_stub_remote_only.sql"
-            if ! ls "supabase/migrations/${v}_"*.sql >/dev/null 2>&1; then
-              echo "-- stub for remote-only migration $v (applied via MCP apply_migration)" > "$STUB"
+          made=0
+          while read -r v; do
+            [ -n "$v" ] || continue
+            if ls "supabase/migrations/${v}_"*.sql >/dev/null 2>&1; then
+              continue
             fi
-          done
+            supabase migration repair --status applied "$v" || true
+            echo "-- stub for remote-only migration $v (applied via MCP apply_migration)" \
+              > "supabase/migrations/${v}_stub_remote_only.sql"
+            made=$((made+1))
+          done < remote_versions.txt
+          echo "заглушек создано: $made"
+
+      # ⛔ Предохранитель. Без него эта выкладка стирает историю продаж.
+      #
+      # 12.09.2026. Выкладка падала не первый раз, и я собирался её просто
+      # починить. Проверил, что произойдёт после починки: из 123 версий
+      # локальных миграций 120 отсутствуют в истории рабочей базы —
+      # история велась через MCP, под своими метками. Значит `db push`
+      # счёл бы эти 120 неприменёнными и прогнал бы их заново. Среди них
+      # 0012_use_rrd_id_as_row_key.sql, а он начинается так:
+      #
+      #     truncate table wb_reports_fact_raw, wb_reports_fact;
+      #
+      # Это 187 296 строк отчёта реализации с января 2024 года — вся
+      # история денег. Падение выкладки её и уберегало.
+      #
+      # Поэтому: применяем только то, что НОВЕЕ всего, что уже записано в
+      # истории рабочей базы. Любая старая версия без записи означает, что
+      # история разошлась, — и тогда мы останавливаемся и говорим об этом,
+      # а не накатываем вслепую. Привести историю в порядок — отдельная
+      # осознанная работа, не побочный эффект выкладки.
+      - name: Проверить, что применится только новое
+        run: |
+          set -e
+          ls -1 supabase/migrations/*.sql | sed 's|.*/||' | sed 's/_.*//' \
+            | sort -u > local_versions.txt
+          sort -u remote_versions.txt > remote_sorted.txt
+          comm -23 local_versions.txt remote_sorted.txt > missing.txt
+
+          newest_remote="$(tail -n 1 remote_sorted.txt)"
+          echo "новее всего в истории рабочей базы: $newest_remote"
+
+          older="$(awk -v n="$newest_remote" '$0 <= n' missing.txt)"
+          if [ -n "$older" ]; then
+            echo "::error::история миграций разошлась — выкладка остановлена"
+            echo "Эти версии есть в репозитории, но их нет в истории рабочей базы,"
+            echo "и они старше последней записанной. Применять их заново нельзя:"
+            echo "$older" | sed 's/^/  /'
+            echo
+            echo "Среди старых миграций есть очищающие таблицы. Повторный прогон"
+            echo "стёр бы данные. Историю нужно привести в порядок отдельно."
+            exit 1
+          fi
+
+          echo "к применению:"; sed 's/^/  /' missing.txt
+          [ -s missing.txt ] || echo "  (нечего применять)"
 
       - name: Push migrations (apply unapplied only)
         # Password передаётся через env SUPABASE_DB_PASSWORD (job-level) — supabase CLI читает её сам, без флага в argv.
