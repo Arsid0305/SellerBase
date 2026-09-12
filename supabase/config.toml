@@ -12,9 +12,6 @@ project_id = "hcebwgjgppwaguqittpi"
 [functions.fetch-wb-stocks]
 verify_jwt = true
 
-[functions.sync-sheets]
-verify_jwt = true
-
 [functions.telegram-webhook]
 # Telegram присылает свой апдейт, Supabase JWT отсутствует.
 verify_jwt = false
@@ -90,5 +87,3 @@ verify_jwt = true
 verify_jwt = true
 
 # Заглушка: WB удалил свой эндпоинт, функция отвечает 410 и ничего не делает.
-[functions.fetch-wb-turnover]
-verify_jwt = true

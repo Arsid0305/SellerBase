@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint + Typecheck + Build
+    name: Lint + Typecheck + Tests + Build
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -62,6 +62,21 @@ jobs:
 
       - name: Typecheck
         run: pnpm --filter @sellerbase/web typecheck
+
+      # Тесты формул: точка безубыточности, маржа, оборачиваемость, промо.
+      # 112 проверок, 2,3 секунды. До 11.09.2026 они существовали, но CI их
+      # не запускал — правка формулы уезжала в прод без единой проверки.
+      - name: Unit tests
+        run: pnpm --filter @sellerbase/web test:unit
+
+      # Повторы запроса в общем клиенте Edge Functions. Код на Deno, но
+      # http.ts намеренно без внешних зависимостей — читается и обычным Node.
+      - name: Тесты общего кода функций
+        run: |
+          for t in supabase/functions/_shared/*.test.ts; do
+            echo "--- $t"
+            node --experimental-strip-types --no-warnings "$t"
+          done
 
       - name: Build
         env:

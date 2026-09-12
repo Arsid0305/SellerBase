@@ -15,11 +15,12 @@ on:
 jobs:
   pgtap:
     runs-on: ubuntu-latest
-    # Если pgtap-тесты упадут — не блокируем merge.
-    # Они проверяют SQL-формулы на синтетических данных, ошибка тут чаще = проблема
-    # CI-окружения (нет pgtap extension, не доустановились миграции), чем баг кода.
-    # Реальные ошибки формул ловит MCP execute_sql сверка перед коммитом (rules.md §16).
-    continue-on-error: true
+    # continue-on-error снят 11.09.2026. Он стоял потому, что в чистом
+    # контейнере не применялись 46 миграций из 139 — не хватало ролей,
+    # pg_net, pg_cron и объектов, созданных в проде мимо репозитория.
+    # Теперь среда готовится supabase/ci/test-bootstrap.sql, недостающие
+    # объекты добавлены миграцией 0099, и база собирается целиком.
+    # Красные тесты снова блокируют мерж.
     permissions:
       contents: read
     services:
@@ -52,17 +53,52 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libtap-parser-sourcehandler-pgtap-perl postgresql-client
 
+      - name: Prepare test environment
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 \
+            -f supabase/ci/test-bootstrap.sql
+
       - name: Apply migrations
         env:
           PGPASSWORD: postgres
         run: |
+          failed=0
           for f in supabase/migrations/*.sql; do
-            echo "Applying $f"
-            psql -h localhost -U postgres -d testdb -f "$f" || echo "Migration $f failed (non-fatal for tests)"
+            if ! psql -h localhost -U postgres -d testdb -v ON_ERROR_STOP=1 -q -f "$f" 2>/tmp/err.log; then
+              failed=$((failed + 1))
+              echo "::error file=$f::Миграция не применилась"
+              head -3 /tmp/err.log
+            fi
           done
+          echo "Не применилось миграций: $failed"
+
+      # Тесты проверяют вьюхи и функции. Если их нет, pg_prove покажет
+      # «функция не найдена» вместо настоящей проверки формулы — раньше
+      # это и происходило. Здесь падаем сразу и по делу.
+      - name: Verify schema objects tests rely on
+        env:
+          PGPASSWORD: postgres
+        run: |
+          missing=0
+          for obj in v_turnover_by_sku v_sku_lifecycle v_data_quality; do
+            if ! psql -h localhost -U postgres -d testdb -tAc "select to_regclass('public.$obj')" | grep -q .; then
+              echo "::error::Нет объекта $obj"; missing=$((missing + 1))
+            fi
+          done
+          for fn in get_pnl_by_period get_daily_pnl_series; do
+            if [ "$(psql -h localhost -U postgres -d testdb -tAc "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '$fn'")" = "0" ]; then
+              echo "::error::Нет функции $fn"; missing=$((missing + 1))
+            fi
+          done
+          if [ "$missing" -gt 0 ]; then
+            echo "Схема собралась не полностью: не хватает $missing объектов."
+            exit 1
+          fi
 
       - name: Run pgTAP tests
         env:
           PGPASSWORD: postgres
         run: |
-          pg_prove -h localhost -U postgres -d testdb supabase/tests/*.sql
+          pg_prove -h localhost -U postgres -d testdb supabase/tests/*_tests.sql
