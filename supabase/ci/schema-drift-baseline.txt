@@ -1,0 +1,201 @@
+# Известный долг: объекты, которые есть в рабочей базе, но которых
+# не создаёт ни одна миграция репозитория. Снято 12.09.2026.
+#
+# Зачем файл. Проверка schema-drift сравнивает рабочую базу с той, что
+# собирается из миграций. Сегодня разница — 174 объектов, и если ронять
+# проверку на них, она будет красной всегда. Красная всегда — значит
+# её перестанут читать, а это ровно та болезнь, от которой проверка
+# и заводится.
+#
+# Поэтому: проверка падает только на НОВОМ расхождении, сверх этого списка.
+# По мере того как долг закрывается миграциями, строки отсюда удаляются.
+#
+# Что в долге (12.09.2026):
+#   • целиком отсутствуют таблицы контура «расследований» — problems,
+#     investigations, causes, hypotheses, knowledge (страница «Проблемы»);
+#   • уведомления — notifications, notification_settings,
+#     notification_subscribers (страница «Уведомления»);
+#   • логистика и тарифы — wb_tariffs_return, wb_supplies_fact,
+#     wb_reports_fact_raw, delivery_to_wb, fulfillment_costs,
+#     supplies_transport;
+#   • шесть представлений, среди них v_wb_pl_weekly — недельный P&L;
+#   • четыре функции: get_supply_recommendation, get_orders_cancel_stats,
+#     get_sources_by_period, get_constants_timeline;
+#   • отдельные колонки в существующих таблицах.
+#
+# Формат: по одному отпечатку строки перечня в строке. Перечень строится
+# запросом supabase/ci/schema-inventory.sql, отпечаток — left(md5(line),8).
+001efb88
+0033a5e1
+005c32d9
+049b47de
+0535d346
+07dda8a3
+08022bb3
+08660ea6
+09c46e0e
+0a580765
+0e318a95
+1014f85d
+1176136b
+1239bb12
+14bf639c
+170e37e4
+172e288c
+173a24ec
+1aae71c3
+1bae23c0
+1c7b5dbf
+1df6e85f
+1e096842
+1f301a44
+1f3ce6aa
+1ffd10a6
+213a2178
+22032730
+2557a7ad
+25a07f48
+28fa2cbd
+29226f07
+2b970e0c
+2c8da28a
+2f664b7b
+30623959
+30d09046
+30f84912
+33d4dcc4
+34f0a4f0
+35f83fd9
+3836bbba
+38dad2b2
+39ca9ae6
+3b2f8470
+3b601078
+3c54a380
+3ff38107
+4047ca05
+445806b3
+4770bdb6
+4c7cdbcd
+4cc35d8c
+4fd74ab4
+508260a9
+51a89048
+52090271
+542b6b51
+54c5790d
+551a90d1
+55d6d1f0
+55fda809
+57528394
+595aa85d
+59eccdf9
+5a35e3b0
+5c01c8f4
+625cbc12
+629de4a3
+63ea299c
+64b00d43
+6532fa16
+65419db9
+66a768c4
+6744c908
+677e49a9
+68098c3c
+693ca4f0
+6a81c66a
+6f460d5f
+6f62dbab
+6ff273db
+700c2ff0
+70d6defc
+71ac4892
+725ce417
+73039974
+7936eec7
+797d320c
+7e04ff89
+7e762861
+7f90cb56
+82ef40ec
+84c609bd
+8685989e
+86d131f6
+86e6f5df
+8739d268
+879ec218
+89f3d2c8
+8c051d8f
+8d5bd3b1
+933a74fa
+938580ab
+9b22b4d2
+9c10cd3a
+9ce6b7ac
+9d5b249a
+a4912342
+a8fc3805
+a98312c6
+ac340e30
+ac7f5e24
+ae60d4e8
+b236ea7e
+b2f6d3fc
+b362a1ae
+b66b7734
+bbc5fe62
+be4a9cac
+bf778e5a
+bf8f5a8a
+c07fd3e5
+c47a5f96
+c4e9baad
+c559db91
+c5b0c562
+c659c8ab
+c6d57d23
+c9fac23d
+cb7762b4
+cbc00f44
+ccbf236f
+cd5dc91b
+cf2b318b
+cf9bf710
+d3695a77
+d370c92c
+d3ca6cf8
+d7f5852d
+da797251
+dba94b2d
+dea546b7
+df03bedf
+e198b8e9
+e2af7ac5
+e2ce95d9
+e420296b
+e47f767a
+e74fd584
+e8fe2f57
+e9f91ecf
+eabdbf36
+ebfe3d53
+ed3f2b60
+ed9a35a3
+eeb489fe
+ef003f9e
+ef91e1fc
+efb8bacf
+f002d2f1
+f065265f
+f2c62eee
+f57249e8
+f71dac30
+f733899b
+f93ba39d
+fae72f7a
+fc35abe9
+fc863af9
+fd96ea1d
+fe4479ff
+fe8bc78f
+ff7783f6

@@ -1,0 +1,74 @@
+name: Сверка схемы базы с репозиторием
+
+# Правило tasks/rules.md §27: правки базы идут только через файл миграции.
+# Правило держится на памяти — эта проверка ловит забытое.
+#
+# Собирает базу из миграций репозитория, снимает перечень объектов с неё
+# и с рабочей базы, сравнивает. Падает только на НОВОМ расхождении: долг,
+# известный на момент заведения, перечислен в schema-drift-baseline.txt.
+
+on:
+  schedule:
+    - cron: '20 5 * * *'      # каждый день в 08:20 по Москве
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**/*.sql'
+      - 'supabase/ci/**'
+      - 'scripts/schema_drift_check.sh'
+      - '.github/workflows/schema-drift.yml'
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: supabase/postgres:15.1.1.78
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: repodb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+
+      - name: Поставить psql
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Собрать базу из миграций
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d repodb -v ON_ERROR_STOP=1 \
+               -f supabase/ci/test-bootstrap.sql
+          for f in supabase/migrations/*.sql; do
+            psql -h localhost -U postgres -d repodb -f "$f" >/dev/null 2>&1 \
+              || echo "::notice::миграция $(basename "$f") не применилась"
+          done
+
+      # Подключение к рабочей базе собирается из секретов, которые уже есть
+      # у migrate.yml: отдельный секрет заводить не нужно. Пароль передаётся
+      # переменной, а не внутри строки — иначе его пришлось бы кодировать.
+      - name: Сверить с рабочей базой
+        env:
+          LOCAL_DSN: postgres://postgres@localhost:5432/repodb
+          LOCAL_PASSWORD: postgres
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          PROD_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -z "$PROJECT_REF" ] || [ -z "$PROD_PASSWORD" ]; then
+            echo "::error::нет секретов SUPABASE_PROJECT_REF или SUPABASE_DB_PASSWORD"
+            exit 1
+          fi
+          export PROD_DSN="postgresql://postgres.${PROJECT_REF}@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require"
+          bash scripts/schema_drift_check.sh
