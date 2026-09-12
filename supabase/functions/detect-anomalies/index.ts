@@ -137,6 +137,22 @@ type SkuRow = {
 
 // ============================================================
 // 1. Sales stopped — у активного SKU 3 дня подряд нет продаж, а раньше были.
+//
+// Событие заводится один раз на эпизод — в момент, когда продажи встали, —
+// а не каждые сутки, пока тишина длится.
+//
+// 12.09.2026. В сводке владелицы каждое утро стояло «Аномалии за 24ч: 26
+// критичных». Проверил: с 30.08 таких событий 16-30 в день, и 26 товаров
+// из 35 отметились в 10 днях из 14 — то есть один и тот же товар сообщал
+// об одном и том же событии две недели подряд. Дедупликация была, но с
+// окном в сутки: назавтра тот же товар снова проходил как новость.
+// Постоянно красная строка перестаёт быть новостью: по ней уже нельзя
+// отличить настоящую остановку от фона.
+//
+// Теперь состояние товара хранится в anomaly_state (metric =
+// 'sales_stopped'), как у проверки остатка. Событие заводится только на
+// переходе «продавался → встал». Когда продажи возобновились, отметка
+// снимается, и следующая остановка снова будет новостью.
 // ============================================================
 async function detectSalesStopped(supabase: SupabaseClient, skus: SkuRow[]): Promise<NewEvent[]> {
   const today = new Date();
@@ -161,13 +177,34 @@ async function detectSalesStopped(supabase: SupabaseClient, skus: SkuRow[]): Pro
     if (!cur || r.rr_dt > cur) lastSaleByNm.set(r.nm_id, r.rr_dt);
   }
 
+  const stateRows = await withRetry("detectSalesStopped state", async () => {
+    const { data, error } = await supabase
+      .from("anomaly_state")
+      .select("sku_id, value")
+      .eq("metric", "sales_stopped");
+    if (error) throw new Error(`detectSalesStopped state: ${error.message}`);
+    return data;
+  });
+
+  type StateRow = { sku_id: number; value: { stopped?: boolean } | null };
+  const wasStopped = new Set<number>();
+  for (const r of (stateRows ?? []) as StateRow[]) {
+    if (r.value?.stopped) wasStopped.add(r.sku_id);
+  }
+
   const events: NewEvent[] = [];
+  const upserts: { sku_id: number; metric: string; value: Record<string, unknown> }[] = [];
   const cutoff3d = dateStr(new Date(today.getTime() - 3 * 86_400_000));
+
   for (const s of skus) {
     if (!s.is_active || s.wb_article == null) continue;
     const lastSale = lastSaleByNm.get(s.wb_article);
     // Были продажи в окне 14д, но не за последние 3 дня — значит остановились.
-    if (lastSale && lastSale < cutoff3d) {
+    const stopped = Boolean(lastSale && lastSale < cutoff3d);
+
+    // Новость — только переход. Товар, который молчит вторую неделю, уже
+    // сообщил о себе и больше сводку не занимает.
+    if (stopped && !wasStopped.has(s.id)) {
       events.push({
         sku_id: s.id,
         event_type: "sales_stopped",
@@ -176,7 +213,25 @@ async function detectSalesStopped(supabase: SupabaseClient, skus: SkuRow[]): Pro
         details: { last_sale_dt: lastSale, my_article: s.my_article },
       });
     }
+
+    // Отметку ставим и снимаем только при известном исходе. У товара без
+    // продаж за все 14 дней исхода нет: он не «встал» (вставать было не с
+    // чего) и не «продаётся». Трогать его отметку нельзя — иначе снятие
+    // задним числом вернуло бы ему право снова сообщить об остановке.
+    if (stopped || lastSale) {
+      upserts.push({ sku_id: s.id, metric: "sales_stopped", value: { stopped, last_sale_dt: lastSale ?? null } });
+    }
   }
+
+  if (upserts.length > 0) {
+    await withRetry("detectSalesStopped upsert state", async () => {
+      const { error } = await supabase
+        .from("anomaly_state")
+        .upsert(upserts, { onConflict: "sku_id,metric" });
+      if (error) throw new Error(`detectSalesStopped upsert state: ${error.message}`);
+    });
+  }
+
   return events;
 }
 
