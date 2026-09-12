@@ -69,6 +69,11 @@ jobs:
       - name: Unit tests
         run: pnpm --filter @sellerbase/web test:unit
 
+      # Повторы запроса в общем клиенте Edge Functions. Код на Deno, но
+      # http.ts намеренно без внешних зависимостей — читается и обычным Node.
+      - name: Тесты общего кода функций
+        run: node --experimental-strip-types --no-warnings supabase/functions/_shared/http.test.ts
+
       - name: Build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
