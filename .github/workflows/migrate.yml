@@ -169,6 +169,29 @@ jobs:
           ls -1 supabase/migrations/*.sql | sed 's|.*/||' | sed 's/_.*//' \
             | sort -u > local_versions.txt
 
+          # Двух файлов с одним номером быть не должно.
+          #
+          # 12.09.2026, четвёртая попытка. 20260620000001 носили сразу два
+          # файла — rpc_channel_gap_dates и v_sku_cost_breakdown. В истории
+          # номер значился один раз, проверка считала версии уникальными
+          # (sort -u) и видела его применённым, а CLI работает пофайлово и
+          # счёл второй файл новым. Опять слепое пятно, опять на ровном
+          # месте: проверка обязана видеть то же, что и CLI.
+          dupes="$(ls -1 supabase/migrations/*.sql | sed 's|.*/||' | sed 's/_.*//' \
+                    | sort | uniq -d || true)"
+          if [ -n "$dupes" ]; then
+            echo "::error::два файла миграций с одним номером"
+            echo "$dupes" | while read -r v; do
+              echo "  номер $v:"
+              ls -1 "supabase/migrations/${v}_"*.sql | sed 's|.*/|    |'
+            done
+            echo
+            echo "CLI применяет пофайлово, а история хранит номер один раз —"
+            echo "второй файл навсегда считается новым. Переименовать и"
+            echo "одновременно записать новый номер в историю."
+            exit 1
+          fi
+
           strange="$(grep -vE '^([0-9]{4}|[0-9]{14})$' local_versions.txt || true)"
           if [ -n "$strange" ]; then
             echo "::error::в именах файлов миграций есть непонятные версии"
