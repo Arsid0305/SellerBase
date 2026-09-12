@@ -72,7 +72,11 @@ jobs:
       # Повторы запроса в общем клиенте Edge Functions. Код на Deno, но
       # http.ts намеренно без внешних зависимостей — читается и обычным Node.
       - name: Тесты общего кода функций
-        run: node --experimental-strip-types --no-warnings supabase/functions/_shared/http.test.ts
+        run: |
+          for t in supabase/functions/_shared/*.test.ts; do
+            echo "--- $t"
+            node --experimental-strip-types --no-warnings "$t"
+          done
 
       - name: Build
         env:
