@@ -59,6 +59,11 @@ jobs:
       # Подключение к рабочей базе собирается из секретов, которые уже есть
       # у migrate.yml: отдельный секрет заводить не нужно. Пароль передаётся
       # переменной, а не внутри строки — иначе его пришлось бы кодировать.
+      #
+      # Адрес пула соединений у Supabase зависит от того, на каком кластере
+      # заведён проект: бывает aws-0-<регион>, бывает aws-1-<регион>. Угадать
+      # нельзя — 11.09.2026 проверка упала именно на этом. Поэтому перебираем
+      # известные адреса и берём первый, который отвечает.
       - name: Сверить с рабочей базой
         env:
           LOCAL_DSN: postgres://postgres@localhost:5432/repodb
@@ -70,5 +75,23 @@ jobs:
             echo "::error::нет секретов SUPABASE_PROJECT_REF или SUPABASE_DB_PASSWORD"
             exit 1
           fi
-          export PROD_DSN="postgresql://postgres.${PROJECT_REF}@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require"
+
+          PROD_DSN=""
+          for host in aws-1-eu-central-1.pooler.supabase.com \
+                      aws-0-eu-central-1.pooler.supabase.com; do
+            dsn="postgresql://postgres.${PROJECT_REF}@${host}:5432/postgres?sslmode=require&connect_timeout=15"
+            if PGPASSWORD="$PROD_PASSWORD" psql -X -q -t -c 'select 1' "$dsn" >/dev/null 2>/tmp/psql.err; then
+              echo "Рабочая база отвечает: $host"
+              PROD_DSN="$dsn"
+              break
+            fi
+            echo "Не отвечает $host: $(tr -d '\n' < /tmp/psql.err)"
+          done
+
+          if [ -z "$PROD_DSN" ]; then
+            echo "::error::не удалось подключиться к рабочей базе ни по одному адресу пула"
+            exit 1
+          fi
+
+          export PROD_DSN
           bash scripts/schema_drift_check.sh
