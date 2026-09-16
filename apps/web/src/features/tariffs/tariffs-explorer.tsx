@@ -1,13 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { BaseLogisticsCard } from './base-logistics-card';
 import { TariffTabs } from './tariff-tabs';
-import { CommissionTable } from './commission-table';
-import { LogisticsTable } from './logistics-table';
-import { StorageTable } from './storage-table';
-import { PenaltyTable } from './penalty-table';
-import { DimensionTable } from './dimension-table';
 import { WbBoxTariffsTable } from './wb-box-table';
 import { WbReturnTariffsTable } from './wb-return-table';
 import { WbDynamicsCard } from './wb-dynamics-card';
@@ -26,18 +20,12 @@ export function TariffsExplorer({
 
   return (
     <div className="flex flex-col gap-6">
-      <BaseLogisticsCard />
       <TariffTabs active={active} onSelect={setActive} />
       {active === 'wb-box' && <WbBoxTariffsTable rows={boxRows} />}
       {active === 'wb-return' && <WbReturnTariffsTable rows={returnRows} />}
       {active === 'wb-dynamics' && (
         <WbDynamicsCard warehouses={boxRows} loadDynamics={loadBoxDynamicsAction} />
       )}
-      {active === 'commission' && <CommissionTable />}
-      {active === 'logistics' && <LogisticsTable />}
-      {active === 'storage' && <StorageTable />}
-      {active === 'penalty' && <PenaltyTable />}
-      {active === 'dimension' && <DimensionTable />}
     </div>
   );
 }

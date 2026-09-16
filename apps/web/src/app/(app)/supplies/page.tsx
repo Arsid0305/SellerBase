@@ -72,12 +72,6 @@ export default async function SuppliesPage() {
               Калькулятор
             </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link href="/supplies/china-order/new" className="inline-flex items-center gap-2">
-              <Plus className="size-4" />
-              Новый заказ Китая
-            </Link>
-          </Button>
           <Button asChild>
             <Link href="/supplies/new" className="inline-flex items-center gap-2">
               <Plus className="size-4" />

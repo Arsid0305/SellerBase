@@ -208,11 +208,11 @@ export function SupplyPlanEditor({
         }
 
         // items
-        const items: { skuId: number; warehouseName: string; qty: number }[] = [];
+        const items: { skuId: number; channel: string; qty: number }[] = [];
         for (const r of rows) {
           for (const w of warehouses) {
             const q = r.qtyByWarehouse[w] ?? 0;
-            if (q > 0) items.push({ skuId: r.skuId, warehouseName: w, qty: q });
+            if (q > 0) items.push({ skuId: r.skuId, channel: w, qty: q });
           }
         }
         const r1 = await fetch('/api/supplies/items', {
@@ -318,11 +318,6 @@ export function SupplyPlanEditor({
               <Button variant="outline" asChild>
                 <a href={`/api/supplies/${planId}/ff-xlsx`} download>
                   <Download className="size-4" /> ФФ-шаблон
-                </a>
-              </Button>
-              <Button variant="outline" asChild>
-                <a href={`/api/supplies/${planId}/china-xlsx`} download>
-                  <Download className="size-4" /> Заказ 1688
                 </a>
               </Button>
               <Button variant="destructive" size="icon" onClick={handleDelete} title="Удалить поставку" aria-label="Удалить поставку">

@@ -15,14 +15,10 @@ export default async function TariffsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Тарифы и коэффициенты"
-        description="Базовые тарифы WB по складам (Common Tariffs API), возврат, динамика коэф. и личные индексы продавца"
+        description="Справочник: тарифы WB по складам, возврат и динамика коэффициентов. Обновляются из WB каждый день"
       />
       <PersonalIndicesSection />
       <TariffsExplorer boxRows={boxRows} returnRows={returnRows} />
-      <p className="text-xs text-muted-foreground">
-        · Базовые тарифы и возврат — из `wb_tariffs_box` / `wb_tariffs_return` (обновляются ежедневно из WB Common API).
-        Остальные таблицы (комиссии, штрафы, габариты) пока mock — подтянутся в следующих PR.
-      </p>
     </div>
   );
 }
