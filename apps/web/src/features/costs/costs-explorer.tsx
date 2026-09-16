@@ -780,7 +780,12 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
               {' · '}Курс доллара: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.usd_rate_rub)}₽</span>
             </>
           )}
-          {' · '}Доставка: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_delivery_per_kg)}¥/кг</span>
+          {' · '}Доставка:{' '}
+          <span className="font-medium text-foreground tabular-nums">
+            {currentCargoTariff.usd_rate_rub
+              ? `${((currentCargoTariff.cny_delivery_per_kg * currentCargoTariff.cny_rate_rub) / currentCargoTariff.usd_rate_rub).toFixed(2)} $/кг`
+              : `${fmtRub(currentCargoTariff.cny_delivery_per_kg)}¥/кг`}
+          </span>
           {' · '}Действует с <span className="font-medium text-foreground tabular-nums">{fmtDateRu(currentCargoTariff.effective_from)}</span>
           {currentCargoTariff.comment && <> {' · '}<span className="italic">{currentCargoTariff.comment}</span></>}
         </p>
