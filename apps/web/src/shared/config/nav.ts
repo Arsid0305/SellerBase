@@ -60,6 +60,7 @@ export const navItems: NavItem[] = [
   { title: 'Поставки', href: '/supplies', icon: Truck, group: 'operations' },
   { title: 'Заказы Китая', href: '/supplies/china-order', icon: Package, group: 'operations' },
   { title: 'Отзывы и оценки', href: '/reviews', icon: MessageSquare, group: 'operations' },
+  { title: 'Тарифы и коэффициенты', href: '/tariffs', icon: Percent, group: 'data' },
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
   { title: 'Уведомления', href: '/settings/notifications', icon: Bell, group: 'data' },
   { title: 'Качество данных', href: '/data-quality', icon: ShieldCheck, group: 'data' },
