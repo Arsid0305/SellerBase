@@ -3,7 +3,7 @@ import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { fetchExternalStock } from '@/entities/external-stock';
 import { ExternalStockTable, type ExternalStockRow } from '@/features/supplies/external-stock-table';
 
-export const metadata = { title: 'Остатки дома и в ФФ' };
+export const metadata = { title: 'Остаток на фулфилменте' };
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -26,12 +26,11 @@ export default async function ExternalStockPage() {
     fetchExternalStock(),
   ]);
 
-  const byId = new Map<number, { home: number; ff: number }>();
+  // Дома остатков нет: то, что не ушло по ФБО, остаётся на фулфилменте
+  // и оттуда продаётся по ФБС. Поэтому одно число на товар, а не два.
+  const ffById = new Map<number, number>();
   for (const r of ext) {
-    const cur = byId.get(r.skuId) ?? { home: 0, ff: 0 };
-    if (r.location === 'home') cur.home = r.quantity;
-    else if (r.location === 'ff') cur.ff = r.quantity;
-    byId.set(r.skuId, cur);
+    if (r.location === 'ff') ffById.set(r.skuId, r.quantity);
   }
 
   const rows: ExternalStockRow[] = ((skus ?? []) as SkuRow[]).map((s) => ({
@@ -39,15 +38,14 @@ export default async function ExternalStockPage() {
     myArticle: s.my_article,
     barcode: s.barcode,
     title: s.title,
-    home: byId.get(s.id)?.home ?? 0,
-    ff: byId.get(s.id)?.ff ?? 0,
+    ff: ffById.get(s.id) ?? 0,
   }));
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Остатки дома и в ФФ"
-        description="Запас вне WB — учитывается при расчёте рекомендаций к поставке"
+        title="Остаток на фулфилменте"
+        description="Это и есть склад ФБС: что не отгрузилось по ФБО, остаётся на фулфилменте и продаётся оттуда"
       />
       <ExternalStockTable rows={rows} />
     </div>

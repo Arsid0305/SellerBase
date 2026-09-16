@@ -8,7 +8,6 @@ export type ExternalStockRow = {
   myArticle: string | null;
   barcode: string | null;
   title: string | null;
-  home: number;
   ff: number;
 };
 
@@ -28,7 +27,7 @@ export function ExternalStockTable({ rows: initial }: Props) {
   const visible = useMemo(() => {
     const q = debouncedFilter.trim().toLowerCase();
     return rows.filter((r) => {
-      if (hideZero && r.home === 0 && r.ff === 0) return false;
+      if (hideZero && r.ff === 0) return false;
       if (!q) return true;
       return (
         (r.title ?? '').toLowerCase().includes(q) ||
@@ -38,15 +37,17 @@ export function ExternalStockTable({ rows: initial }: Props) {
     });
   }, [rows, debouncedFilter, hideZero]);
 
-  async function update(skuId: number, location: 'home' | 'ff', quantity: number) {
+  async function update(skuId: number, quantity: number) {
     const q = Math.max(0, Math.floor(quantity) || 0);
-    setRows((prev) => prev.map((r) => (r.skuId === skuId ? { ...r, [location]: q } : r)));
+    setRows((prev) => prev.map((r) => (r.skuId === skuId ? { ...r, ff: q } : r)));
     await fetch('/api/external-stock', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ skuId, location, quantity: q }),
+      body: JSON.stringify({ skuId, location: 'ff', quantity: q }),
     });
   }
+
+  const total = useMemo(() => rows.reduce((a, r) => a + (r.ff ?? 0), 0), [rows]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -67,7 +68,8 @@ export function ExternalStockTable({ rows: initial }: Props) {
           Только с остатком
         </label>
         <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-          {formatInt(visible.length)} из {formatInt(rows.length)}
+          Всего на фулфилменте: {formatInt(total)} шт · показано {formatInt(visible.length)} из{' '}
+          {formatInt(rows.length)}
         </span>
       </div>
       <div className="overflow-x-auto rounded-xl border bg-card">
@@ -77,14 +79,13 @@ export function ExternalStockTable({ rows: initial }: Props) {
               <th className="px-3 py-2 font-medium">Артикул</th>
               <th className="px-3 py-2 font-medium">Штрихкод</th>
               <th className="px-3 py-2 font-medium">Наименование</th>
-              <th className="px-3 py-2 text-right font-medium">Дом</th>
-              <th className="px-3 py-2 text-right font-medium">ФФ</th>
+              <th className="px-3 py-2 text-right font-medium">На фулфилменте (ФБС)</th>
             </tr>
           </thead>
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">
                   Нет данных
                 </td>
               </tr>
@@ -97,17 +98,9 @@ export function ExternalStockTable({ rows: initial }: Props) {
                   <td className="px-2 py-1">
                     <input
                       type="number"
-                      value={r.home}
-                      onChange={(e) => update(r.skuId, 'home', Number(e.target.value))}
-                      className="h-7 w-20 rounded border bg-background px-1 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  </td>
-                  <td className="px-2 py-1">
-                    <input
-                      type="number"
                       value={r.ff}
-                      onChange={(e) => update(r.skuId, 'ff', Number(e.target.value))}
-                      className="h-7 w-20 rounded border bg-background px-1 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-ring"
+                      onChange={(e) => update(r.skuId, Number(e.target.value))}
+                      className="h-7 w-24 rounded border bg-background px-1 text-right text-xs tabular-nums outline-none focus:ring-1 focus:ring-ring"
                     />
                   </td>
                 </tr>

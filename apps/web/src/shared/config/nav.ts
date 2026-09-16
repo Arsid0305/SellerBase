@@ -56,7 +56,7 @@ export const navItems: NavItem[] = [
   { title: 'Анализатор маржи', href: '/analytics/margin', icon: TrendingDown, group: 'analytics' },
   { title: 'Промо-акции WB', href: '/promo', icon: Percent, group: 'operations' },
   { title: 'Дефицит товаров', href: '/deficit', icon: AlertTriangle, group: 'operations' },
-  { title: 'Остатки Дом/ФФ', href: '/products/stock', icon: Warehouse, group: 'operations' },
+  { title: 'Остаток на фулфилменте', href: '/products/stock', icon: Warehouse, group: 'operations' },
   { title: 'Поставки', href: '/supplies', icon: Truck, group: 'operations' },
   { title: 'Заказы Китая', href: '/supplies/china-order', icon: Package, group: 'operations' },
   { title: 'Отзывы и оценки', href: '/reviews', icon: MessageSquare, group: 'operations' },
