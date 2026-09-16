@@ -178,19 +178,7 @@ export function MorningBrief({
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <ListChecks className="size-4 text-muted-foreground" />
-          <Link href="/tasks" className="hover:underline">
-            Задач на сегодня: <span className="font-medium">{brief.tasksTodayCount}</span>
-          </Link>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Search className="size-4 text-muted-foreground" />
-          <Link href="/problems" className="hover:underline">
-            Открытых проблем: <span className="font-medium">{brief.openProblemsCount}</span>
-          </Link>
-        </div>
       </div>
 
       {insights.length > 0 && (
