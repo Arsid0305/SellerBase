@@ -29,8 +29,6 @@ export function PersonalIndicesForm({ latest }: { latest: Latest }) {
 
   const [weekStart, setWeekStart] = useState(isoLastMonday());
   const [loc, setLoc] = useState(latest?.localization_index != null ? String(latest.localization_index) : '');
-  const [dist, setDist] = useState(latest?.sales_distribution_index != null ? String(latest.sales_distribution_index) : '');
-  const [rel, setRel] = useState(latest?.fbo_reliability_pct != null ? String(latest.fbo_reliability_pct) : '');
   const [note, setNote] = useState(latest?.note ?? '');
 
   async function onSubmit(e: React.FormEvent) {
@@ -45,8 +43,6 @@ export function PersonalIndicesForm({ latest }: { latest: Latest }) {
         body: JSON.stringify({
           week_start: weekStart,
           localization_index: loc,
-          sales_distribution_index: dist,
-          fbo_reliability_pct: rel,
           note,
         }),
       });
@@ -64,7 +60,7 @@ export function PersonalIndicesForm({ latest }: { latest: Latest }) {
   return (
     <form onSubmit={onSubmit} className="rounded-md border border-border bg-card px-4 py-3">
       <div className="mb-2 text-sm font-medium">Внести значения из ЛК WB</div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1 text-xs">
           <span className="text-muted-foreground">Неделя (пн)</span>
           <input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} className="rounded border border-border bg-background px-2 py-1 text-sm" required />
@@ -72,14 +68,6 @@ export function PersonalIndicesForm({ latest }: { latest: Latest }) {
         <label className="flex flex-col gap-1 text-xs">
           <span className="text-muted-foreground">Индекс локализации</span>
           <input type="number" step="0.01" value={loc} onChange={(e) => setLoc(e.target.value)} placeholder="1.00" className="rounded border border-border bg-background px-2 py-1 text-sm tabular-nums" />
-        </label>
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-muted-foreground">Индекс распред.</span>
-          <input type="number" step="0.01" value={dist} onChange={(e) => setDist(e.target.value)} placeholder="1.00" className="rounded border border-border bg-background px-2 py-1 text-sm tabular-nums" />
-        </label>
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="text-muted-foreground">Надёжность FBO %</span>
-          <input type="number" step="0.1" value={rel} onChange={(e) => setRel(e.target.value)} placeholder="90.0" className="rounded border border-border bg-background px-2 py-1 text-sm tabular-nums" />
         </label>
         <label className="flex flex-col gap-1 text-xs">
           <span className="text-muted-foreground">Заметка</span>
