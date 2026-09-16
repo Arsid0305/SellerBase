@@ -42,8 +42,6 @@ export type NavItem = {
 export const navGroups: { id: NavItem['group']; title: string }[] = [
   { id: 'analytics', title: 'Аналитика' },
   { id: 'operations', title: 'Операции' },
-  { id: 'management', title: 'Управление' },
-  { id: 'external', title: 'Рынок' },
   { id: 'data', title: 'Данные' },
 ];
 
@@ -77,19 +75,6 @@ export const navItems: NavItem[] = [
     group: 'operations',
   },
   { title: 'Отзывы и оценки', href: '/reviews', icon: MessageSquare, group: 'operations' },
-  { title: 'Реклама товаров', href: '/ads', icon: Megaphone, group: 'operations', badge: 'позже' },
-  {
-    title: 'Источники заказов',
-    href: '/sources',
-    icon: Network,
-    group: 'operations',
-    badge: 'скоро',
-  },
-  { title: 'Цели', href: '/goals', icon: Target, group: 'management' },
-  { title: 'Задачи', href: '/tasks', icon: ListTodo, group: 'management' },
-  { title: 'Покупатели', href: '/customers', icon: Users, group: 'management' },
-  { title: 'Снимок бизнеса', href: '/snapshot', icon: Camera, group: 'management' },
-  { title: 'Поиск ниши WB', href: '/niche', icon: Search, group: 'external', badge: 'позже' },
   { title: 'Тарифы и коэффициенты', href: '/tariffs', icon: Percent, group: 'data' },
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
   { title: 'Уведомления', href: '/settings/notifications', icon: Bell, group: 'data' },

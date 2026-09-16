@@ -22,7 +22,6 @@ import { fetchProductDetailByBarcode } from '@/entities/product-detail';
 import { fetchProductEvents } from '@/entities/events';
 import { fetchSkuEvents } from '@/entities/sku-events';
 import { fetchSnapshotsBySkuId } from '@/entities/snapshots';
-import { ProductScenariosCard } from '@/features/customer';
 import { SuppliersCard } from '@/features/supplies';
 import { fetchSuppliersBySku } from '@/entities/suppliers';
 import { ProductWeeklyCard } from '@/features/weekly-analytics';
@@ -129,7 +128,6 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
 
       {Number.isFinite(skuId) ? <SuppliersCard skuId={skuId} initial={suppliers} /> : null}
 
-      {Number.isFinite(skuId) ? <ProductScenariosCard skuId={skuId} /> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ProductEventsCard events={events} />
