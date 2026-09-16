@@ -1,3 +1,13 @@
+export type SupplyChannel = 'fbo_wb' | 'fbo_ozon' | 'fbs';
+
+export const SUPPLY_CHANNELS: SupplyChannel[] = ['fbo_wb', 'fbo_ozon', 'fbs'];
+
+export const SUPPLY_CHANNEL_LABEL: Record<SupplyChannel, string> = {
+  fbo_wb: 'ФБО ВБ',
+  fbo_ozon: 'ФБО Ozon',
+  fbs: 'ФБС',
+};
+
 export type SupplyPlanStatus =
   | 'draft'
   | 'sent_to_ff'
@@ -35,7 +45,7 @@ export type SupplyPlanItem = {
   id: number;
   planId: number;
   skuId: number;
-  warehouseName: string;
+  channel: SupplyChannel;
   qty: number;
 };
 
