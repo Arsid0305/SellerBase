@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Sun, AlertCircle, ListChecks, Search, Lightbulb } from 'lucide-react';
+import { Sun, AlertCircle, Lightbulb } from 'lucide-react';
 import { Card } from '@/shared/ui/card';
 import { TooltipIcon } from '@/shared/ui/tooltip-icon';
 import type { DashboardBrief } from '@/entities/dashboard-brief';
