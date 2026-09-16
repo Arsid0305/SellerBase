@@ -9,7 +9,7 @@ export default function CalculatorPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Калькулятор поставки"
-        description="Прога считает qty по продажам и остаткам. Двигай lead time и safety stock — цифры пересчитаются."
+        description="Сколько везти по каждому товару. Считается по скорости продаж и остатку — подвиньте сроки, цифры пересчитаются"
       />
       <SupplyCalculator />
     </div>

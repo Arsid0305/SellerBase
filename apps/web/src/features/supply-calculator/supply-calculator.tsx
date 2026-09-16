@@ -101,8 +101,8 @@ export function SupplyCalculator() {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 rounded-md border bg-card p-4 sm:grid-cols-2">
-        <SliderControl label="Lead time (дни)" hint="Время от заказа до попадания на WB склад" value={lead} min={0} max={180} step={1} onChange={setLead} />
-        <SliderControl label="Safety stock (дни)" hint="Страховой запас на случай задержек / всплеска" value={safety} min={0} max={60} step={1} onChange={setSafety} />
+        <SliderControl label="Срок поставки, дней" hint="От заказа поставщику до приёмки на складе" value={lead} min={0} max={180} step={1} onChange={setLead} />
+        <SliderControl label="Страховой запас, дней" hint="Подушка на случай задержки или всплеска спроса" value={safety} min={0} max={60} step={1} onChange={setSafety} />
       </div>
 
       <div className="overflow-x-auto rounded-md border">

@@ -61,12 +61,6 @@ export const navItems: NavItem[] = [
   { title: 'Остатки Дом/ФФ', href: '/products/stock', icon: Warehouse, group: 'operations' },
   { title: 'Поставки', href: '/supplies', icon: Truck, group: 'operations' },
   { title: 'Заказы Китая', href: '/supplies/china-order', icon: Package, group: 'operations' },
-  {
-    title: 'Калькулятор поставки',
-    href: '/supplies/calculator',
-    icon: Calculator,
-    group: 'operations',
-  },
   { title: 'Отзывы и оценки', href: '/reviews', icon: MessageSquare, group: 'operations' },
   { title: 'Тарифы и коэффициенты', href: '/tariffs', icon: Percent, group: 'data' },
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
