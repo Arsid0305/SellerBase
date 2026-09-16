@@ -21,8 +21,6 @@ export async function POST(req: Request) {
   const b = body as Partial<{
     week_start: string;
     localization_index: number;
-    sales_distribution_index: number;
-    fbo_reliability_pct: number;
     note: string;
   }>;
 
@@ -42,8 +40,6 @@ export async function POST(req: Request) {
       {
         week_start: week,
         localization_index: num(b.localization_index),
-        sales_distribution_index: num(b.sales_distribution_index),
-        fbo_reliability_pct: num(b.fbo_reliability_pct),
         note: typeof b.note === 'string' && b.note.trim() ? b.note.trim() : null,
       },
       { onConflict: 'week_start' },

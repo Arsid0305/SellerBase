@@ -1,4 +1,4 @@
-import { Activity, TrendingDown, ShieldCheck } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { CategoryCard, StatList } from '@/shared/ui/domain/category-card';
 import { formatDate } from '@/shared/lib/format';
 import { createAdminClient } from '@/shared/lib/supabase/admin';
@@ -25,40 +25,20 @@ export async function PersonalIndicesSection() {
   const empty = !latest;
   const updated = latest ? formatDate(latest.week_start) : '—';
   const localization = latest?.localization_index ?? null;
-  const distribution = latest?.sales_distribution_index ?? null;
-  const reliability = latest?.fbo_reliability_pct ?? null;
-
   const locTone = localization != null && localization >= 1 ? 'positive' : localization != null ? 'negative' : 'muted';
-  const distTone = distribution != null && distribution <= 1 ? 'positive' : distribution != null ? 'negative' : 'muted';
-  const relTone = reliability != null && reliability >= 90 ? 'positive' : reliability != null ? 'negative' : 'muted';
 
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-        ℹ️ Индексы локализации и распределения WB не отдаёт через API — заполняй руками раз в неделю (пн после 06:00 МСК) по данным из ЛК.
+        ℹ️ Индекс локализации WB не отдаёт через API — заполняй руками раз в неделю (пн после 06:00 МСК) по данным из ЛК.
+        Индекс распределения продаж WB отключил из расчёта логистики 13.07.2026, поэтому его здесь больше нет.
         {empty && ' Пока записей нет — заполни форму ниже.'}
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <CategoryCard title="Индекс локализации" tone="emerald" icon={Activity}>
           <StatList
             rows={[
               { label: 'Текущее значение', value: localization != null ? localization.toFixed(2) : '—', tone: locTone, hint: 'эффективность распределения остатков между складами' },
-              { label: 'Неделя', value: updated, tone: 'muted' },
-            ]}
-          />
-        </CategoryCard>
-        <CategoryCard title="Индекс распределения продаж" tone="amber" icon={TrendingDown}>
-          <StatList
-            rows={[
-              { label: 'Текущее значение', value: distribution != null ? distribution.toFixed(2) : '—', tone: distTone, hint: 'доля наценки от логистики между регионами' },
-              { label: 'Неделя', value: updated, tone: 'muted' },
-            ]}
-          />
-        </CategoryCard>
-        <CategoryCard title="Надёжность FBO" tone="emerald" icon={ShieldCheck}>
-          <StatList
-            rows={[
-              { label: 'Значение', value: reliability != null ? `${reliability.toFixed(1)}%` : '—', tone: relTone },
               { label: 'Неделя', value: updated, tone: 'muted' },
             ]}
           />
