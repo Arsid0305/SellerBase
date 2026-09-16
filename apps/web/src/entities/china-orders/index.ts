@@ -12,6 +12,13 @@ export type ChinaOrderRow = {
   sumYuan: number;
   sumRub: number;
   weightKg: number;
+  usdRate: number;
+  servicesYuan: number;
+  chinaDeliveryYuan: number;
+  totalWeightKg: number;
+  freightUsdPerKg: number;
+  freightRub: number;
+  moscowDeliveryRub: number;
 };
 
 export type ChinaOrderItemRow = {
@@ -51,7 +58,7 @@ export async function fetchChinaOrders(): Promise<ChinaOrderRow[]> {
   const [{ data: orders, error: e1 }, { data: items, error: e2 }] = await Promise.all([
     supabase
       .from('china_orders')
-      .select('id, order_date, supplier_name, status, cny_rate, comment')
+      .select('id, order_date, supplier_name, status, cny_rate, comment, usd_rate_rub, services_yuan, china_delivery_yuan, total_weight_kg, freight_usd_per_kg, freight_rub, moscow_delivery_rub')
       .order('order_date', { ascending: false }),
     supabase.from('china_order_items').select('order_id, qty_ordered, sum_yuan, total_weight_kg').range(0, 5000),
   ]);
@@ -87,6 +94,13 @@ export async function fetchChinaOrders(): Promise<ChinaOrderRow[]> {
       sumYuan: agg.yuan,
       sumRub: agg.yuan * rate,
       weightKg: agg.weight,
+      usdRate: num(o.usd_rate_rub),
+      servicesYuan: num(o.services_yuan),
+      chinaDeliveryYuan: num(o.china_delivery_yuan),
+      totalWeightKg: num(o.total_weight_kg),
+      freightUsdPerKg: num(o.freight_usd_per_kg),
+      freightRub: num(o.freight_rub),
+      moscowDeliveryRub: num(o.moscow_delivery_rub),
     };
   });
 }

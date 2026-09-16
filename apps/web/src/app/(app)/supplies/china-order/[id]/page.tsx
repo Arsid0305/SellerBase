@@ -45,6 +45,71 @@ export default async function ChinaOrderPage({ params }: { params: Promise<{ id:
         <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm">{order.comment}</div>
       )}
 
+      <div className="rounded-md border border-border">
+        <div className="border-b border-border bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
+          Курсы · юань {order.cnyRate.toFixed(2)} ₽ · доллар {order.usdRate.toFixed(2)} ₽
+        </div>
+        <table className="w-full text-sm">
+          <tbody>
+            <tr className="border-b border-border">
+              <td className="px-4 py-2">Товар</td>
+              <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
+                {nf.format(Math.round(order.sumYuan))} ¥
+              </td>
+              <td className="px-4 py-2 text-right font-medium tabular-nums">{rub(order.sumRub)}</td>
+            </tr>
+            <tr className="border-b border-border">
+              <td className="px-4 py-2">Услуги в Китае</td>
+              <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
+                {nf.format(Math.round(order.servicesYuan))} ¥
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums">{rub(order.servicesYuan * order.cnyRate)}</td>
+            </tr>
+            <tr className="border-b border-border">
+              <td className="px-4 py-2">Доставка по Китаю</td>
+              <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
+                {nf.format(Math.round(order.chinaDeliveryYuan))} ¥
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums">{rub(order.chinaDeliveryYuan * order.cnyRate)}</td>
+            </tr>
+            <tr className="border-b border-border">
+              <td className="px-4 py-2">
+                Доставка до Южных Ворот
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {order.totalWeightKg.toFixed(1)} кг × {order.freightUsdPerKg.toFixed(2)} $/кг
+                </span>
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
+                {nf.format(Math.round(order.freightRub / order.usdRate || 0))} $
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums">{rub(order.freightRub)}</td>
+            </tr>
+            <tr className="border-b border-border">
+              <td className="px-4 py-2">Доставка по Москве с Южных Ворот</td>
+              <td className="px-4 py-2" />
+              <td className="px-4 py-2 text-right tabular-nums">{rub(order.moscowDeliveryRub)}</td>
+            </tr>
+            <tr className="bg-muted/30">
+              <td className="px-4 py-2 font-medium">Вся поставка</td>
+              <td className="px-4 py-2 text-right text-xs text-muted-foreground tabular-nums">
+                {order.totalWeightKg > 0
+                  ? `${rub((order.sumRub + order.servicesYuan * order.cnyRate + order.chinaDeliveryYuan * order.cnyRate + order.freightRub + order.moscowDeliveryRub) / order.totalWeightKg)} за кг`
+                  : ''}
+              </td>
+              <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                {rub(
+                  order.sumRub +
+                    order.servicesYuan * order.cnyRate +
+                    order.chinaDeliveryYuan * order.cnyRate +
+                    order.freightRub +
+                    order.moscowDeliveryRub,
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-md border border-border bg-card px-4 py-3">
           <div className="text-xs text-muted-foreground">Позиций</div>
