@@ -375,9 +375,6 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
   const [historyFor, setHistoryFor] = useState<CostRow | null>(null);
   const [history, setHistory] = useState<CostHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [chinaOpen, setChinaOpen] = useState(false);
   const [chinaFile, setChinaFile] = useState<File | null>(null);
@@ -457,81 +454,7 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
     }
   }, []);
 
-  const handleImport = async (file: File) => {
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const isXlsx = /\.xlsx$/i.test(file.name);
-      let entries: { barcode: string; cost_rub: number; valid_from: string; source: string }[] = [];
 
-      if (isXlsx) {
-        const form = new FormData();
-        form.append('file', file);
-        const parseRes = await fetch('/api/costs/parse-xlsx', { method: 'POST', body: form });
-        if (!parseRes.ok) {
-          const err = await parseRes.json().catch(() => ({}));
-          setImportResult('Ошибка чтения XLSX: ' + (err.error ?? parseRes.statusText));
-          return;
-        }
-        const parsed = await parseRes.json();
-        entries = parsed.entries ?? [];
-      } else {
-        let text = await file.text();
-        if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-        const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-        if (lines.length === 0) {
-          setImportResult('Пустой файл');
-          return;
-        }
-        const header = (lines[0] ?? '').split(';').map((s) => s.trim().toLowerCase());
-        const bcIdx = header.indexOf('barcode');
-        const costIdx = header.indexOf('cost');
-        const dateIdx = header.indexOf('valid_from');
-        if (bcIdx < 0 || costIdx < 0 || dateIdx < 0) {
-          setImportResult('Ожидаемые колонки: barcode;cost;valid_from');
-          return;
-        }
-        for (let i = 1; i < lines.length; i++) {
-          const parts = (lines[i] ?? '').split(';');
-          const barcode = (parts[bcIdx] ?? '').trim();
-          const cost = Number((parts[costIdx] ?? '').replace(',', '.').trim());
-          const date = (parts[dateIdx] ?? '').trim();
-          if (!barcode || !Number.isFinite(cost) || !date) continue;
-          entries.push({ barcode, cost_rub: cost, valid_from: date, source: 'csv' });
-        }
-      }
-
-      if (entries.length === 0) {
-        setImportResult('Не нашёл валидных строк');
-        return;
-      }
-      const res = await fetch('/api/costs', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ entries }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setImportResult('Ошибка: ' + (data.error ?? res.statusText));
-      } else {
-        setImportResult(`Импортировано: ${data.inserted}, пропущено: ${(data.skipped ?? []).length}`);
-        startTransition(() => router.refresh());
-      }
-    } finally {
-      setImporting(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
-
-  const resetChinaForm = useCallback(() => {
-    setChinaFile(null);
-    setChinaOrderDate(todayIso());
-    setChinaCnyRate('');
-    setChinaSupplier('');
-    setChinaComment('');
-    setChinaResult(null);
-    setChinaError(null);
-  }, []);
 
   const submitChinaImport = useCallback(async () => {
     if (!chinaFile) {
@@ -568,14 +491,6 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
     }
   }, [chinaFile, chinaOrderDate, chinaCnyRate, chinaSupplier, chinaComment, router]);
 
-  const resetUnitForm = useCallback(() => {
-    setUnitFile(null);
-    setUnitSheetName('Себес');
-    setUnitSource('unit-excel');
-    setUnitEffectiveFrom(todayIso());
-    setUnitResult(null);
-    setUnitError(null);
-  }, []);
 
   const submitUnitImport = useCallback(async () => {
     if (!unitFile) {
@@ -834,50 +749,6 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {importResult && <span className="text-xs text-muted-foreground">{importResult}</span>}
-          <Button variant="ghost" size="sm" asChild>
-            <a href="/api/costs/template-xlsx" download>
-              Шаблон Excel
-            </a>
-          </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleImport(f);
-            }}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fileRef.current?.click()}
-            disabled={importing}
-          >
-            {importing ? 'Импорт...' : 'Импорт Excel/CSV'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              resetChinaForm();
-              setChinaOpen(true);
-            }}
-          >
-            Импортировать заказ Китай (Excel)
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              resetUnitForm();
-              setUnitOpen(true);
-            }}
-          >
-            Импортировать себестоимость (Excel)
-          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -903,9 +774,20 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
 
       {currentCargoTariff && (
         <p className="text-xs text-muted-foreground">
-          Текущий курс юаня: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_rate_rub)}₽</span>
-          {' · '}Доставка: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_delivery_per_kg)}¥/кг</span>
+          Курс юаня: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.cny_rate_rub)}₽</span>
+          {currentCargoTariff.usd_rate_rub != null && (
+            <>
+              {' · '}Курс доллара: <span className="font-medium text-foreground tabular-nums">{fmtRub(currentCargoTariff.usd_rate_rub)}₽</span>
+            </>
+          )}
+          {' · '}Доставка:{' '}
+          <span className="font-medium text-foreground tabular-nums">
+            {currentCargoTariff.usd_rate_rub
+              ? `${((currentCargoTariff.cny_delivery_per_kg * currentCargoTariff.cny_rate_rub) / currentCargoTariff.usd_rate_rub).toFixed(2)} $/кг`
+              : `${fmtRub(currentCargoTariff.cny_delivery_per_kg)}¥/кг`}
+          </span>
           {' · '}Действует с <span className="font-medium text-foreground tabular-nums">{fmtDateRu(currentCargoTariff.effective_from)}</span>
+          {currentCargoTariff.comment && <> {' · '}<span className="italic">{currentCargoTariff.comment}</span></>}
         </p>
       )}
 
@@ -925,11 +807,6 @@ export function CostsExplorer({ rows, cargoTariff = null, ffTariff = null, break
         className="max-h-[70vh] overflow-auto"
         empty="Нет данных"
       />
-
-      <p className="text-xs text-muted-foreground">
-        Шаблон Excel — со столбцами <code>barcode</code>, <code>cost</code>, <code>valid_from</code>.
-        Заполни и загрузи через «Импорт Excel/CSV». Принимаются и .xlsx, и .csv (с разделителем «;»).
-      </p>
 
       {historyFor && (
         <div
