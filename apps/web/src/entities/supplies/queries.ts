@@ -10,6 +10,7 @@ import type {
   SupplyPlanChinaItem,
   SupplyPlanStatus,
   SkuWarehouseStats,
+  SupplyChannel,
 } from './types';
 
 const TABLE_MISSING = '42P01';
@@ -85,15 +86,15 @@ export async function fetchPlanItems(planId: number): Promise<SupplyPlanItem[]> 
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('supply_plan_items')
-    .select('id, plan_id, sku_id, warehouse_name, qty')
+    .select('id, plan_id, sku_id, channel, qty')
     .eq('plan_id', planId)
     .range(0, 50000);
   if (error) return [];
-  return ((data ?? []) as { id: number; plan_id: number; sku_id: number; warehouse_name: string; qty: number }[]).map((r) => ({
+  return ((data ?? []) as { id: number; plan_id: number; sku_id: number; channel: SupplyChannel; qty: number }[]).map((r) => ({
     id: r.id,
     planId: r.plan_id,
     skuId: r.sku_id,
-    warehouseName: r.warehouse_name,
+    channel: r.channel,
     qty: r.qty ?? 0,
   }));
 }
@@ -165,7 +166,7 @@ export async function deletePlan(id: number): Promise<boolean> {
 
 export async function replacePlanItems(
   planId: number,
-  items: { skuId: number; warehouseName: string; qty: number }[],
+  items: { skuId: number; channel: SupplyChannel; qty: number }[],
 ): Promise<boolean> {
   const supabase = createAdminClient();
   const { error: delErr } = await supabase.from('supply_plan_items').delete().eq('plan_id', planId);
@@ -178,7 +179,7 @@ export async function replacePlanItems(
     .map((i) => ({
       plan_id: planId,
       sku_id: i.skuId,
-      warehouse_name: i.warehouseName,
+      channel: i.channel,
       qty: i.qty,
     }));
   if (rows.length === 0) return true;

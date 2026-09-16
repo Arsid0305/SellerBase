@@ -79,6 +79,17 @@ function recomputeRow(
   return out;
 }
 
+const CHANNEL_TITLES: Record<string, string> = {
+  fbo_wb: 'ФБО ВБ',
+  fbo_ozon: 'ФБО Ozon',
+  fbs: 'ФБС',
+};
+
+/** Каналы показываем человеческим названием, всё остальное — как есть. */
+function columnLabel(key: string): string {
+  return CHANNEL_TITLES[key] ?? key;
+}
+
 export function SupplyPlanEditor({
   planId,
   initialName,
@@ -350,15 +361,15 @@ export function SupplyPlanEditor({
             </tr>
             <tr className="border-b text-[10px] text-muted-foreground">
               {warehouses.map((w) => (
-                <th key={`s-${w}`} className="border-l px-2 py-1 font-normal">{w}</th>
+                <th key={`s-${w}`} className="border-l px-2 py-1 font-normal">{columnLabel(w)}</th>
               ))}
               {warehouses.map((w) => (
-                <th key={`st-${w}`} className="border-l px-2 py-1 font-normal">{w}</th>
+                <th key={`st-${w}`} className="border-l px-2 py-1 font-normal">{columnLabel(w)}</th>
               ))}
               <th className="border-l px-2 py-1 font-normal">Дом</th>
               <th className="border-l px-2 py-1 font-normal">ФФ</th>
               {warehouses.map((w) => (
-                <th key={`q-${w}`} className="border-l px-2 py-1 font-normal">{w}</th>
+                <th key={`q-${w}`} className="border-l px-2 py-1 font-normal">{columnLabel(w)}</th>
               ))}
             </tr>
           </thead>

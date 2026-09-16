@@ -6,6 +6,7 @@ import {
   fetchSupplyStats,
   fetchPlanItems,
   fetchPlanChinaItems,
+  SUPPLY_CHANNELS,
 } from '@/entities/supplies';
 import { fetchSuppliers } from '@/entities/suppliers';
 import { SupplyPlanEditor, SupplyPlanActions, type SupplyEditorRow } from '@/features/supplies';
@@ -30,7 +31,7 @@ export default async function SupplyDetailPage({ params }: { params: Params }) {
   const planId = isNew ? null : Number(id);
   if (!isNew && (!Number.isFinite(planId) || planId == null)) notFound();
 
-  const [plan, { rows: statsRows, warehouses }, allSuppliers, items, chinaItems] = await Promise.all([
+  const [plan, { rows: statsRows }, allSuppliers, items, chinaItems] = await Promise.all([
     !isNew && planId != null ? fetchSupplyPlan(planId) : Promise.resolve(null),
     fetchSupplyStats(),
     fetchSuppliers(),
@@ -48,7 +49,7 @@ export default async function SupplyDetailPage({ params }: { params: Params }) {
       m = new Map();
       itemsBySku.set(it.skuId, m);
     }
-    m.set(it.warehouseName, it.qty);
+    m.set(it.channel, it.qty);
   }
   const chinaBySku = new Map<number, { qty: number; supplierId: number | null }>();
   for (const it of chinaItems) {
@@ -71,10 +72,13 @@ export default async function SupplyDetailPage({ params }: { params: Params }) {
       isDefault: s.isDefault,
     }));
     const existingQty = itemsBySku.get(r.skuId);
+    // Каналы отгрузки вместо складов: на WB везём в одну точку, WB сам развозит,
+    // по Ozon владелица отдаёт одно число, ФБС — общий склад на обе площадки.
     const qtyByWarehouse: Record<string, number> = {};
-    for (const w of warehouses) {
+    for (const w of SUPPLY_CHANNELS) {
       if (existingQty?.has(w)) qtyByWarehouse[w] = existingQty.get(w) ?? 0;
-      else if (isNew) qtyByWarehouse[w] = r.recommendByWarehouse[w] ?? 0;
+      else if (isNew && w === 'fbo_wb')
+        qtyByWarehouse[w] = Object.values(r.recommendByWarehouse).reduce((a, b) => a + (b ?? 0), 0);
       else qtyByWarehouse[w] = 0;
     }
     const china = chinaBySku.get(r.skuId);
@@ -115,7 +119,7 @@ export default async function SupplyDetailPage({ params }: { params: Params }) {
         initialName={plan?.name ?? ''}
         initialStatus={plan?.status ?? 'draft'}
         initialNotes={plan?.notes ?? ''}
-        warehouses={warehouses}
+        warehouses={SUPPLY_CHANNELS}
         rows={rows}
       />
 

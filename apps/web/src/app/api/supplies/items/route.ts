@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { replacePlanItems } from '@/entities/supplies';
+import { replacePlanItems, SUPPLY_CHANNELS, type SupplyChannel } from '@/entities/supplies';
 
 export const dynamic = 'force-dynamic';
 
-type ItemInput = { skuId: number; warehouseName: string; qty: number };
+type ItemInput = { skuId: number; channel: SupplyChannel; qty: number };
 
 function asItems(v: unknown): ItemInput[] | null {
   if (!Array.isArray(v)) return null;
@@ -12,10 +12,10 @@ function asItems(v: unknown): ItemInput[] | null {
     if (!r || typeof r !== 'object') return null;
     const o = r as Record<string, unknown>;
     const skuId = Number(o.skuId);
-    const warehouseName = typeof o.warehouseName === 'string' ? o.warehouseName : '';
+    const channel = o.channel as SupplyChannel;
     const qty = Math.max(0, Math.floor(Number(o.qty) || 0));
-    if (!Number.isFinite(skuId) || !warehouseName) return null;
-    out.push({ skuId, warehouseName, qty });
+    if (!Number.isFinite(skuId) || !SUPPLY_CHANNELS.includes(channel)) return null;
+    out.push({ skuId, channel, qty });
   }
   return out;
 }
