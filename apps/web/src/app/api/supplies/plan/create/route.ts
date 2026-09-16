@@ -4,7 +4,9 @@ import { requireAuth } from '@/shared/lib/auth/require-auth';
 
 export const dynamic = 'force-dynamic';
 
-type PlanItem = { sku_id: number; qty: number; warehouse_name?: string | null };
+const CHANNELS = ['fbo_wb', 'fbo_ozon', 'fbs'] as const;
+type Channel = (typeof CHANNELS)[number];
+type PlanItem = { sku_id: number; qty: number; channel?: Channel | null };
 
 export async function POST(req: Request) {
   const auth = await requireAuth();
@@ -40,7 +42,7 @@ export async function POST(req: Request) {
   const rows = items.map((it) => ({
     plan_id: planId,
     sku_id: Number(it.sku_id),
-    warehouse_name: it.warehouse_name?.trim() || null,
+    channel: CHANNELS.includes(it.channel as Channel) ? it.channel : 'fbo_wb',
     qty: Math.round(Number(it.qty)),
   }));
   const { error: itemsErr } = await supabase.from('supply_plan_items').insert(rows);
