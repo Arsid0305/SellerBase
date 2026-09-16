@@ -4,6 +4,12 @@ import { createAdminClient } from '@/shared/lib/supabase/admin';
 import { requireAuth } from '@/shared/lib/auth/require-auth';
 
 export const runtime = 'nodejs';
+const CHANNEL_TITLE: Record<string, string> = {
+  fbo_wb: 'ФБО ВБ',
+  fbo_ozon: 'ФБО Ozon',
+  fbs: 'ФБС',
+};
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -21,19 +27,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     supabase.from('supply_plans').select('id, name, status, notes, created_at').eq('id', planId).single(),
     supabase
       .from('supply_plan_items')
-      .select('sku_id, warehouse_name, qty, sku_catalog(my_article, wb_article, barcode, title, subject_name)')
+      .select('sku_id, channel, qty, sku_catalog(my_article, wb_article, barcode, title, subject_name)')
       .eq('plan_id', planId),
   ]);
   if (!plan) return NextResponse.json({ error: 'plan not found' }, { status: 404 });
 
   type JoinedRaw = {
-    sku_id: number; warehouse_name: string | null; qty: number;
+    sku_id: number; channel: string | null; qty: number;
     sku_catalog: { my_article: string | null; wb_article: number | null; barcode: string | null; title: string | null; subject_name: string | null } | { my_article: string | null; wb_article: number | null; barcode: string | null; title: string | null; subject_name: string | null }[] | null;
   };
-  type Joined = { sku_id: number; warehouse_name: string | null; qty: number; sku_catalog: { my_article: string | null; wb_article: number | null; barcode: string | null; title: string | null; subject_name: string | null } | null };
+  type Joined = { sku_id: number; channel: string | null; qty: number; sku_catalog: { my_article: string | null; wb_article: number | null; barcode: string | null; title: string | null; subject_name: string | null } | null };
   const items: Joined[] = ((itemsRaw ?? []) as JoinedRaw[]).map((r) => ({
     sku_id: r.sku_id,
-    warehouse_name: r.warehouse_name,
+    channel: r.channel,
     qty: r.qty,
     sku_catalog: Array.isArray(r.sku_catalog) ? (r.sku_catalog[0] ?? null) : r.sku_catalog,
   }));
@@ -67,7 +73,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       barcode: it.sku_catalog?.barcode ?? '',
       title: it.sku_catalog?.title ?? '',
       subject: it.sku_catalog?.subject_name ?? '',
-      warehouse: it.warehouse_name ?? '—',
+      warehouse: CHANNEL_TITLE[it.channel ?? ''] ?? it.channel ?? '—',
       qty: it.qty,
     });
   });
