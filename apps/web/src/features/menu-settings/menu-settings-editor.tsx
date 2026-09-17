@@ -9,7 +9,7 @@ import { defaultEntries } from '@/entities/menu-layout/resolve';
 import type { MenuEntry } from '@/entities/menu-layout/types';
 
 type Row =
-  | { kind: 'item'; href: string; hidden: boolean; title: string }
+  | { kind: 'item'; href: string; hidden: boolean; title: string; badge?: string }
   | { kind: 'divider'; label: string };
 
 function toRows(entries: MenuEntry[]): Row[] {
@@ -25,10 +25,10 @@ function toRows(entries: MenuEntry[]): Row[] {
     const item = byHref.get(e.href);
     if (!item) continue;
     used.add(e.href);
-    rows.push({ kind: 'item', href: e.href, hidden: e.hidden === true, title: item.title });
+    rows.push({ kind: 'item', href: e.href, hidden: e.hidden === true, title: item.title, badge: item.badge });
   }
   for (const i of navItems) {
-    if (!used.has(i.href)) rows.push({ kind: 'item', href: i.href, hidden: false, title: i.title });
+    if (!used.has(i.href)) rows.push({ kind: 'item', href: i.href, hidden: false, title: i.title, badge: i.badge });
   }
   return rows;
 }
@@ -194,7 +194,14 @@ export function MenuSettingsEditor({ initialEntries }: { initialEntries: MenuEnt
               </>
             ) : (
               <>
-                <span className="flex-1 truncate text-sm">{row.title}</span>
+                <span className="flex-1 truncate text-sm">
+                  {row.title}
+                  {row.badge && (
+                    <span className="ml-2 rounded bg-fuchsia-500/10 px-1.5 py-0.5 text-[10px] font-medium text-fuchsia-700 dark:text-fuchsia-300">
+                      {row.badge}
+                    </span>
+                  )}
+                </span>
                 <Button
                   variant="ghost"
                   size="icon"
