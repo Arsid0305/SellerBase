@@ -1,14 +1,47 @@
 // ozon-probe — временная разведка методов Ozon. Только читает, ничего не пишет.
 // Документация Ozon из рабочей среды закрыта сетевым фильтром, поэтому
-// строение ответа выясняется опытом. Удалить, когда финансы Ozon заработают.
+// строение ответа выясняется опытом. Удалить, когда разведка закончена.
 //
-// ?what=realization — отчёт о реализации за месяц (строение строки)
-// ?what=cashflow  — движение денег по неделям
+// ?what=realization — отчёт о реализации за месяц
+// ?what=cashflow    — движение денег по неделям
+// ?what=zalezhi     — перебор методов про остатки, залежи и хранение по товарам
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { checkCronSecret } from "../_shared/auth.ts";
 
 const BASE = "https://api-seller.ozon.ru";
+
+// Кандидаты на «хранение и залежи по товарам». Что из этого живо -
+// выясняется только запросом: угадывать по памяти нельзя.
+const ZALEZHI: [string, unknown][] = [
+  ["/v1/analytics/manage/stocks", { limit: 5, offset: 0 }],
+  ["/v2/analytics/stock_on_warehouse", { limit: 5, offset: 0, warehouse_type: "ALL" }],
+  ["/v1/analytics/stock_on_warehouse", { limit: 5, offset: 0, warehouse_type: "ALL" }],
+  ["/v1/analytics/turnover/stocks", { limit: 5, offset: 0 }],
+  ["/v1/report/warehouse/stock", { language: "RU", warehouseType: "ALL" }],
+  ["/v1/finance/products/buyout", { date_from: "2026-08-01", date_to: "2026-08-31" }],
+];
+
+function shapeOf(text: string): unknown {
+  try {
+    const data = JSON.parse(text);
+    const res = (data as { result?: unknown }).result ?? data;
+    if (Array.isArray(res)) return { strok: res.length, pervaya: res[0] ?? null };
+    if (res && typeof res === "object") {
+      const o = res as Record<string, unknown>;
+      const out: Record<string, unknown> = { klyuchi: Object.keys(o) };
+      for (const [k, v] of Object.entries(o)) {
+        if (Array.isArray(v)) {
+          out[k] = { strok: v.length, pervaya: v[0] ?? null };
+        }
+      }
+      return out;
+    }
+    return res;
+  } catch {
+    return text.slice(0, 400);
+  }
+}
 
 Deno.serve(async (req: Request) => {
   const gate = checkCronSecret(req);
@@ -16,58 +49,57 @@ Deno.serve(async (req: Request) => {
 
   const url = new URL(req.url);
   const what = url.searchParams.get("what") ?? "realization";
-  const monthBack = Number(url.searchParams.get("back") ?? 1);
-
   const headers = {
     "Client-Id": Deno.env.get("OZON_CLIENT_ID") ?? "",
     "Api-Key": Deno.env.get("OZON_API_KEY") ?? "",
     "Content-Type": "application/json",
   };
-
   const now = new Date();
-  const m = new Date(now.getFullYear(), now.getMonth() - monthBack, 1);
 
-  let path: string;
-  let body: unknown;
-  if (what === "cashflow") {
-    path = "/v1/finance/cash-flow-statement/list";
-    body = {
-      date: {
-        from: new Date(now.getTime() - Number(url.searchParams.get("days") ?? 120) * 86400 * 1000).toISOString(),
-        to: now.toISOString(),
-      },
-      page: Number(url.searchParams.get("page") ?? 1),
-      page_size: 5,
-      with_details: true,
-    };
-  } else {
-    path = "/v2/finance/realization";
-    body = { month: m.getMonth() + 1, year: m.getFullYear() };
+  const zapros = async (path: string, body: unknown) => {
+    const resp = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    const text = await resp.text();
+    return { path, status: resp.status, ok: resp.ok, shape: shapeOf(text) };
+  };
+
+  if (what === "zalezhi") {
+    const out = [];
+    for (const [path, body] of ZALEZHI) {
+      out.push(await zapros(path, body));
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    return new Response(JSON.stringify({ probe: "zalezhi", rezultaty: out }), {
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
-  const resp = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  const text = await resp.text();
+  if (what === "cashflow") {
+    const days = Number(url.searchParams.get("days") ?? 120);
+    return new Response(
+      JSON.stringify(await zapros("/v1/finance/cash-flow-statement/list", {
+        date: {
+          from: new Date(now.getTime() - days * 86400_000).toISOString(),
+          to: now.toISOString(),
+        },
+        page: 1,
+        page_size: 5,
+        with_details: true,
+      })),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  }
 
-  // Отдаём строение, а не весь ответ: нужны имена полей и один пример.
-  let shape: unknown = text.slice(0, 1500);
-  try {
-    const data = JSON.parse(text) as { result?: { rows?: unknown[]; cash_flows?: unknown[] } };
-    const rows = data.result?.rows ?? data.result?.cash_flows ?? [];
-    const details = (data.result as { details?: unknown[] } | undefined)?.details ?? [];
-    shape = {
-      vsego_strok: Array.isArray(rows) ? rows.length : 0,
-      pervaya_stroka: Array.isArray(rows) ? rows[0] : null,
-      klyuchi_result: data.result ? Object.keys(data.result) : [],
-      podrobnosti: Array.isArray(details) ? details.slice(0, 1) : details,
-    };
-  } catch { /* оставляем текст */ }
-
+  const back = Number(url.searchParams.get("back") ?? 1);
+  const m = new Date(now.getFullYear(), now.getMonth() - back, 1);
   return new Response(
-    JSON.stringify({ ok: resp.ok, status: resp.status, path, mesyac: body, shape }),
+    JSON.stringify(await zapros("/v2/finance/realization", {
+      month: m.getMonth() + 1,
+      year: m.getFullYear(),
+    })),
     { headers: { "Content-Type": "application/json" } },
   );
 });
