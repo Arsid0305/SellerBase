@@ -69,16 +69,45 @@ Deno.serve(async (req: Request) => {
   }
 
   // 2. Остатки на складах — второй по важности после самих товаров.
+  // Считаем итог по всем товарам, а не показываем первые строки: владелице
+  // нужен ответ «сколько всего лежит», а не пример ответа Ozon.
   try {
     const resp = await fetch(`${OZON_BASE}/v4/product/info/stocks`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ filter: { visibility: "ALL" }, cursor: "", limit: 100 }),
+      body: JSON.stringify({ filter: { visibility: "ALL" }, cursor: "", limit: 1000 }),
     });
     const text = await resp.text();
-    out.stocks = resp.ok
-      ? { status: resp.status, otvet: text.slice(0, 400) }
-      : { status: resp.status, error: text.slice(0, 300) };
+    if (!resp.ok) {
+      out.stocks = { status: resp.status, error: text.slice(0, 300) };
+    } else {
+      type Stock = { type?: string; present?: number; reserved?: number };
+      type Item = { offer_id?: string; stocks?: Stock[] };
+      const data = JSON.parse(text) as { items?: Item[] };
+      const items = data.items ?? [];
+      let fbo = 0, fbs = 0, rez = 0;
+      const s_ostatkom: { article: string; fbo: number; fbs: number }[] = [];
+      for (const it of items) {
+        let iFbo = 0, iFbs = 0;
+        for (const st of it.stocks ?? []) {
+          const n = Number(st.present ?? 0);
+          rez += Number(st.reserved ?? 0);
+          if (st.type === "fbo") iFbo += n;
+          else if (st.type === "fbs") iFbs += n;
+        }
+        fbo += iFbo;
+        fbs += iFbs;
+        if (iFbo + iFbs > 0) s_ostatkom.push({ article: it.offer_id ?? "", fbo: iFbo, fbs: iFbs });
+      }
+      out.stocks = {
+        status: resp.status,
+        tovarov: items.length,
+        fbo_vsego: fbo,
+        fbs_vsego: fbs,
+        v_rezerve: rez,
+        s_ostatkom: s_ostatkom,
+      };
+    }
   } catch (e) {
     out.stocks = { error: e instanceof Error ? e.message : String(e) };
   }
