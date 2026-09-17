@@ -10,9 +10,16 @@ import { cn } from '@/shared/lib/utils';
  * где-то видеть текущую». Поэтому строки, их порядок и названия - как в
  * её таблице, без переделок под удобство вёрстки.
  *
- * Итог считаем здесь, а не в базе: «Потеряно» - это списание, товара уже
- * нет, и складывать его с наличным остатком в одну сумму нельзя. Поэтому
- * две итоговые строки, а не одна.
+ * Главное число - «в работе», и только оно. Сначала здесь стоял общий итог
+ * «товара в наличии» с долей «работает 19 %». Владелица это отменила:
+ * «скорее всего этого никогда не вернут, то что потеряно или то что
+ * зависло. Постоянно видеть эту цифру наверно не. На данный момент реально
+ * работает столько, да и уже отталкиваться. Я не питаю иллюзий».
+ *
+ * Она права и по сути: общий итог складывал живой товар с деньгами, которых
+ * уже нет, и получалась сумма, на которую нельзя опереться ни в одном
+ * решении. Мёртвое показываем строками - видеть надо, планировать от него
+ * нельзя.
  */
 export function StockMoneyTable({ rows }: { rows: StockMoneyRow[] }) {
   if (rows.length === 0) {
@@ -28,14 +35,14 @@ export function StockMoneyTable({ rows }: { rows: StockMoneyRow[] }) {
     );
   }
 
-  const naliche = rows
-    .filter((r) => r.kind === 'itog' && r.label !== 'Потеряно')
-    .reduce((acc, r) => ({ units: acc.units + r.units, rub: acc.rub + r.rub }), { units: 0, rub: 0 });
-  const poteryano = rows.find((r) => r.label === 'Потеряно');
-  const vProdazhe = rows.find((r) => r.label === 'Лежит для продажи');
-  const dolyaRabotaet = naliche.rub > 0 && vProdazhe
-    ? Math.round((vProdazhe.rub / naliche.rub) * 100)
-    : null;
+  const byLabel = (label: string) => rows.find((r) => r.label === label);
+  const vRabote = byLabel('Лежит для продажи');
+  const zamorozheno = byLabel('Заморожено на мёртвых складах');
+  const zavislo = byLabel('Возвраты, зависли');
+  const poteryano = byLabel('Потеряно');
+  // Мёртвое - это заморожённое и зависшее. «Едет покупателям» сюда не идёт:
+  // тот товар в процессе, он почти продан.
+  const mertvoe = (zamorozheno?.rub ?? 0) + (zavislo?.rub ?? 0);
 
   return (
     <Card>
@@ -43,6 +50,16 @@ export function StockMoneyTable({ rows }: { rows: StockMoneyRow[] }) {
         <CardTitle>Где деньги</CardTitle>
       </CardHeader>
       <CardContent>
+        <div className="mb-5">
+          <div className="text-xs text-muted-foreground">В работе</div>
+          <div className="text-3xl font-semibold tabular-nums">
+            {formatRub(vRabote?.rub ?? 0)}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {formatInt(vRabote?.units ?? 0)} шт · это то, что лежит и продаётся
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
             <thead>
@@ -77,29 +94,13 @@ export function StockMoneyTable({ rows }: { rows: StockMoneyRow[] }) {
                 </tr>
               ))}
             </tbody>
-            <tfoot>
-              <tr className="border-t-2 font-semibold">
-                <td className="py-2 pr-4">Товара в наличии</td>
-                <td className="py-2 pr-4 text-right tabular-nums">{formatInt(naliche.units)}</td>
-                <td className="py-2 text-right tabular-nums">{formatRub(naliche.rub)}</td>
-              </tr>
-            </tfoot>
           </table>
         </div>
 
         <p className="mt-4 text-xs text-muted-foreground">
-          {dolyaRabotaet != null && (
-            <>
-              Из {formatRub(naliche.rub)} товара работает {formatRub(vProdazhe?.rub ?? 0)} -
-              это {dolyaRabotaet} %. Остальное лежит мёртво.{' '}
-            </>
-          )}
-          {poteryano && poteryano.units > 0 && (
-            <>
-              Плюс {formatRub(poteryano.rub)} списано - этого товара уже нет физически, в
-              наличие он не входит.
-            </>
-          )}
+          Мёртвым лежит {formatRub(mertvoe)}
+          {poteryano && poteryano.units > 0 && <> и {formatRub(poteryano.rub)} списано</>}. Общей
+          суммой с работающим товаром это не складываем: опираться на такую сумму нельзя.
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
           · Всё по себестоимости. «Потеряно» - то, что ушло со склада без продажи и без
