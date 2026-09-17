@@ -102,6 +102,8 @@ Deno.serve(async (req: Request) => {
     const fetchedAt = new Date().toISOString();
     const perMonth: Record<string, number> = {};
     const errors: Record<string, string> = {};
+    // Месяцы, у которых отчёта ещё нет - Ozon закрывает их числа пятого.
+    const notReady: string[] = [];
     let written = 0;
 
     for (let back = 0; back < months; back += 1) {
@@ -118,7 +120,15 @@ Deno.serve(async (req: Request) => {
         });
         const text = await resp.text();
         if (!resp.ok) {
-          errors[key] = `${resp.status}: ${text.slice(0, 200)}`;
+          // Текущий месяц Ozon отдаёт только после закрытия: до этого
+          // «Report was not found». Это не сбой, и раз задание ходит каждый
+          // день, в ошибки это писать нельзя - иначе журнал будет красным
+          // всегда и настоящую поломку в нём не увидеть.
+          if (resp.status === 404 && text.includes("Report was not found")) {
+            notReady.push(key);
+          } else {
+            errors[key] = `${resp.status}: ${text.slice(0, 200)}`;
+          }
           await sleep(PAUSE_MS);
           continue;
         }
@@ -189,6 +199,7 @@ Deno.serve(async (req: Request) => {
       mesyacev: months,
       strok: written,
       po_mesyacam: perMonth,
+      ...(notReady.length > 0 ? { otchyot_eshchyo_ne_zakryt: notReady } : {}),
       ...(Object.keys(errors).length > 0 ? { oshibki: errors } : {}),
     };
 
