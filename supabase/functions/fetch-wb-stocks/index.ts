@@ -55,7 +55,15 @@ interface WbRemainsRow {
 
 const num = (v: unknown): number => (typeof v === "number" ? v : 0);
 
-type ServiceKind = "total" | "in_transit_to_client" | "in_transit_from_client" | "aggregate";
+// frozen — настоящий склад ВБ, но остаток на нём мёртвый: с 16.08.2026 он не
+// шевелится и продаж оттуда нет. Такие строки, как и итоги со свёртками, идут
+// только в историю. Решение владелицы 17.09.2026: живой склад один, «Склад WB РФ».
+type ServiceKind =
+  | "total"
+  | "in_transit_to_client"
+  | "in_transit_from_client"
+  | "aggregate"
+  | "frozen";
 
 /**
  * Справочник служебных строк. Читаем из базы, а не держим списком в коде: тот же
