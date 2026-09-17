@@ -33,11 +33,11 @@ Deno.serve(async (req: Request) => {
     path = "/v1/finance/cash-flow-statement/list";
     body = {
       date: {
-        from: new Date(now.getTime() - 120 * 86400 * 1000).toISOString(),
+        from: new Date(now.getTime() - Number(url.searchParams.get("days") ?? 120) * 86400 * 1000).toISOString(),
         to: now.toISOString(),
       },
-      page: 1,
-      page_size: 10,
+      page: Number(url.searchParams.get("page") ?? 1),
+      page_size: 5,
       with_details: true,
     };
   } else {
@@ -57,10 +57,12 @@ Deno.serve(async (req: Request) => {
   try {
     const data = JSON.parse(text) as { result?: { rows?: unknown[]; cash_flows?: unknown[] } };
     const rows = data.result?.rows ?? data.result?.cash_flows ?? [];
+    const details = (data.result as { details?: unknown[] } | undefined)?.details ?? [];
     shape = {
       vsego_strok: Array.isArray(rows) ? rows.length : 0,
       pervaya_stroka: Array.isArray(rows) ? rows[0] : null,
       klyuchi_result: data.result ? Object.keys(data.result) : [],
+      podrobnosti: Array.isArray(details) ? details.slice(0, 1) : details,
     };
   } catch { /* оставляем текст */ }
 
