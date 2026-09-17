@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { Download, Info } from 'lucide-react';
+import { formatInt, formatRub } from '@/shared/lib/format';
 import { Card } from '@/shared/ui/card';
 import { PageHeader } from '@/widgets/app-shell/page-header';
 import { KpiGrid, AnomaliesBanner, LogisticsPulseCard, MorningBrief, CategoriesCard, TopProductsCard, FunnelCard, RatingCard, WbStyleChart, ConstantsTimelineCard } from '@/features/dashboard';
@@ -15,6 +17,7 @@ import {
   type PeriodRange,
 } from '@/entities/pnl';
 import { fetchAnomalies } from '@/entities/anomalies';
+import { fetchStockMoney } from '@/entities/stock-money';
 import {
   fetchAverageWarehouseCoef,
   fetchAverageWarehouseCoefAtOrBefore,
@@ -65,7 +68,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
   const weekAgoIso = weekAgo.toISOString().slice(0, 10);
 
-  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics, salesComparison, ordersComparison, adsComparison, constantsTimeline] = await Promise.all([
+  const [current, previous, series, anomalies, coefNow, coefPrev, brief, categoryPnl, topProducts, sellerAnalytics, salesComparison, ordersComparison, adsComparison, constantsTimeline, stockMoney] = await Promise.all([
     fetchPnlAggregate(range),
     fetchPnlAggregate(comparison),
     fetchDailyRevenue(range),
@@ -80,6 +83,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     fetchOrdersHourlyComparison(),
     fetchAdsHourlyComparison(),
     fetchConstantsTimeline(),
+    fetchStockMoney(),
   ]);
 
   const revenueKpi: DashboardKpi = {
@@ -109,6 +113,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     delta: Math.round(calcDelta(current.profit, previous.profit)),
     series: [],
   };
+  // Деньги в товаре для строки под шапкой. Считаем ровно то же, что блок
+  // «Где деньги» в «Остатках»: в работе - отдельно, мёртвое - отдельно.
+  const vRabote = stockMoney.find((r) => r.label === 'Лежит для продажи');
+  const mertvoe =
+    (stockMoney.find((r) => r.label === 'Заморожено на мёртвых складах')?.rub ?? 0) +
+    (stockMoney.find((r) => r.label === 'Возвраты, зависли')?.rub ?? 0);
+
   const marginKpi: DashboardKpi = {
     label: 'Маржа',
     value: current.marginPct,
@@ -155,6 +166,28 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
           </div>
         </Card>
       )}
+      {/*
+        Деньги в товаре - одной строкой, чтобы видеть каждый день не заходя
+        никуда. Показываем только работающее: владелица 17.09.2026 отменила
+        общий итог с мёртвыми деньгами, «я не питаю иллюзий». Подробности -
+        в «Остатках и оборачиваемости».
+      */}
+      {vRabote && (
+        <Link
+          href="/turnover"
+          className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border p-3 text-sm hover:bg-accent"
+        >
+          <span className="text-muted-foreground">Денег в работе</span>
+          <span className="text-lg font-semibold tabular-nums">{formatRub(vRabote.rub)}</span>
+          <span className="text-muted-foreground">{formatInt(vRabote.units)} шт</span>
+          {mertvoe > 0 && (
+            <span className="text-muted-foreground">
+              · мёртвым лежит <span className="text-destructive">{formatRub(mertvoe)}</span>
+            </span>
+          )}
+        </Link>
+      )}
+
       <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 [&>*]:h-full">
           <MorningBrief brief={brief} anomaliesCount={anomalies.length} />

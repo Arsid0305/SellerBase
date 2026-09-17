@@ -52,7 +52,7 @@ export const navItems: NavItem[] = [
   { title: 'SEO карточек', href: '/seo', icon: ScanSearch, group: 'analytics', badge: 'WB' },
   { title: 'Товарная аналитика', href: '/analytics', icon: PackageSearch, group: 'analytics' },
   { title: 'Прибыль и убытки', href: '/pnl', icon: Wallet, group: 'analytics' },
-  { title: 'Оборачиваемость', href: '/turnover', icon: Repeat, group: 'analytics' },
+  { title: 'Остатки и оборачиваемость', href: '/turnover', icon: Repeat, group: 'analytics' },
   { title: 'Отчёт по продажам', href: '/sales-report', icon: FileBarChart, group: 'analytics' },
   { title: 'Pareto 80/20', href: '/analytics/pareto', icon: Sigma, group: 'analytics' },
   {
