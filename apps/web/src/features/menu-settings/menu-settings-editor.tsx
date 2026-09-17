@@ -107,11 +107,18 @@ export function MenuSettingsEditor({ initialEntries }: { initialEntries: MenuEnt
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entries: toEntries(rows) }),
       });
-      if (!res.ok) throw new Error('save');
+      if (!res.ok) throw new Error(String(res.status));
       setSaved(true);
       router.refresh();
-    } catch {
-      setError('Не удалось сохранить. Попробуй ещё раз.');
+    } catch (e) {
+      // Причину показываем словами: молчаливое «попробуй ещё раз» уже один раз
+      // спрятало отказ по адресу сайта и стоило вечера поисков.
+      const code = e instanceof Error ? e.message : '';
+      setError(
+        code === '401'
+          ? 'Вход закончился. Обнови страницу и войди заново.'
+          : `Не удалось сохранить${code ? ` (ошибка ${code})` : ''}. Попробуй ещё раз.`,
+      );
     } finally {
       setSaving(false);
     }
