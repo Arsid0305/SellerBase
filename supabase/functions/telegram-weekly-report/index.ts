@@ -2,15 +2,17 @@
 // Запускается кроном в понедельник 07:00 UTC (10:00 МСК): к этому времени
 // ВБ уже закрыл прошлую неделю в отчёте реализации.
 //
-// Вся сборка цифр — в SQL-функции get_weekly_owner_report(): один источник
-// истины, здесь только текст. Состав показателей и честная оценка
-// «есть / частично / нет» — docs/WEEKLY_REVIEW.md.
+// Сборка цифр — в SQL: get_weekly_owner_report() даёт сам снимок,
+// get_weekly_losses() — зависшее и потерянное. Здесь только текст.
+// Состав показателей и честная оценка «есть / частично / нет» —
+// docs/WEEKLY_REVIEW.md.
 //
 // Ozon в сводке не упоминается: интеграции нет, писать «Ozon: 0» каждую
 // неделю бессмысленно. Реклама не упоминается, пока сбор выключен.
 //
 // Параметр ?week=YYYY-MM-DD — собрать за конкретную неделю (понедельник).
-// Без параметра берётся последняя закрытая неделя.
+// Без параметра берётся последняя закрытая неделя. ?dry=1 — собрать
+// текст и вернуть его в ответе, ничего не отправляя.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -107,7 +109,7 @@ function ruDate(iso: unknown): string {
 }
 
 // deno-lint-ignore no-explicit-any
-function buildMessages(r: any): string[] {
+function buildMessages(r: any, l: any): string[] {
   const p = r.period ?? {};
   const s = r.sales ?? {};
   const e = r.economy ?? {};
@@ -125,10 +127,10 @@ function buildMessages(r: any): string[] {
   money.push(`📊 *Неделя ${ruDate(p.week_start)} - ${ruDate(p.week_end)}*`);
   money.push("");
   money.push(`*Выручка* ${rub(s.revenue)}${flag(s.revenue, s.revenue_prev)}`);
-  for (const l of compare(s.revenue, s.revenue_prev, s.revenue_avg4)) money.push(l);
+  for (const l2 of compare(s.revenue, s.revenue_prev, s.revenue_avg4)) money.push(l2);
   money.push("");
   money.push(`*Прибыль* ${rub(e.profit)}${flag(e.profit, e.profit_prev)}`);
-  for (const l of compare(e.profit, e.profit_prev, e.profit_avg4)) money.push(l);
+  for (const l2 of compare(e.profit, e.profit_prev, e.profit_avg4)) money.push(l2);
   money.push(`Маржа ${dec(e.margin_pct)}%`);
   money.push("");
   money.push(`Продано ${num(s.units)} шт${delta(s.units, s.units_prev, "к прошлой")}`);
@@ -197,6 +199,26 @@ function buildMessages(r: any): string[] {
     for (const t of out) {
       rest.push(`· ${strip(t.title)} - ${num(t.stock)} шт, на ${dec(t.days, 0)} ${plural(t.days, "день", "дня", "дней")} 🔴`);
     }
+  }
+
+  // Зависшее и потерянное. Просьба владелицы 17.09.2026 после истории с
+  // 1 493 штуками, которые ВБ держит в возвратах с 16 августа и объясняет
+  // инвентаризацией. Настоящий возврат доезжает за дни: месяц на месте -
+  // это остановленный товар, и это деньги.
+  if (Number(l?.stuck_units) > 0) {
+    rest.push("");
+    rest.push(
+      `⚠️ *Зависло у ВБ* ${num(l.stuck_units)} шт на ${rub(l.stuck_rub)}` +
+        (l.stuck_days != null
+          ? `, ${num(l.stuck_days)}-й ${plural(l.stuck_days, "день", "дня", "дней")}`
+          : ""),
+    );
+    rest.push(`Висят в возвратах на склад ВБ, ${num(l.stuck_skus)} ${plural(l.stuck_skus, "товар", "товара", "товаров")}`);
+  }
+  if (Number(l?.lost_units) > 0) {
+    rest.push("");
+    rest.push(`🔴 *Потеряно за неделю* ${num(l.lost_units)} шт на ${rub(l.lost_rub)}`);
+    rest.push(`Остаток убыл сильнее, чем продали: было ${num(l.sklad_start)}, стало ${num(l.sklad_end)}, продано ${num(l.prodano)}`);
   }
 
   rest.push("");
@@ -273,12 +295,14 @@ Deno.serve(async (req: Request) => {
   const jobId: number | null = (logRow as { id: number } | null)?.id ?? null;
 
   try {
-    const { data, error } = await supabase.rpc("get_weekly_owner_report", {
-      p_week_start: week,
-    });
-    if (error) throw new Error(`get_weekly_owner_report: ${error.message}`);
+    const [snapshot, losses] = await Promise.all([
+      supabase.rpc("get_weekly_owner_report", { p_week_start: week }),
+      supabase.rpc("get_weekly_losses", { p_week_start: week }),
+    ]);
+    if (snapshot.error) throw new Error(`get_weekly_owner_report: ${snapshot.error.message}`);
+    if (losses.error) throw new Error(`get_weekly_losses: ${losses.error.message}`);
 
-    const messages = buildMessages(data);
+    const messages = buildMessages(snapshot.data, losses.data);
 
     if (dryRun) {
       if (jobId) {
