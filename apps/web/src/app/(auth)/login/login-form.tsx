@@ -20,6 +20,7 @@ export function LoginForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,8 +54,41 @@ export function LoginForm() {
     }
   }
 
+  /**
+   * Забыли пароль. Обычная процедура: письмо со ссылкой на смену пароля.
+   *
+   * Вход остаётся по паролю - решение владелицы 18.09.2026. Почта нужна
+   * только чтобы пароль восстановить, а не чтобы им пользоваться.
+   *
+   * Почту берём из поля формы, а не из состояния: поля не управляются
+   * React, чтобы работал менеджер паролей.
+   */
+  async function handleForgot() {
+    setError(null);
+    setSent(false);
+    const form = document.getElementById('login-form') as HTMLFormElement | null;
+    const emailValue = String(new FormData(form ?? undefined).get('email') ?? '').trim();
+    if (!emailValue) {
+      setError('Впиши почту - на неё придёт письмо');
+      return;
+    }
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(emailValue, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      });
+      if (resetError) setError(resetError.message);
+      else setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось отправить письмо');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form id="login-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-2 text-sm">
         <span className="text-muted-foreground">Email</span>
         <input
@@ -86,9 +120,22 @@ export function LoginForm() {
         />
       </label>
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {sent && (
+        <p className="text-sm text-emerald-600">
+          Письмо отправлено. Проверь почту, в том числе «Промоакции» и «Спам».
+        </p>
+      )}
       <Button type="submit" disabled={loading}>
         {loading ? 'Вход…' : 'Войти'}
       </Button>
+      <button
+        type="button"
+        onClick={handleForgot}
+        disabled={loading}
+        className="self-center text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+      >
+        Забыли пароль?
+      </button>
     </form>
   );
 }
