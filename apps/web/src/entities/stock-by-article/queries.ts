@@ -67,3 +67,35 @@ export async function fetchFbsMismatch(): Promise<FbsMismatchRow[]> {
     state: String(r.sostoyanie ?? ''),
   }));
 }
+
+/**
+ * Остатки ФБС по артикулам: что заявлено каждой площадке.
+ *
+ * Товар на фулфилменте лежит одной кучей, а площадкам сообщается отдельно.
+ * Поэтому здесь две колонки, а не одна: разница между ними - это продажи,
+ * которые не идут там, где число меньше.
+ *
+ * Нули не показываем: страница со списком нулей ничего не говорит, а
+ * именно этим она и была, пока остатки вводились руками и не вводились.
+ */
+export async function fetchFbsStock(): Promise<FbsMismatchRow[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('v_fbs_stock_match')
+    .select('artikul, tovar, zayavleno_vb, zayavleno_ozon, raznica, sostoyanie')
+    .range(0, 5000);
+
+  if (error) {
+    console.error('[fetchFbsStock]', error);
+    return [];
+  }
+
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    article: String(r.artikul ?? ''),
+    title: (r.tovar as string | null) ?? null,
+    declaredWb: num(r.zayavleno_vb),
+    declaredOzon: num(r.zayavleno_ozon),
+    diff: num(r.raznica),
+    state: String(r.sostoyanie ?? ''),
+  }));
+}
