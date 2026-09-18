@@ -5,10 +5,19 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/shared/lib/supabase/client';
 import { Button } from '@/shared/ui/button';
 
+/**
+ * Вход в программу.
+ *
+ * Поля намеренно НЕ управляются состоянием React. Так было, и из-за этого
+ * менеджер паролей не срабатывал: он пишет значение прямо в поле, минуя
+ * React, а React тут же возвращает поле к своему пустому состоянию. Браузер
+ * проверяет обязательность до отправки формы, видит пустоту и отказывает -
+ * до обработчика дело не доходило вообще.
+ *
+ * Теперь значение живёт в самом поле, а на отправке читается из формы.
+ */
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,12 +26,9 @@ export function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      // Менеджер паролей заполняет поля мимо React, onChange не срабатывает
-      // и состояние остаётся пустым. Поэтому значения берём из самой формы.
-      const form = e.currentTarget;
-      const fd = new FormData(form);
-      const emailValue = (String(fd.get('email') ?? '') || email).trim();
-      const passwordValue = String(fd.get('password') ?? '') || password;
+      const fd = new FormData(e.currentTarget);
+      const emailValue = String(fd.get('email') ?? '').trim();
+      const passwordValue = String(fd.get('password') ?? '');
 
       if (!emailValue || !passwordValue) {
         setError('Заполните почту и пароль');
@@ -57,8 +63,7 @@ export function LoginForm() {
           required
           autoFocus
           autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={() => setError(null)}
           className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           placeholder="you@example.com"
         />
@@ -70,10 +75,14 @@ export function LoginForm() {
           name="password"
           required
           autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={() => setError(null)}
           className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          placeholder="••••••••"
+          /*
+            Заполнитель НЕ из точек. Точки выглядели как уже введённый пароль:
+            владелица нажимала «Войти» по пустому полю и получала отказ
+            браузера при заполненном на вид поле. 18.09.2026.
+          */
+          placeholder="Введите пароль"
         />
       </label>
       {error && <p className="text-sm text-destructive">{error}</p>}
