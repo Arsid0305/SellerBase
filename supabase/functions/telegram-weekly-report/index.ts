@@ -7,8 +7,8 @@
 // Состав показателей и честная оценка «есть / частично / нет» —
 // docs/WEEKLY_REVIEW.md.
 //
-// Ozon в сводке не упоминается: интеграции нет, писать «Ozon: 0» каждую
-// неделю бессмысленно. Реклама не упоминается, пока сбор выключен.
+// Ozon с 18.09.2026 в сводке есть — отдельным блоком, get_weekly_ozon_report().
+// Реклама не упоминается, пока сбор выключен.
 //
 // Параметр ?week=YYYY-MM-DD — собрать за конкретную неделю (понедельник).
 // Без параметра берётся последняя закрытая неделя. ?dry=1 — собрать
@@ -19,7 +19,7 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 import { checkCronSecret } from "../_shared/auth.ts";
 
 const JOB_NAME = "telegram-weekly-report";
-const BASE_URL = "https://seller-base.vercel.app";
+const BASE_URL = "https://seller-base-web.vercel.app";
 const TG_LIMIT = 3800; // запас к лимиту телеграма в 4096 символов
 
 const corsHeaders = {
@@ -98,6 +98,13 @@ function flag(cur: unknown, base: unknown): string {
   return "";
 }
 
+/** Мелкие суммы: округление до рубля превращает 8,57 + 7,50 + 3,15 в 9 + 8 + 3,
+ *  и сумма перестаёт сходиться. До 100 ₽ показываем с копейками. */
+function rubTochno(n: unknown): string {
+  const v = Number(n ?? 0);
+  return Math.abs(v) >= 100 ? rub(v) : `${dec(v, 2)} ₽`;
+}
+
 function ruDate(iso: unknown): string {
   const s = String(iso ?? "");
   const [y, m, d] = s.split("-");
@@ -109,7 +116,7 @@ function ruDate(iso: unknown): string {
 }
 
 // deno-lint-ignore no-explicit-any
-function buildMessages(r: any, l: any): string[] {
+function buildMessages(r: any, l: any, o: any): string[] {
   const p = r.period ?? {};
   const s = r.sales ?? {};
   const e = r.economy ?? {};
@@ -235,6 +242,55 @@ function buildMessages(r: any, l: any): string[] {
   rest.push(`→ Подробно: ${BASE_URL}/pnl`);
   parts.push(rest.join("\n"));
 
+  // ── 4. Ozon ────────────────────────────────────────────────────────
+  // Просьба владелицы 18.09.2026: сводка приходила только по ВБ, а на Ozon
+  // уже половина товара. Важно: Ozon закрывает деньги раз в месяц, поэтому
+  // недельная выручка тут считается по заказам, а не по отчёту площадки.
+  // Расходы (хранение, эквайринг и прочее) приходят понедельно и настоящие.
+  if (o) {
+    const os = o.sales ?? {};
+    const ost = o.stock ?? {};
+    const oe = (o.expenses ?? {}) as Record<string, number>;
+
+    const oz: string[] = [];
+    oz.push(`🟣 *Ozon*`);
+    if (Number(os.units) > 0) {
+      oz.push(`Заказали ${num(os.units)} шт на ${rub(os.revenue)}${delta(os.units, os.units_prev, "к прошлой")}`);
+      oz.push(`Средний чек ${rub(os.avg_check)}`);
+      oz.push(`Торговали ${num(os.skus_sold)} ${plural(os.skus_sold, "товар", "товара", "товаров")}`);
+      if (Number(os.fbs_units) > 0) oz.push(`Из них со своего склада (ФБС) ${num(os.fbs_units)} шт`);
+      oz.push(`_Считаю по заказам: Ozon закрывает деньги раз в месяц._`);
+    } else {
+      oz.push(`Продаж не было`);
+    }
+    if (Number(os.cancels) > 0) oz.push(`Отменили ${num(os.cancels)} шт 🔴`);
+
+    oz.push("");
+    oz.push(`📦 *Склад Ozon*`);
+    oz.push(`Склад Ozon (ФБО) ${num(ost.fbo)} шт · свой склад (ФБС) ${num(ost.fbs)} шт`);
+    oz.push(`Всего ${num(ost.total)} шт`);
+
+    const stat = Object.entries(oe).filter(([, v]) => Number(v) !== 0);
+    if (stat.length > 0) {
+      oz.push("");
+      oz.push(`💸 *Забрал Ozon* ${rubTochno(o.expenses_total)}`);
+      for (const [k, v] of stat.sort((a, b) => Number(b[1]) - Number(a[1]))) {
+        oz.push(`· ${k} ${rubTochno(v)}`);
+      }
+    }
+
+    // deno-lint-ignore no-explicit-any
+    const otop = (o.top_revenue ?? []) as any[];
+    if (otop.length > 0) {
+      oz.push("");
+      oz.push(`🏆 *Больше всех заказали*`);
+      for (const t of otop) {
+        oz.push(`· ${strip(t.title)} - ${num(t.units)} шт на ${rub(t.revenue)}`);
+      }
+    }
+    parts.push(oz.join("\n"));
+  }
+
   // Режем на куски по лимиту телеграма.
   const out2: string[] = [];
   for (const part of parts) {
@@ -295,14 +351,16 @@ Deno.serve(async (req: Request) => {
   const jobId: number | null = (logRow as { id: number } | null)?.id ?? null;
 
   try {
-    const [snapshot, losses] = await Promise.all([
+    const [snapshot, losses, ozon] = await Promise.all([
       supabase.rpc("get_weekly_owner_report", { p_week_start: week }),
       supabase.rpc("get_weekly_losses", { p_week_start: week }),
+      supabase.rpc("get_weekly_ozon_report", { p_week_start: week }),
     ]);
     if (snapshot.error) throw new Error(`get_weekly_owner_report: ${snapshot.error.message}`);
     if (losses.error) throw new Error(`get_weekly_losses: ${losses.error.message}`);
+    if (ozon.error) throw new Error(`get_weekly_ozon_report: ${ozon.error.message}`);
 
-    const messages = buildMessages(snapshot.data, losses.data);
+    const messages = buildMessages(snapshot.data, losses.data, ozon.data);
 
     if (dryRun) {
       if (jobId) {
