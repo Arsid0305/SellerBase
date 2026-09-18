@@ -62,7 +62,7 @@ export const navItems: NavItem[] = [
     group: 'analytics',
   },
   { title: 'Анализатор маржи', href: '/analytics/margin', icon: TrendingDown, group: 'analytics' },
-  { title: 'Промо-акции', href: '/promo', icon: Percent, group: 'operations', badge: 'WB' },
+  { title: 'Промо-акции', href: '/promo', icon: Percent, group: 'operations' },
   { title: 'Остаток на фулфилменте', href: '/products/stock', icon: Warehouse, group: 'operations' },
   { title: 'Поставки', href: '/supplies', icon: Truck, group: 'operations' },
   { title: 'Заказы Китая', href: '/supplies/china-order', icon: Package, group: 'operations' },
@@ -71,5 +71,5 @@ export const navItems: NavItem[] = [
   { title: 'Мои расходы', href: '/expenses', icon: Receipt, group: 'data' },
   { title: 'Уведомления', href: '/settings/notifications', icon: Bell, group: 'data' },
   { title: 'Качество данных', href: '/data-quality', icon: ShieldCheck, group: 'data' },
-  { title: 'Симулятор цены', href: '/price-simulator', icon: Calculator, group: 'data', badge: 'WB' },
+  { title: 'Цены', href: '/price-simulator', icon: Calculator, group: 'data' },
 ];
