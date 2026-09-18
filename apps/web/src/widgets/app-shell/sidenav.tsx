@@ -83,7 +83,13 @@ export function Sidenav({ entries }: { entries: MenuEntry[] }) {
                     <Icon className="size-4" />
                     <span className="flex-1 truncate">{item.title}</span>
                     {item.badge && (
-                      <Badge variant="secondary" className="text-[10px]">
+                      // Метка площадки: тем же цветом, что Wildberries в
+                      // переключателе каналов наверху - чтобы связь читалась
+                      // без пояснений.
+                      <Badge
+                        variant="secondary"
+                        className="bg-fuchsia-500/10 text-[10px] font-medium text-fuchsia-700 dark:text-fuchsia-300"
+                      >
                         {item.badge}
                       </Badge>
                     )}

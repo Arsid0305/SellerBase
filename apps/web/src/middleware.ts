@@ -7,14 +7,36 @@ export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|branding/|manifest.webmanifest|sw.js|workbox-).*)'],
 };
 
-const ALLOWED_HOSTS = ['seller-base.vercel.app', 'localhost:3000', 'localhost', 'arsid.vercel.app'];
+// Адрес, с которого разрешено слать изменения, берётся из самого запроса:
+// раньше он был вписан руками и разошёлся с настоящим адресом сайта -
+// сохранение настроек молча получало отказ. Список ниже нужен только для
+// работы на своей машине.
+const DEV_HOSTS = ['localhost:3000', 'localhost', '127.0.0.1:3000', '127.0.0.1'];
 
 // Публичные пути — доступны без сессии.
 const PUBLIC_PATHS = ['/login', '/auth/callback', '/api/health'];
 
-function hasAllowedHost(value: string | null): boolean {
-  if (!value) return false;
-  return ALLOWED_HOSTS.some((host) => value.includes(host));
+function hostOf(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).host.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Запрос пришёл со своей же страницы?
+ *
+ * Сравниваем адрес источника с адресом, на который пришёл запрос, целиком -
+ * не кусками. Проверка по куску строки пропускала бы чужой домен вида
+ * `seller-base.vercel.app.example.com`.
+ */
+function isSameOrigin(req: NextRequest): boolean {
+  const self = (req.headers.get('host') ?? '').toLowerCase();
+  const source = hostOf(req.headers.get('origin')) ?? hostOf(req.headers.get('referer'));
+  if (!source) return false;
+  return source === self || DEV_HOSTS.includes(source);
 }
 
 function isPublicPath(pathname: string): boolean {
@@ -81,9 +103,7 @@ export default async function middleware(req: NextRequest) {
 
   // === Слои B/C только для /api/* мутирующих ===
   if (isApi && req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
-    const origin = req.headers.get('origin');
-    const referer = req.headers.get('referer');
-    const sameOrigin = hasAllowedHost(origin) || hasAllowedHost(referer);
+    const sameOrigin = isSameOrigin(req);
 
     const expected = process.env.API_SECRET;
     if (expected) {
