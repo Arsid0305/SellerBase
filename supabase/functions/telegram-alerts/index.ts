@@ -12,7 +12,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkCronSecret } from "../_shared/auth.ts";
 
-const BASE_URL = "https://seller-base.vercel.app";
+const BASE_URL = "https://seller-base-web.vercel.app";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
