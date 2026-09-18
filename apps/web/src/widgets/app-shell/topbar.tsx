@@ -8,6 +8,7 @@ import { PeriodComparePicker } from '@/shared/ui/domain/period-compare-picker';
 import { MarketplaceFilter } from '@/shared/ui/domain/marketplace-filter';
 import { useSidenavStore } from '@/shared/stores/sidenav';
 import { NotificationBell } from './notification-bell';
+import { LogoutButton } from './logout-button';
 
 function PeriodPickerFallback() {
   return (
@@ -49,6 +50,7 @@ export function Topbar() {
         <Sun className="size-4 dark:hidden" />
         <Moon className="hidden size-4 dark:block" />
       </Button>
+      <LogoutButton />
     </header>
   );
 }
